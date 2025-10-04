@@ -39,18 +39,12 @@ export function Footer() {
               <li className="flex items-start gap-3 text-sm text-muted-foreground">
                 <Mail className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
                 <a href="mailto:info@agroalva.com" className="hover:text-foreground transition-colors">
-                  info@agroalva.com
-                </a>
-              </li>
-              <li className="flex items-start gap-3 text-sm text-muted-foreground">
-                <Phone className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-                <a href="tel:+5491112345678" className="hover:text-foreground transition-colors">
-                  +54 9 11 1234-5678
+                  info@agroalva.com.ar
                 </a>
               </li>
               <li className="flex items-start gap-3 text-sm text-muted-foreground">
                 <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-                <span>Buenos Aires, Argentina</span>
+                <span>Las Breñas, Chaco, Argentina</span>
               </li>
             </ul>
           </div>
