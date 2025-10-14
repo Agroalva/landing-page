@@ -21,7 +21,7 @@ export function Hero() {
         <div className="mx-auto max-w-4xl text-center">
           {/* Logo/Brand */}
           <div className="mb-8 flex items-center justify-center">
-            <Image src="/logo.svg" alt="AGROALVA" width={280} height={80} className="h-16 w-auto md:h-20" priority />
+            <Image src="/logo.svg" alt="AGROALVA" width={500} height={500} className="w-auto" priority />
           </div>
 
           {/* Hero headline */}
