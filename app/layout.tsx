@@ -10,7 +10,9 @@ export const metadata: Metadata = {
   title: "agroAlva - Marketplace del Agro Argentino",
   description:
     "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
-  generator: "v0.app",
+  icons: {
+    icon: "/favicon.svg",
+  },
 }
 
 export default function RootLayout({
