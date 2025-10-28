@@ -1,0 +1,19 @@
+{
+  "name": "@repo/utils",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.5"
+  },
+  "devDependencies": {
+    "eslint": "^9.25.0",
+    "typescript": "^5"
+  }
+}
