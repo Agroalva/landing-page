@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -6,52 +6,58 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
-const MOCK_CONVERSATIONS = [
-  {
-    id: 1,
-    name: "Carlos Méndez",
-    lastMessage: "¿Aún tienes el tractor disponible?",
-    time: "10:30 AM",
-    unread: 2,
-    avatar: "https://i.pravatar.cc/150?img=12",
-    online: true,
-  },
-  {
-    id: 2,
-    name: "Ana Rodríguez",
-    lastMessage: "Perfecto, nos vemos mañana",
-    time: "Ayer",
-    unread: 0,
-    avatar: "https://i.pravatar.cc/150?img=5",
-    online: false,
-  },
-  {
-    id: 3,
-    name: "Luis González",
-    lastMessage: "Gracias por la información",
-    time: "Hace 2 días",
-    unread: 0,
-    avatar: "https://i.pravatar.cc/150?img=33",
-    online: false,
-  },
-  {
-    id: 4,
-    name: "María Fernández",
-    lastMessage: "¿Cuánto cuesta el servicio de fumigación?",
-    time: "Hace 3 días",
-    unread: 1,
-    avatar: "https://i.pravatar.cc/150?img=9",
-    online: true,
-  },
-];
+import { useAuthSession } from "@/hooks/use-session";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuthSession();
+  const conversations = useQuery(api.conversations.listForUser);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/(auth)/sign-in");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const formatTime = (timestamp?: number) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    } else if (days === 1) {
+      return "Ayer";
+    } else if (days < 7) {
+      return `Hace ${days} días`;
+    } else {
+      return date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -63,47 +69,11 @@ export default function MessagesScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {MOCK_CONVERSATIONS.map((conversation) => (
-          <TouchableOpacity
-            key={conversation.id}
-            style={styles.conversationItem}
-            onPress={() => router.push(`/chat/${conversation.id}`)}
-          >
-            <View style={styles.avatarContainer}>
-              <Image
-                source={{ uri: conversation.avatar }}
-                style={styles.avatar}
-              />
-              {conversation.online && <View style={styles.onlineIndicator} />}
-            </View>
-
-            <View style={styles.conversationInfo}>
-              <View style={styles.conversationHeader}>
-                <Text style={styles.conversationName}>{conversation.name}</Text>
-                <Text style={styles.conversationTime}>{conversation.time}</Text>
-              </View>
-              <View style={styles.conversationFooter}>
-                <Text
-                  style={[
-                    styles.lastMessage,
-                    conversation.unread > 0 && styles.lastMessageUnread,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {conversation.lastMessage}
-                </Text>
-                {conversation.unread > 0 && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{conversation.unread}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {/* Empty State */}
-        {MOCK_CONVERSATIONS.length === 0 && (
+        {conversations === undefined ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2E7D32" />
+          </View>
+        ) : conversations.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="chatbubbles-outline" size={64} color="#E0E0E0" />
             <Text style={styles.emptyTitle}>No hay conversaciones</Text>
@@ -111,6 +81,36 @@ export default function MessagesScreen() {
               Comienza a conectar con otros usuarios
             </Text>
           </View>
+        ) : (
+          conversations.map((conversation) => (
+            <TouchableOpacity
+              key={conversation._id}
+              style={styles.conversationItem}
+              onPress={() => router.push(`/chat/${conversation._id}`)}
+            >
+              <View style={styles.avatarContainer}>
+                <View style={styles.avatar}>
+                  <Ionicons name="person" size={28} color="#9E9E9E" />
+                </View>
+              </View>
+
+              <View style={styles.conversationInfo}>
+                <View style={styles.conversationHeader}>
+                  <Text style={styles.conversationName}>
+                    Conversación con {conversation.memberIds.length - 1} {conversation.memberIds.length === 2 ? "persona" : "personas"}
+                  </Text>
+                  <Text style={styles.conversationTime}>
+                    {formatTime(conversation.lastMessageAt)}
+                  </Text>
+                </View>
+                <View style={styles.conversationFooter}>
+                  <Text style={styles.lastMessage} numberOfLines={1}>
+                    {conversation.lastMessageAt ? "Último mensaje" : "Nueva conversación"}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))
         )}
       </ScrollView>
     </SafeAreaView>
@@ -230,6 +230,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#757575",
     marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

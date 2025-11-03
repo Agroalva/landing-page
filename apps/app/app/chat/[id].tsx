@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,61 +9,67 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-
-const MOCK_MESSAGES = [
-  {
-    id: 1,
-    text: "Hola, estoy interesado en el tractor",
-    sender: "other",
-    time: "10:30 AM",
-  },
-  {
-    id: 2,
-    text: "Hola! Claro, con gusto. ¿Qué información necesitas?",
-    sender: "me",
-    time: "10:32 AM",
-  },
-  {
-    id: 3,
-    text: "¿Aún está disponible?",
-    sender: "other",
-    time: "10:33 AM",
-  },
-  {
-    id: 4,
-    text: "Sí, está disponible. ¿Te gustaría verlo?",
-    sender: "me",
-    time: "10:35 AM",
-  },
-  {
-    id: 5,
-    text: "Perfecto! ¿Cuándo podríamos coordinar?",
-    sender: "other",
-    time: "10:36 AM",
-  },
-];
-
-const CONTACT = {
-  name: "Carlos Méndez",
-  avatar: "https://i.pravatar.cc/150?img=12",
-  online: true,
-};
+import { useAuthSession } from "@/hooks/use-session";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 export default function ChatScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{ id: string }>();
+  const { isAuthenticated, isLoading, user } = useAuthSession();
   const [message, setMessage] = useState("");
+  const conversationId = params.id as Id<"conversations">;
+  
+  const messages = useQuery(
+    api.conversations.listMessages,
+    conversationId ? { conversationId, limit: 50 } : "skip"
+  );
+  const sendMessage = useMutation(api.conversations.sendMessage);
 
-  const handleSend = () => {
-    if (message.trim()) {
-      // Logic to send message
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/(auth)/sign-in");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const handleSend = async () => {
+    if (!message.trim() || !conversationId) return;
+
+    try {
+      await sendMessage({
+        conversationId,
+        text: message.trim(),
+      });
       setMessage("");
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
     }
   };
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -78,14 +84,13 @@ export default function ChatScreen() {
 
         <View style={styles.contactInfo}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: CONTACT.avatar }} style={styles.avatar} />
-            {CONTACT.online && <View style={styles.onlineIndicator} />}
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={20} color="#9E9E9E" />
+            </View>
           </View>
           <View>
-            <Text style={styles.contactName}>{CONTACT.name}</Text>
-            <Text style={styles.onlineStatus}>
-              {CONTACT.online ? "En línea" : "Desconectado"}
-            </Text>
+            <Text style={styles.contactName}>Conversación</Text>
+            <Text style={styles.onlineStatus}>Activa</Text>
           </View>
         </View>
 
@@ -105,43 +110,54 @@ export default function ChatScreen() {
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.dateHeader}>
-            <Text style={styles.dateText}>Hoy</Text>
-          </View>
-
-          {MOCK_MESSAGES.map((msg) => (
-            <View
-              key={msg.id}
-              style={[
-                styles.messageRow,
-                msg.sender === "me" && styles.messageRowMe,
-              ]}
-            >
-              <View
-                style={[
-                  styles.messageBubble,
-                  msg.sender === "me" && styles.messageBubbleMe,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.messageText,
-                    msg.sender === "me" && styles.messageTextMe,
-                  ]}
-                >
-                  {msg.text}
-                </Text>
-                <Text
-                  style={[
-                    styles.messageTime,
-                    msg.sender === "me" && styles.messageTimeMe,
-                  ]}
-                >
-                  {msg.time}
-                </Text>
-              </View>
+          {messages === undefined ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2E7D32" />
             </View>
-          ))}
+          ) : messages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubbles-outline" size={48} color="#E0E0E0" />
+              <Text style={styles.emptyText}>No hay mensajes aún</Text>
+              <Text style={styles.emptySubtext}>Envía el primer mensaje</Text>
+            </View>
+          ) : (
+            messages.map((msg) => {
+              const isMe = user && msg.senderId === (user._id as string);
+              return (
+                <View
+                  key={msg._id}
+                  style={[
+                    styles.messageRow,
+                    isMe && styles.messageRowMe,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.messageBubble,
+                      isMe && styles.messageBubbleMe,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.messageText,
+                        isMe && styles.messageTextMe,
+                      ]}
+                    >
+                      {msg.text}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.messageTime,
+                        isMe && styles.messageTimeMe,
+                      ]}
+                    >
+                      {formatTime(msg.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </ScrollView>
 
         {/* Input Bar */}
@@ -343,6 +359,36 @@ const styles = StyleSheet.create({
   },
   sendButtonActive: {
     backgroundColor: "#2E7D32",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#212121",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#757575",
+    marginTop: 4,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

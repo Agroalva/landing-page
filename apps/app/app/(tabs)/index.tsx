@@ -8,10 +8,14 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 const { width } = Dimensions.get("window");
 
@@ -23,43 +27,9 @@ const CATEGORIES = [
   { id: 5, name: "Transporte", icon: "car", color: "#2E7D32" },
 ];
 
-const MOCK_PRODUCTS = [
-  {
-    id: 1,
-    title: "Tractor John Deere 5075E",
-    price: "$45,000",
-    location: "Maracay, Aragua",
-    image: "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=400",
-    category: "Maquinaria",
-  },
-  {
-    id: 2,
-    title: "Semillas de Maíz Híbrido",
-    price: "$120/saco",
-    location: "Valencia, Carabobo",
-    image: "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=400",
-    category: "Semillas",
-  },
-  {
-    id: 3,
-    title: "Servicio de Fumigación",
-    price: "$80/hectárea",
-    location: "Barquisimeto, Lara",
-    image: "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=400",
-    category: "Servicios",
-  },
-  {
-    id: 4,
-    title: "Cosechadora Case IH",
-    price: "$85,000",
-    location: "Guanare, Portuguesa",
-    image: "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=400",
-    category: "Maquinaria",
-  },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
+  const posts = useQuery(api.posts.feed, { limit: 20 });
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -139,46 +109,64 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {MOCK_PRODUCTS.map((product) => (
-            <TouchableOpacity
-              key={product.id}
-              style={styles.productCard}
-              onPress={() => router.push(`/product/${product.id}`)}
-            >
-              <Image
-                source={{ uri: product.image }}
-                style={styles.productImage}
-              />
-              <View style={styles.productInfo}>
-                <View style={styles.productHeader}>
-                  <Text style={styles.productTitle}>{product.title}</Text>
-                  <TouchableOpacity>
-                    <Ionicons
-                      name="heart-outline"
-                      size={22}
-                      color="#2E7D32"
-                    />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.productPrice}>{product.price}</Text>
-                <View style={styles.productFooter}>
-                  <View style={styles.locationContainer}>
-                    <Ionicons
-                      name="location-outline"
-                      size={16}
-                      color="#757575"
-                    />
-                    <Text style={styles.locationText}>{product.location}</Text>
+          {posts === undefined ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2E7D32" />
+            </View>
+          ) : posts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="document-text-outline" size={64} color="#E0E0E0" />
+              <Text style={styles.emptyTitle}>No hay publicaciones</Text>
+              <Text style={styles.emptySubtitle}>
+                Sé el primero en compartir algo
+              </Text>
+            </View>
+          ) : (
+            posts.map((post) => (
+              <TouchableOpacity
+                key={post._id}
+                style={styles.productCard}
+                onPress={() => router.push(`/product/${post._id}`)}
+              >
+                {post.mediaIds && post.mediaIds.length > 0 ? (
+                  <Image
+                    source={{ uri: `placeholder-for-${post.mediaIds[0]}` }}
+                    style={styles.productImage}
+                  />
+                ) : (
+                  <View style={styles.productImagePlaceholder}>
+                    <Ionicons name="image-outline" size={48} color="#9E9E9E" />
                   </View>
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>
-                      {product.category}
+                )}
+                <View style={styles.productInfo}>
+                  <View style={styles.productHeader}>
+                    <Text style={styles.productTitle} numberOfLines={2}>
+                      {post.text}
                     </Text>
+                    <TouchableOpacity>
+                      <Ionicons
+                        name="heart-outline"
+                        size={22}
+                        color="#2E7D32"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.productFooter}>
+                    <View style={styles.locationContainer}>
+                      <Ionicons
+                        name="time-outline"
+                        size={16}
+                        color="#757575"
+                      />
+                      <Text style={styles.locationText}>
+                        {new Date(post.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -394,6 +382,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#212121",
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#757575",
+    marginTop: 8,
+  },
+  productImagePlaceholder: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

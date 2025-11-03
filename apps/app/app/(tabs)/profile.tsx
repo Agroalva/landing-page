@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -6,47 +6,86 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
-const USER_PROFILE = {
-  name: "Pedro Ramírez",
-  role: "Productor Agrícola",
-  location: "Maracay, Aragua",
-  phone: "+58 424-1234567",
-  email: "pedro.ramirez@agroalva.com",
-  rating: 4.8,
-  totalReviews: 24,
-  verified: true,
-  avatar: "https://i.pravatar.cc/150?img=15",
-};
-
-const USER_LISTINGS = [
-  {
-    id: 1,
-    title: "Tractor John Deere 5075E",
-    price: "$45,000",
-    status: "active",
-    views: 156,
-  },
-  {
-    id: 2,
-    title: "Semillas de Maíz Híbrido",
-    price: "$120/saco",
-    status: "active",
-    views: 89,
-  },
-  {
-    id: 3,
-    title: "Cosechadora Case IH",
-    price: "$85,000",
-    status: "sold",
-    views: 234,
-  },
-];
+import { useRouter } from "expo-router";
+import { useAuthSession } from "@/hooks/use-session";
+import { authClient } from "@/lib/auth-client";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuthSession();
+  const profile = useQuery(api.users.getMe);
+  const ensureProfile = useMutation(api.users.ensureProfile);
+  
+  // Get userId from profile (most reliable) or fallback to user object
+  // Only query posts when we have a valid userId
+  const userId = profile?.userId;
+  
+  const userPosts = useQuery(
+    api.posts.byUser,
+    userId ? { userId, limit: 10 } : "skip"
+  );
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/(auth)/sign-in");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Ensure profile exists if user is authenticated but profile is missing
+  useEffect(() => {
+    if (isAuthenticated && user && profile === null) {
+      ensureProfile().catch((error) => {
+        console.error("Failed to ensure profile:", error);
+      });
+    }
+  }, [isAuthenticated, user, profile, ensureProfile]);
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Cerrar sesión",
+      "¿Estás seguro de que deseas cerrar sesión?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Cerrar sesión",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await authClient.signOut();
+              router.replace("/(auth)/sign-in");
+            } catch (error) {
+              Alert.alert("Error", "No se pudo cerrar sesión");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
@@ -60,24 +99,19 @@ export default function ProfileScreen() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: USER_PROFILE.avatar }} style={styles.avatar} />
-            {USER_PROFILE.verified && (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            {profile?.avatarId ? (
+              <Image source={{ uri: `placeholder-for-${profile.avatarId}` }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={40} color="#9E9E9E" />
               </View>
             )}
           </View>
 
-          <Text style={styles.userName}>{USER_PROFILE.name}</Text>
-          <Text style={styles.userRole}>{USER_PROFILE.role}</Text>
-
-          <View style={styles.ratingContainer}>
-            <Ionicons name="star" size={20} color="#FBC02D" />
-            <Text style={styles.ratingText}>{USER_PROFILE.rating}</Text>
-            <Text style={styles.reviewsText}>
-              ({USER_PROFILE.totalReviews} reseñas)
-            </Text>
-          </View>
+          <Text style={styles.userName}>
+            {profile?.displayName || user?.name || "Usuario"}
+          </Text>
+          {profile?.bio && <Text style={styles.userRole}>{profile.bio}</Text>}
 
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.primaryButton}>
@@ -92,39 +126,23 @@ export default function ProfileScreen() {
         </View>
 
         {/* Contact Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Información de contacto</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoItem}>
-              <Ionicons name="location" size={20} color="#757575" />
-              <Text style={styles.infoText}>{USER_PROFILE.location}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="call" size={20} color="#757575" />
-              <Text style={styles.infoText}>{USER_PROFILE.phone}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="mail" size={20} color="#757575" />
-              <Text style={styles.infoText}>{USER_PROFILE.email}</Text>
+        {user?.email && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Información de contacto</Text>
+            <View style={styles.infoCard}>
+              <View style={styles.infoItem}>
+                <Ionicons name="mail" size={20} color="#757575" />
+                <Text style={styles.infoText}>{user.email}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Statistics */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{userPosts?.length || 0}</Text>
             <Text style={styles.statLabel}>Publicaciones</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>1.2K</Text>
-            <Text style={styles.statLabel}>Visitas</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>45</Text>
-            <Text style={styles.statLabel}>Favoritos</Text>
           </View>
         </View>
 
@@ -137,36 +155,32 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {USER_LISTINGS.map((listing) => (
-            <TouchableOpacity key={listing.id} style={styles.listingCard}>
-              <View style={styles.listingInfo}>
-                <Text style={styles.listingTitle}>{listing.title}</Text>
-                <Text style={styles.listingPrice}>{listing.price}</Text>
-                <View style={styles.listingFooter}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      listing.status === "sold" && styles.statusBadgeSold,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        listing.status === "sold" && styles.statusTextSold,
-                      ]}
-                    >
-                      {listing.status === "active" ? "Activa" : "Vendida"}
+          {userPosts === undefined ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#2E7D32" />
+            </View>
+          ) : userPosts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="document-text-outline" size={48} color="#E0E0E0" />
+              <Text style={styles.emptyText}>No hay publicaciones</Text>
+            </View>
+          ) : (
+            userPosts.map((post) => (
+              <TouchableOpacity key={post._id} style={styles.listingCard}>
+                <View style={styles.listingInfo}>
+                  <Text style={styles.listingTitle} numberOfLines={2}>
+                    {post.text}
+                  </Text>
+                  <View style={styles.listingFooter}>
+                    <Text style={styles.viewsText}>
+                      {new Date(post.createdAt).toLocaleDateString()}
                     </Text>
                   </View>
-                  <View style={styles.viewsContainer}>
-                    <Ionicons name="eye-outline" size={16} color="#757575" />
-                    <Text style={styles.viewsText}>{listing.views} vistas</Text>
-                  </View>
                 </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
-            </TouchableOpacity>
-          ))}
+                <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Menu Options */}
@@ -195,7 +209,7 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
             <View style={styles.menuItemLeft}>
               <Ionicons name="log-out-outline" size={22} color="#F44336" />
               <Text style={[styles.menuText, { color: "#F44336" }]}>
@@ -485,6 +499,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     color: "#212121",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#757575",
+    marginTop: 8,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

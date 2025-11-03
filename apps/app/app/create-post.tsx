@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,15 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuthSession } from "@/hooks/use-session";
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
 
 const CATEGORIES = [
   "Maquinaria",
@@ -24,17 +29,51 @@ const CATEGORIES = [
 
 export default function CreatePostScreen() {
   const router = useRouter();
-  const [title, setTitle] = useState("");
+  const { isAuthenticated, isLoading } = useAuthSession();
+  const createPost = useMutation(api.posts.create);
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [location, setLocation] = useState("");
+  const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
 
-  const handlePublish = () => {
-    // Logic to publish the post
-    router.back();
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/(auth)/sign-in");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const handlePublish = async () => {
+    if (!description.trim() || !isAuthenticated) {
+      Alert.alert("Error", "Por favor completa la descripción");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createPost({ 
+        text: description.trim(),
+        mediaIds: undefined, // TODO: Add media upload support
+      });
+      router.back();
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "No se pudo crear la publicación");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -43,8 +82,12 @@ export default function CreatePostScreen() {
           <Ionicons name="close" size={28} color="#212121" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nueva publicación</Text>
-        <TouchableOpacity onPress={handlePublish}>
-          <Text style={styles.publishText}>Publicar</Text>
+        <TouchableOpacity onPress={handlePublish} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#2E7D32" />
+          ) : (
+            <Text style={styles.publishText}>Publicar</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -78,71 +121,6 @@ export default function CreatePostScreen() {
           </Text>
         </View>
 
-        {/* Title */}
-        <View style={styles.section}>
-          <Text style={styles.label}>
-            Título <Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Tractor John Deere 5075E"
-            value={title}
-            onChangeText={setTitle}
-            placeholderTextColor="#9E9E9E"
-          />
-        </View>
-
-        {/* Category */}
-        <View style={styles.section}>
-          <Text style={styles.label}>
-            Categoría <Text style={styles.required}>*</Text>
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesContainer}
-          >
-            {CATEGORIES.map((category) => (
-              <TouchableOpacity
-                key={category}
-                style={[
-                  styles.categoryChip,
-                  selectedCategory === category && styles.categoryChipSelected,
-                ]}
-                onPress={() => setSelectedCategory(category)}
-              >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    selectedCategory === category &&
-                      styles.categoryTextSelected,
-                  ]}
-                >
-                  {category}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Price */}
-        <View style={styles.section}>
-          <Text style={styles.label}>
-            Precio <Text style={styles.required}>*</Text>
-          </Text>
-          <View style={styles.priceInputContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={styles.priceInput}
-              placeholder="0.00"
-              value={price}
-              onChangeText={setPrice}
-              keyboardType="numeric"
-              placeholderTextColor="#9E9E9E"
-            />
-          </View>
-        </View>
-
         {/* Description */}
         <View style={styles.section}>
           <Text style={styles.label}>
@@ -150,29 +128,16 @@ export default function CreatePostScreen() {
           </Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Describe tu producto o servicio en detalle..."
+            placeholder="¿Qué quieres compartir?"
             value={description}
             onChangeText={setDescription}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
             placeholderTextColor="#9E9E9E"
+            editable={!loading}
           />
-          <Text style={styles.helperText}>Mínimo 50 caracteres</Text>
-        </View>
-
-        {/* Location */}
-        <View style={styles.section}>
-          <Text style={styles.label}>
-            Ubicación <Text style={styles.required}>*</Text>
-          </Text>
-          <TouchableOpacity style={styles.locationButton}>
-            <Ionicons name="location" size={20} color="#2E7D32" />
-            <Text style={styles.locationButtonText}>
-              {location || "Seleccionar ubicación"}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
-          </TouchableOpacity>
+          <Text style={styles.helperText}>Comparte tus pensamientos con la comunidad</Text>
         </View>
 
         {/* Additional Information */}
@@ -192,8 +157,16 @@ export default function CreatePostScreen() {
 
       {/* Bottom Button */}
       <View style={styles.bottomContainer}>
-        <TouchableOpacity style={styles.publishButton} onPress={handlePublish}>
-          <Text style={styles.publishButtonText}>Publicar ahora</Text>
+        <TouchableOpacity 
+          style={[styles.publishButton, loading && styles.publishButtonDisabled]} 
+          onPress={handlePublish}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.publishButtonText}>Publicar ahora</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -407,6 +380,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  publishButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

@@ -6,9 +6,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useRouter } from "expo-router";
 
 const FILTERS = [
   { id: 1, name: "Todos", icon: "apps" },
@@ -26,7 +30,13 @@ const RECENT_SEARCHES = [
 ];
 
 export default function SearchScreen() {
+  const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const results = useQuery(
+    api.search.querySearch,
+    searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -46,6 +56,8 @@ export default function SearchScreen() {
           placeholder="¿Qué estás buscando?"
           placeholderTextColor="#9E9E9E"
           autoFocus
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
 
@@ -83,17 +95,78 @@ export default function SearchScreen() {
           ))}
         </ScrollView>
 
-        {/* Recent Searches */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Búsquedas recientes</Text>
-          {RECENT_SEARCHES.map((search, index) => (
-            <TouchableOpacity key={index} style={styles.recentItem}>
-              <Ionicons name="time-outline" size={20} color="#757575" />
-              <Text style={styles.recentText}>{search}</Text>
-              <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Search Results */}
+        {searchQuery.trim() && (
+          <View style={styles.section}>
+            {results === undefined ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2E7D32" />
+              </View>
+            ) : (
+              <>
+                {results.posts.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>Publicaciones</Text>
+                    {results.posts.map((post) => (
+                      <TouchableOpacity
+                        key={post._id}
+                        style={styles.recentItem}
+                        onPress={() => router.push(`/product/${post._id}`)}
+                      >
+                        <Ionicons name="document-text-outline" size={20} color="#757575" />
+                        <Text style={styles.recentText} numberOfLines={2}>
+                          {post.text}
+                        </Text>
+                        <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+                {results.profiles.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>Perfiles</Text>
+                    {results.profiles.map((profile) => (
+                      <TouchableOpacity
+                        key={profile._id}
+                        style={styles.recentItem}
+                      >
+                        <Ionicons name="person-outline" size={20} color="#757575" />
+                        <Text style={styles.recentText}>
+                          {profile.displayName}
+                        </Text>
+                        <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+                {results.posts.length === 0 && results.profiles.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="search-outline" size={48} color="#E0E0E0" />
+                    <Text style={styles.emptyText}>No se encontraron resultados</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Recent Searches - Show when no search query */}
+        {!searchQuery.trim() && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Búsquedas recientes</Text>
+            {RECENT_SEARCHES.map((search, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.recentItem}
+                onPress={() => setSearchQuery(search)}
+              >
+                <Ionicons name="time-outline" size={20} color="#757575" />
+                <Text style={styles.recentText}>{search}</Text>
+                <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Popular Categories */}
         <View style={styles.section}>
@@ -273,6 +346,21 @@ const styles = StyleSheet.create({
   popularCount: {
     fontSize: 12,
     color: "#757575",
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#212121",
+    marginTop: 16,
   },
 });
 
