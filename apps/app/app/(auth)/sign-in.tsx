@@ -11,13 +11,20 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authClient } from "@/lib/auth-client";
-import { router } from "expo-router";
+import { router, Redirect } from "expo-router";
+import { useAuthSession } from "@/hooks/use-session";
 
 export default function SignInScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const { isAuthenticated, isLoading } = useAuthSession();
+
+    // Redirect if already authenticated
+    if (!isLoading && isAuthenticated) {
+        return <Redirect href="/(tabs)" />;
+    }
 
     const handleSignIn = async () => {
         if (!email.trim() || !password.trim()) {

@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { useAuthSession } from "@/hooks/use-session";
 
 const { width } = Dimensions.get("window");
 
@@ -29,7 +30,24 @@ const CATEGORIES = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuthSession();
   const posts = useQuery(api.posts.feed, { limit: 20 });
+
+  // Show loading while checking auth state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Redirect to sign-in if not authenticated
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

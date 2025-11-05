@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -31,12 +31,6 @@ export default function ChatScreen() {
     conversationId ? { conversationId, limit: 50 } : "skip"
   );
   const sendMessage = useMutation(api.conversations.sendMessage);
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/(auth)/sign-in");
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   const handleSend = async () => {
     if (!message.trim() || !conversationId) return;
@@ -68,7 +62,7 @@ export default function ChatScreen() {
   }
 
   if (!isAuthenticated) {
-    return null;
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   return (

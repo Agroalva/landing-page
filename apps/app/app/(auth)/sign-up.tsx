@@ -12,9 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authClient } from "@/lib/auth-client";
-import { router } from "expo-router";
+import { router, Redirect } from "expo-router";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { useAuthSession } from "@/hooks/use-session";
 
 export default function SignUpScreen() {
     const [name, setName] = useState("");
@@ -25,6 +26,12 @@ export default function SignUpScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const ensureProfile = useMutation(api.users.ensureProfile);
+    const { isAuthenticated, isLoading } = useAuthSession();
+
+    // Redirect if already authenticated
+    if (!isLoading && isAuthenticated) {
+        return <Redirect href="/(tabs)" />;
+    }
 
     const handleSignUp = async () => {
         if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {

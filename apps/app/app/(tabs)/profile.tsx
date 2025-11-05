@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { useQuery, useMutation } from "convex/react";
@@ -31,12 +31,6 @@ export default function ProfileScreen() {
     api.posts.byUser,
     userId ? { userId, limit: 10 } : "skip"
   );
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/(auth)/sign-in");
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   // Ensure profile exists if user is authenticated but profile is missing
   useEffect(() => {
@@ -83,7 +77,7 @@ export default function ProfileScreen() {
   }
 
   if (!isAuthenticated) {
-    return null;
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -34,12 +34,6 @@ export default function CreatePostScreen() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/(auth)/sign-in");
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   const handlePublish = async () => {
     if (!description.trim() || !isAuthenticated) {
@@ -72,7 +66,7 @@ export default function CreatePostScreen() {
   }
 
   if (!isAuthenticated) {
-    return null;
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -33,9 +33,20 @@ export default function SearchScreen() {
   const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Debounce search query to avoid querying on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, 300); // Wait 300ms after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const results = useQuery(
     api.search.querySearch,
-    searchQuery.trim() ? { query: searchQuery.trim(), limit: 20 } : "skip"
+    debouncedQuery.length >= 3 ? { query: debouncedQuery, limit: 20 } : "skip"
   );
 
   return (
@@ -96,7 +107,7 @@ export default function SearchScreen() {
         </ScrollView>
 
         {/* Search Results */}
-        {searchQuery.trim() && (
+        {debouncedQuery.length >= 3 && (
           <View style={styles.section}>
             {results === undefined ? (
               <View style={styles.loadingContainer}>
