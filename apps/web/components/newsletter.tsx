@@ -6,7 +6,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Mail, Apple, Smartphone } from "lucide-react"
+import { Mail } from "lucide-react"
+import Image from "next/image"
 
 export function Newsletter() {
   const [email, setEmail] = useState("")
@@ -28,6 +29,20 @@ export function Newsletter() {
         },
         body: JSON.stringify({ name, email }),
       })
+
+      if (!response.ok) {
+        // Try to parse error response, but handle if it's not JSON
+        let errorMessage = 'Hubo un error al procesar tu solicitud'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage
+        }
+        setError(errorMessage)
+        return
+      }
 
       const data = await response.json()
 
@@ -116,43 +131,35 @@ export function Newsletter() {
                 </p>
 
                 <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Button
-                      asChild
-                      size="lg"
-                      className="h-16 w-full text-base font-semibold bg-black hover:bg-gray-800"
+                  <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+                    <a
+                      href="https://apps.apple.com/ar/app/agroalva-s-a-s/id6742560806?l=en-GB"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transition-opacity hover:opacity-80"
                     >
-                      <a
-                        href="https://apps.apple.com/app/agroalva"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-3"
-                      >
-                        <Apple className="h-6 w-6" />
-                        <div className="text-left">
-                          <div className="text-xs">Descargar en</div>
-                          <div className="text-sm font-semibold">App Store</div>
-                        </div>
-                      </a>
-                    </Button>
-                    <Button
-                      asChild
-                      size="lg"
-                      className="h-16 w-full text-base font-semibold bg-green-600 hover:bg-green-700"
+                      <Image
+                        src="/app-store.svg"
+                        alt="Descargar en App Store"
+                        width={120}
+                        height={40}
+                        className="h-10 w-auto"
+                      />
+                    </a>
+                    <a
+                      href="https://play.google.com/store/apps/details?id=syloper.agroalva.app"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="transition-opacity hover:opacity-80"
                     >
-                      <a
-                        href="https://play.google.com/store/apps/details?id=com.agroalva"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-3"
-                      >
-                        <Smartphone className="h-6 w-6" />
-                        <div className="text-left">
-                          <div className="text-xs">Descargar en</div>
-                          <div className="text-sm font-semibold">Google Play</div>
-                        </div>
-                      </a>
-                    </Button>
+                      <Image
+                        src="/play-store.svg"
+                        alt="Descargar en Google Play"
+                        width={120}
+                        height={40}
+                        className="h-10 w-auto"
+                      />
+                    </a>
                   </div>
                 </div>
 
