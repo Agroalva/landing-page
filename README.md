@@ -1,6 +1,6 @@
 # Landing Page Monorepo
 
-This is a Turborepo monorepo containing multiple applications and shared packages.
+This is a Turborepo monorepo containing multiple applications and shared packages
 
 ## Structure
 
