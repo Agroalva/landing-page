@@ -136,7 +136,10 @@ export default function ProfileScreen() {
           {profile?.bio && <Text style={styles.userRole}>{profile.bio}</Text>}
 
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.primaryButton}>
+            <TouchableOpacity 
+              style={styles.primaryButton}
+              onPress={() => router.push("/edit-profile")}
+            >
               <Ionicons name="create-outline" size={20} color="#FFFFFF" />
               <Text style={styles.primaryButtonText}>Editar perfil</Text>
             </TouchableOpacity>
@@ -148,14 +151,22 @@ export default function ProfileScreen() {
         </View>
 
         {/* Contact Information */}
-        {user?.email && (
+        {(user?.email || profile?.phoneNumber) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Información de contacto</Text>
             <View style={styles.infoCard}>
-              <View style={styles.infoItem}>
-                <Ionicons name="mail" size={20} color="#757575" />
-                <Text style={styles.infoText}>{user.email}</Text>
-              </View>
+              {user?.email && (
+                <View style={styles.infoItem}>
+                  <Ionicons name="mail" size={20} color="#757575" />
+                  <Text style={styles.infoText}>{user.email}</Text>
+                </View>
+              )}
+              {profile?.phoneNumber && (
+                <View style={styles.infoItem}>
+                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                  <Text style={styles.infoText}>{profile.phoneNumber}</Text>
+                </View>
+              )}
             </View>
           </View>
         )}
