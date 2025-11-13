@@ -50,7 +50,7 @@ export function Footer() {
           </div>
 
           {/* Links */}
-          <div>
+          {/* <div>
             <h3 className="mb-4 font-sans text-lg font-bold text-foreground">Enlaces</h3>
             <ul className="space-y-3">
               <li>
@@ -74,7 +74,7 @@ export function Footer() {
                 </a>
               </li>
             </ul>
-          </div>
+          </div> */}
         </div>
 
         <div className="mt-12 border-t pt-8 text-center text-sm text-muted-foreground">
