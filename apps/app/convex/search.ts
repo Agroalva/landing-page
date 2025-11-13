@@ -1,7 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Simple search across posts and profiles
+// Simple search across products and profiles
 export const querySearch = query({
     args: {
         query: v.string(),
@@ -13,22 +13,25 @@ export const querySearch = query({
 
         // Require minimum 3 characters to avoid expensive queries
         if (!searchTerm || searchTerm.length < 3) {
-            return { posts: [], profiles: [] };
+            return { products: [], profiles: [] };
         }
 
         // Limit the number of records we fetch before filtering
-        // Fetch recent posts/profiles first (most relevant) and limit to reasonable amount
+        // Fetch recent products/profiles first (most relevant) and limit to reasonable amount
         const MAX_FETCH = 500;
         
-        // Search posts - fetch recent posts first, then filter
-        const recentPosts = await ctx.db
-            .query("posts")
+        // Search products - fetch recent products first, then filter
+        const recentProducts = await ctx.db
+            .query("products")
             .withIndex("by_createdAt")
             .order("desc")
             .take(MAX_FETCH);
         
-        const matchingPosts = recentPosts
-            .filter(post => post.text.toLowerCase().includes(searchTerm))
+        const matchingProducts = recentProducts
+            .filter(product => 
+                product.name.toLowerCase().includes(searchTerm) ||
+                product.description?.toLowerCase().includes(searchTerm)
+            )
             .slice(0, limit);
 
         // Search profiles - fetch all profiles but limit the fetch
@@ -44,7 +47,7 @@ export const querySearch = query({
             .slice(0, limit);
 
         return {
-            posts: matchingPosts,
+            products: matchingProducts,
             profiles: matchingProfiles,
         };
     },

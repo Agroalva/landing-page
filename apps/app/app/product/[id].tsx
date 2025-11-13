@@ -1,67 +1,163 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
   Linking,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
+import { ConvexImage } from "@/components/ConvexImage";
+import { useAuthSession } from "@/hooks/use-session";
 
 const { width } = Dimensions.get("window");
-
-const MOCK_PRODUCT = {
-  id: 1,
-  title: "Tractor John Deere 5075E",
-  price: "$45,000",
-  description:
-    "Tractor John Deere 5075E en excelente estado. 75 HP, 4x4, con aire acondicionado y cabina cerrada. Ideal para todo tipo de labores agrícolas. Cuenta con mantenimiento al día y todos los documentos en regla.",
-  category: "Maquinaria",
-  location: "Maracay, Estado Aragua",
-  images: [
-    "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800",
-    "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800",
-    "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800",
-  ],
-  seller: {
-    name: "Pedro Ramírez",
-    avatar: "https://i.pravatar.cc/150?img=15",
-    rating: 4.8,
-    verified: true,
-    phone: "+58 424-1234567",
-  },
-  specifications: [
-    { label: "Año", value: "2020" },
-    { label: "Horas de uso", value: "1,200 hrs" },
-    { label: "Potencia", value: "75 HP" },
-    { label: "Transmisión", value: "4x4" },
-    { label: "Estado", value: "Usado - Excelente" },
-  ],
-  views: 156,
-  favorites: 23,
-  postedDate: "Hace 2 días",
-};
 
 export default function ProductDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const productId = params.id as Id<"products">;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const { user } = useAuthSession();
+
+  const product = useQuery(
+    api.products.getById,
+    productId ? { productId } : "skip"
+  );
+
+  const authorProfile = useQuery(
+    api.users.getByUserId,
+    product?.authorId ? { userId: product.authorId } : "skip"
+  );
+
+  const isFavorite = useQuery(
+    api.favorites.isFavorite,
+    productId ? { productId } : "skip"
+  );
+
+  const toggleFavorite = useMutation(api.favorites.toggleFavorite);
+  const incrementViewCount = useMutation(api.products.incrementViewCount);
+  const ensureConversation = useMutation(api.conversations.ensureConversation);
+
+  const images = product?.mediaIds || [];
+
+  // Increment view count when screen loads
+  useEffect(() => {
+    if (productId) {
+      incrementViewCount({ productId }).catch((error) => {
+        console.error("Failed to increment view count:", error);
+      });
+    }
+  }, [productId, incrementViewCount]);
+
+  const handleToggleFavorite = async () => {
+    if (!productId) return;
+    try {
+      await toggleFavorite({ productId });
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "No se pudo actualizar el favorito");
+    }
+  };
 
   const handleWhatsApp = () => {
-    const phone = MOCK_PRODUCT.seller.phone.replace(/[^0-9]/g, "");
-    const message = `Hola, estoy interesado en: ${MOCK_PRODUCT.title}`;
-    Linking.openURL(`whatsapp://send?phone=${phone}&text=${message}`);
+    const phoneNumber = authorProfile?.phoneNumber;
+    if (!phoneNumber) {
+      Alert.alert(
+        "WhatsApp",
+        "El vendedor no ha proporcionado un número de teléfono"
+      );
+      return;
+    }
+
+    // Format phone number for WhatsApp (remove any non-digit characters except +)
+    const formattedNumber = phoneNumber.replace(/[^\d+]/g, "");
+    const whatsappUrl = `https://wa.me/${formattedNumber}`;
+
+    Linking.openURL(whatsappUrl).catch(() => {
+      Alert.alert("Error", "No se pudo abrir WhatsApp");
+    });
   };
 
   const handleCall = () => {
-    Linking.openURL(`tel:${MOCK_PRODUCT.seller.phone}`);
+    const phoneNumber = authorProfile?.phoneNumber;
+    if (!phoneNumber) {
+      Alert.alert(
+        "Llamar",
+        "El vendedor no ha proporcionado un número de teléfono"
+      );
+      return;
+    }
+
+    const phoneUrl = `tel:${phoneNumber}`;
+    Linking.openURL(phoneUrl).catch(() => {
+      Alert.alert("Error", "No se pudo realizar la llamada");
+    });
   };
+
+  const handleMessage = async () => {
+    if (!user || !product?.authorId) {
+      Alert.alert("Error", "No se pudo iniciar la conversación");
+      return;
+    }
+
+    const currentUserId = user.id || user.userId;
+    if (!currentUserId) {
+      Alert.alert("Error", "No se pudo identificar al usuario");
+      return;
+    }
+
+    // Don't allow messaging yourself
+    if (currentUserId === product.authorId) {
+      Alert.alert("Error", "No puedes enviarte un mensaje a ti mismo");
+      return;
+    }
+
+    try {
+      // Ensure conversation exists between current user and product author
+      const conversationId = await ensureConversation({
+        memberIds: [currentUserId, product.authorId],
+      });
+      
+      // Navigate to chat with conversationId
+      router.push(`/chat/${conversationId}`);
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "No se pudo iniciar la conversación");
+    }
+  };
+
+  if (product === undefined) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (product === null) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Producto no encontrado</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#212121" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -74,7 +170,8 @@ export default function ProductDetailScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.favoriteButton}
-          onPress={() => setIsFavorite(!isFavorite)}
+          onPress={handleToggleFavorite}
+          disabled={isFavorite === undefined}
         >
           <Ionicons
             name={isFavorite ? "heart" : "heart-outline"}
@@ -87,128 +184,129 @@ export default function ProductDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Image Gallery */}
         <View style={styles.imageGalleryContainer}>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={(event) => {
-              const index = Math.round(
-                event.nativeEvent.contentOffset.x / width
-              );
-              setCurrentImageIndex(index);
-            }}
-            scrollEventThrottle={16}
-          >
-            {MOCK_PRODUCT.images.map((image, index) => (
-              <Image
-                key={index}
-                source={{ uri: image }}
-                style={styles.productImage}
-              />
-            ))}
-          </ScrollView>
-          <View style={styles.imageIndicator}>
-            {MOCK_PRODUCT.images.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  currentImageIndex === index && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
+          {images.length > 0 ? (
+            <>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={(event) => {
+                  const index = Math.round(
+                    event.nativeEvent.contentOffset.x / width
+                  );
+                  setCurrentImageIndex(index);
+                }}
+                scrollEventThrottle={16}
+              >
+                {images.map((storageId, index) => (
+                  <ConvexImage
+                    key={index}
+                    storageId={storageId}
+                    style={styles.productImage}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
+              <View style={styles.imageIndicator}>
+                {images.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.dot,
+                      currentImageIndex === index && styles.activeDot,
+                    ]}
+                  />
+                ))}
+              </View>
+            </>
+          ) : (
+            <View style={styles.productImagePlaceholder}>
+              <Ionicons name="image-outline" size={64} color="#9E9E9E" />
+              <Text style={styles.placeholderText}>Sin imágenes</Text>
+            </View>
+          )}
         </View>
 
         {/* Product Info */}
         <View style={styles.contentContainer}>
           <View style={styles.priceSection}>
             <View>
-              <Text style={styles.price}>{MOCK_PRODUCT.price}</Text>
-              <Text style={styles.category}>{MOCK_PRODUCT.category}</Text>
-            </View>
-            <View style={styles.statsContainer}>
-              <View style={styles.stat}>
-                <Ionicons name="eye-outline" size={16} color="#757575" />
-                <Text style={styles.statText}>{MOCK_PRODUCT.views}</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="heart-outline" size={16} color="#757575" />
-                <Text style={styles.statText}>{MOCK_PRODUCT.favorites}</Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.title}>{MOCK_PRODUCT.title}</Text>
-
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={18} color="#2E7D32" />
-            <Text style={styles.location}>{MOCK_PRODUCT.location}</Text>
-          </View>
-
-          <Text style={styles.postedDate}>{MOCK_PRODUCT.postedDate}</Text>
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Descripción</Text>
-            <Text style={styles.description}>{MOCK_PRODUCT.description}</Text>
-          </View>
-
-          {/* Specifications */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Especificaciones</Text>
-            <View style={styles.specificationsContainer}>
-              {MOCK_PRODUCT.specifications.map((spec, index) => (
-                <View key={index} style={styles.specificationRow}>
-                  <Text style={styles.specLabel}>{spec.label}</Text>
-                  <Text style={styles.specValue}>{spec.value}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Map Placeholder */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ubicación</Text>
-            <View style={styles.mapPlaceholder}>
-              <Ionicons name="map" size={48} color="#9E9E9E" />
-              <Text style={styles.mapText}>Mapa de ubicación</Text>
-            </View>
-          </View>
-
-          {/* Seller Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Vendedor</Text>
-            <View style={styles.sellerCard}>
-              <View style={styles.sellerInfo}>
-                <View style={styles.sellerAvatarContainer}>
-                  <Image
-                    source={{ uri: MOCK_PRODUCT.seller.avatar }}
-                    style={styles.sellerAvatar}
-                  />
-                  {MOCK_PRODUCT.seller.verified && (
-                    <View style={styles.verifiedBadge}>
-                      <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.sellerDetails}>
-                  <Text style={styles.sellerName}>
-                    {MOCK_PRODUCT.seller.name}
-                  </Text>
-                  <View style={styles.ratingContainer}>
-                    <Ionicons name="star" size={16} color="#FBC02D" />
-                    <Text style={styles.ratingText}>
-                      {MOCK_PRODUCT.seller.rating}
+              <Text style={styles.postedDate}>
+                {new Date(product.createdAt).toLocaleDateString("es-ES", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </Text>
+              {product.viewCount !== undefined && product.viewCount > 0 && (
+                <View style={styles.statsContainer}>
+                  <View style={styles.stat}>
+                    <Ionicons name="eye-outline" size={16} color="#757575" />
+                    <Text style={styles.statText}>
+                      {product.viewCount} {product.viewCount === 1 ? "vista" : "vistas"}
                     </Text>
                   </View>
                 </View>
+              )}
+            </View>
+          </View>
+
+          <Text style={styles.title}>{product.name}</Text>
+          {product.price && (
+            <Text style={styles.price}>${product.price.toLocaleString()}</Text>
+          )}
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>
+              {product.type === "rent" ? "Alquiler" : "Venta"}
+            </Text>
+          </View>
+
+          {/* Seller Card */}
+          {authorProfile && (
+            <View style={styles.sellerCard}>
+              <View style={styles.sellerInfo}>
+                {authorProfile.avatarId ? (
+                  <ConvexImage
+                    storageId={authorProfile.avatarId}
+                    style={styles.sellerAvatar}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.sellerAvatar, styles.sellerAvatarPlaceholder]}>
+                    <Ionicons name="person" size={24} color="#9E9E9E" />
+                  </View>
+                )}
+                <View style={styles.sellerDetails}>
+                  <Text style={styles.sellerName}>
+                    {authorProfile.displayName}
+                  </Text>
+                  {authorProfile.bio && (
+                    <Text style={styles.statText} numberOfLines={1}>
+                      {authorProfile.bio}
+                    </Text>
+                  )}
+                </View>
               </View>
-              <TouchableOpacity style={styles.viewProfileButton}>
+              <TouchableOpacity
+                style={styles.viewProfileButton}
+                onPress={() => {
+                  // Navigate to author's profile - for now just show alert
+                  // TODO: Implement user profile view screen
+                  Alert.alert("Perfil", `Ver perfil de ${authorProfile.displayName}`);
+                }}
+              >
                 <Text style={styles.viewProfileText}>Ver perfil</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          )}
+
+          {/* Description */}
+          {product.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Descripción</Text>
+              <Text style={styles.description}>{product.description}</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -229,7 +327,7 @@ export default function ProductDetailScreen() {
 
         <TouchableOpacity
           style={[styles.contactButton, styles.messageButton]}
-          onPress={() => router.push(`/chat/${MOCK_PRODUCT.seller.name}`)}
+          onPress={handleMessage}
         >
           <Ionicons name="chatbubble" size={20} color="#FFFFFF" />
           <Text style={styles.contactButtonText}>Mensaje</Text>
@@ -288,6 +386,29 @@ const styles = StyleSheet.create({
     height: 400,
     backgroundColor: "#E0E0E0",
   },
+  productImagePlaceholder: {
+    width: width,
+    height: 400,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  placeholderText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#9E9E9E",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    color: "#757575",
+    marginBottom: 20,
+  },
   imageIndicator: {
     position: "absolute",
     bottom: 16,
@@ -330,6 +451,20 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "#2E7D32",
+    marginBottom: 8,
+  },
+  typeBadge: {
+    backgroundColor: "#2E7D3220",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: "flex-start",
+    marginBottom: 16,
+  },
+  typeBadgeText: {
+    fontSize: 14,
+    color: "#2E7D32",
+    fontWeight: "600",
   },
   category: {
     fontSize: 14,
@@ -438,6 +573,10 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     backgroundColor: "#E0E0E0",
+  },
+  sellerAvatarPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   verifiedBadge: {
     position: "absolute",

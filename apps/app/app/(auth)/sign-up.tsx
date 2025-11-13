@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     View,
     Text,
@@ -25,13 +25,100 @@ export default function SignUpScreen() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [signUpSuccess, setSignUpSuccess] = useState(false);
+    const [profileError, setProfileError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
     const ensureProfile = useMutation(api.users.ensureProfile);
     const { isAuthenticated, isLoading } = useAuthSession();
 
     // Redirect if already authenticated
-    if (!isLoading && isAuthenticated) {
-        return <Redirect href="/(tabs)" />;
-    }
+    useEffect(() => {
+        if (!isLoading && isAuthenticated) {
+            router.replace("/(tabs)");
+        }
+    }, [isAuthenticated, isLoading]);
+
+    // Create profile once authentication is established after sign-up
+    useEffect(() => {
+        if (signUpSuccess && isAuthenticated && !isLoading) {
+            // Wait a bit for Convex session to sync, with retry logic
+            const attemptProfileCreation = async (attempt: number = 1) => {
+                try {
+                    await ensureProfile();
+                    setProfileError(null);
+                    setRetryCount(0);
+                } catch (profileError: any) {
+                    const errorMessage = profileError?.message || "Error desconocido";
+                    console.error(`Failed to create profile (attempt ${attempt}):`, profileError);
+                    
+                    // If it's an authentication error and we haven't retried too many times, retry
+                    if (errorMessage.includes("Unauthenticated") && attempt < 3) {
+                        setRetryCount(attempt);
+                        // Wait longer before retrying
+                        setTimeout(() => attemptProfileCreation(attempt + 1), 1000 * attempt);
+                    } else {
+                        // Show error to user after max retries
+                        setProfileError(
+                            "Tu cuenta se creó correctamente, pero hubo un problema al crear tu perfil. " +
+                            "Puedes continuar y tu perfil se creará automáticamente."
+                        );
+                        setRetryCount(0);
+                    }
+                }
+            };
+
+            const timer = setTimeout(() => {
+                attemptProfileCreation(1);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [signUpSuccess, isAuthenticated, isLoading, ensureProfile]);
+
+    const getErrorMessage = (error: any): string => {
+        const errorMessage = error?.message || "";
+        const errorString = String(errorMessage).toLowerCase();
+
+        // Check for existing email errors
+        if (
+            errorString.includes("already exists") ||
+            errorString.includes("already registered") ||
+            errorString.includes("email already") ||
+            errorString.includes("user already exists") ||
+            errorString.includes("existing email")
+        ) {
+            return "Este correo electrónico ya está registrado. ¿Ya tienes una cuenta? Inicia sesión en su lugar.";
+        }
+
+        // Check for invalid email format
+        if (
+            errorString.includes("invalid email") ||
+            errorString.includes("email format") ||
+            errorString.includes("malformed")
+        ) {
+            return "El formato del correo electrónico no es válido. Por favor, verifica tu correo.";
+        }
+
+        // Check for weak password errors
+        if (
+            errorString.includes("password") &&
+            (errorString.includes("weak") || errorString.includes("short") || errorString.includes("minimum"))
+        ) {
+            return "La contraseña es demasiado débil. Debe tener al menos 6 caracteres.";
+        }
+
+        // Check for network/connection errors
+        if (
+            errorString.includes("network") ||
+            errorString.includes("connection") ||
+            errorString.includes("fetch") ||
+            errorString.includes("timeout")
+        ) {
+            return "Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.";
+        }
+
+        // Default error message
+        return error?.message || "No se pudo crear la cuenta. Por favor, intenta nuevamente.";
+    };
 
     const handleSignUp = async () => {
         if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
@@ -49,6 +136,11 @@ export default function SignUpScreen() {
             return;
         }
 
+        // Reset error states
+        setSignUpSuccess(false);
+        setProfileError(null);
+        setRetryCount(0);
+
         setLoading(true);
         try {
             await authClient.signUp.email({
@@ -56,19 +148,26 @@ export default function SignUpScreen() {
                 password,
                 name: name.trim(),
             });
-            // Create profile after successful sign-up
-            try {
-                await ensureProfile();
-            } catch (profileError) {
-                // Log but don't block sign-up if profile creation fails
-                console.error("Failed to create profile:", profileError);
-            }
-            router.replace("/(tabs)");
+            setSignUpSuccess(true);
+            // Session will update reactively, and useEffect will handle profile creation
         } catch (error: any) {
-            Alert.alert(
-                "Error",
-                error?.message || "No se pudo crear la cuenta. Intenta nuevamente."
-            );
+            const errorMessage = getErrorMessage(error);
+            const buttons: any[] = [
+                {
+                    text: "OK",
+                    style: "default" as const,
+                },
+            ];
+            
+            if (errorMessage.includes("ya está registrado")) {
+                buttons.push({
+                    text: "Iniciar sesión",
+                    style: "default" as const,
+                    onPress: () => router.push("/(auth)/sign-in"),
+                });
+            }
+            
+            Alert.alert("Error al registrarse", errorMessage, buttons);
         } finally {
             setLoading(false);
         }
@@ -164,6 +263,22 @@ export default function SignUpScreen() {
                                 />
                             </TouchableOpacity>
                         </View>
+
+                        {profileError && (
+                            <View style={styles.errorContainer}>
+                                <Ionicons name="information-circle-outline" size={20} color="#FF9800" />
+                                <Text style={styles.errorText}>{profileError}</Text>
+                            </View>
+                        )}
+
+                        {retryCount > 0 && (
+                            <View style={styles.infoContainer}>
+                                <ActivityIndicator size="small" color="#2E7D32" />
+                                <Text style={styles.infoText}>
+                                    Creando perfil... (intento {retryCount}/3)
+                                </Text>
+                            </View>
+                        )}
 
                         <TouchableOpacity
                             style={[styles.button, loading && styles.buttonDisabled]}
@@ -279,6 +394,38 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#2E7D32",
         fontWeight: "600",
+    },
+    errorContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFF3E0",
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#FFB74D",
+    },
+    errorText: {
+        flex: 1,
+        fontSize: 13,
+        color: "#E65100",
+        marginLeft: 8,
+        lineHeight: 18,
+    },
+    infoContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#E8F5E9",
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+    },
+    infoText: {
+        fontSize: 13,
+        color: "#2E7D32",
+        marginLeft: 8,
+        fontWeight: "500",
     },
 });
 

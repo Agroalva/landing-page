@@ -38,6 +38,13 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La aplicación necesita acceso a tus fotos para que puedas compartir imágenes en tus publicaciones.",
+          "cameraPermission": "La aplicación necesita acceso a tu cámara para que puedas tomar fotos directamente."
+        }
       ]
     ],
     "experiments": {

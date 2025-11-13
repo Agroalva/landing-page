@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -16,19 +15,23 @@ import { useAuthSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { ConvexImage } from "@/components/ConvexImage";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
   const profile = useQuery(api.users.getMe);
   const ensureProfile = useMutation(api.users.ensureProfile);
+  const updateProfile = useMutation(api.users.updateProfile);
+  const { pickImage, uploading: uploadingAvatar } = useFileUpload();
   
   // Get userId from profile (most reliable) or fallback to user object
-  // Only query posts when we have a valid userId
+  // Only query products when we have a valid userId
   const userId = profile?.userId;
   
-  const userPosts = useQuery(
-    api.posts.byUser,
+  const userProducts = useQuery(
+    api.products.byUser,
     userId ? { userId, limit: 10 } : "skip"
   );
 
@@ -40,6 +43,18 @@ export default function ProfileScreen() {
       });
     }
   }, [isAuthenticated, user, profile, ensureProfile]);
+
+  const handleChangeAvatar = async () => {
+    try {
+      const storageId = await pickImage();
+      if (storageId) {
+        await updateProfile({ avatarId: storageId });
+        Alert.alert("Éxito", "Avatar actualizado correctamente");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "No se pudo actualizar el avatar");
+    }
+  };
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -92,15 +107,28 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={handleChangeAvatar}
+            disabled={uploadingAvatar}
+          >
             {profile?.avatarId ? (
-              <Image source={{ uri: `placeholder-for-${profile.avatarId}` }} style={styles.avatar} />
+              <ConvexImage
+                storageId={profile.avatarId}
+                style={styles.avatar}
+                resizeMode="cover"
+              />
             ) : (
               <View style={styles.avatar}>
                 <Ionicons name="person" size={40} color="#9E9E9E" />
               </View>
             )}
-          </View>
+            {uploadingAvatar && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
 
           <Text style={styles.userName}>
             {profile?.displayName || user?.name || "Usuario"}
@@ -135,7 +163,7 @@ export default function ProfileScreen() {
         {/* Statistics */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{userPosts?.length || 0}</Text>
+            <Text style={styles.statValue}>{userProducts?.length || 0}</Text>
             <Text style={styles.statLabel}>Publicaciones</Text>
           </View>
         </View>
@@ -149,26 +177,35 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {userPosts === undefined ? (
+          {userProducts === undefined ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color="#2E7D32" />
             </View>
-          ) : userPosts.length === 0 ? (
+          ) : userProducts.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="document-text-outline" size={48} color="#E0E0E0" />
-              <Text style={styles.emptyText}>No hay publicaciones</Text>
+              <Text style={styles.emptyText}>No hay productos</Text>
             </View>
           ) : (
-            userPosts.map((post) => (
-              <TouchableOpacity key={post._id} style={styles.listingCard}>
+            userProducts.map((product) => (
+              <TouchableOpacity 
+                key={product._id} 
+                style={styles.listingCard}
+                onPress={() => router.push(`/product/${product._id}`)}
+              >
                 <View style={styles.listingInfo}>
                   <Text style={styles.listingTitle} numberOfLines={2}>
-                    {post.text}
+                    {product.name}
                   </Text>
                   <View style={styles.listingFooter}>
                     <Text style={styles.viewsText}>
-                      {new Date(post.createdAt).toLocaleDateString()}
+                      {new Date(product.createdAt).toLocaleDateString()}
                     </Text>
+                    {product.price && (
+                      <Text style={styles.priceText}>
+                        ${product.price.toLocaleString()}
+                      </Text>
+                    )}
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
@@ -253,6 +290,17 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: "relative",
     marginBottom: 16,
+  },
+  avatarOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    borderRadius: 50,
+    justifyContent: "center",
+    alignItems: "center",
   },
   avatar: {
     width: 100,
@@ -469,6 +517,12 @@ const styles = StyleSheet.create({
   viewsText: {
     fontSize: 13,
     color: "#757575",
+  },
+  priceText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#2E7D32",
+    marginLeft: 8,
   },
   menuItem: {
     flexDirection: "row",

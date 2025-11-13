@@ -10,14 +10,16 @@
 
 import type * as auth from "../auth.js";
 import type * as conversations from "../conversations.js";
+import type * as favorites from "../favorites.js";
 import type * as http from "../http.js";
-import type * as posts from "../posts.js";
+import type * as products from "../products.js";
 import type * as schema_conversations from "../schema/conversations.js";
+import type * as schema_favorites from "../schema/favorites.js";
 import type * as schema_messages from "../schema/messages.js";
-import type * as schema_posts from "../schema/posts.js";
 import type * as schema_products from "../schema/products.js";
 import type * as schema_profiles from "../schema/profiles.js";
 import type * as search from "../search.js";
+import type * as storage from "../storage.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,14 +39,16 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   conversations: typeof conversations;
+  favorites: typeof favorites;
   http: typeof http;
-  posts: typeof posts;
+  products: typeof products;
   "schema/conversations": typeof schema_conversations;
+  "schema/favorites": typeof schema_favorites;
   "schema/messages": typeof schema_messages;
-  "schema/posts": typeof schema_posts;
   "schema/products": typeof schema_products;
   "schema/profiles": typeof schema_profiles;
   search: typeof search;
+  storage: typeof storage;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

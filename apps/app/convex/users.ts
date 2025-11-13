@@ -18,6 +18,19 @@ export const getMe = query({
     },
 });
 
+// Get a user's profile by userId (public, for displaying other users' profiles)
+export const getByUserId = query({
+    args: {
+        userId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        return await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+            .first();
+    },
+});
+
 // Ensure profile exists (creates if missing, called after sign-up)
 export const ensureProfile = mutation({
     args: {},
@@ -54,6 +67,7 @@ export const updateProfile = mutation({
         displayName: v.optional(v.string()),
         bio: v.optional(v.string()),
         avatarId: v.optional(v.id("_storage")),
+        phoneNumber: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const user = await authComponent.getAuthUser(ctx);

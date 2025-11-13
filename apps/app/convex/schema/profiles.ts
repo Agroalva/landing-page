@@ -6,6 +6,7 @@ export const profilesTable = defineTable({
     displayName: v.string(),
     avatarId: v.optional(v.id("_storage")), // Reference to Convex file storage
     bio: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()), // Phone number for contact
     createdAt: v.number(),
     updatedAt: v.number(),
 })

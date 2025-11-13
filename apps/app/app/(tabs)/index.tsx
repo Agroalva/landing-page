@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Image,
   Dimensions,
   ActivityIndicator,
 } from "react-native";
@@ -17,6 +16,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
+import { ConvexImage } from "@/components/ConvexImage";
 
 const { width } = Dimensions.get("window");
 
@@ -31,7 +31,7 @@ const CATEGORIES = [
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
-  const posts = useQuery(api.posts.feed, { limit: 20 });
+  const products = useQuery(api.products.feed, { limit: 20 });
 
   // Show loading while checking auth state
   if (isLoading) {
@@ -127,29 +127,30 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {posts === undefined ? (
+          {products === undefined ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2E7D32" />
             </View>
-          ) : posts.length === 0 ? (
+          ) : products.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="document-text-outline" size={64} color="#E0E0E0" />
-              <Text style={styles.emptyTitle}>No hay publicaciones</Text>
+              <Text style={styles.emptyTitle}>No hay productos</Text>
               <Text style={styles.emptySubtitle}>
                 Sé el primero en compartir algo
               </Text>
             </View>
           ) : (
-            posts.map((post) => (
+            products.map((product) => (
               <TouchableOpacity
-                key={post._id}
+                key={product._id}
                 style={styles.productCard}
-                onPress={() => router.push(`/product/${post._id}`)}
+                onPress={() => router.push(`/product/${product._id}`)}
               >
-                {post.mediaIds && post.mediaIds.length > 0 ? (
-                  <Image
-                    source={{ uri: `placeholder-for-${post.mediaIds[0]}` }}
+                {product.mediaIds && product.mediaIds.length > 0 ? (
+                  <ConvexImage
+                    storageId={product.mediaIds[0]}
                     style={styles.productImage}
+                    resizeMode="cover"
                   />
                 ) : (
                   <View style={styles.productImagePlaceholder}>
@@ -159,7 +160,7 @@ export default function HomeScreen() {
                 <View style={styles.productInfo}>
                   <View style={styles.productHeader}>
                     <Text style={styles.productTitle} numberOfLines={2}>
-                      {post.text}
+                      {product.name}
                     </Text>
                     <TouchableOpacity>
                       <Ionicons
@@ -169,6 +170,11 @@ export default function HomeScreen() {
                       />
                     </TouchableOpacity>
                   </View>
+                  {product.price && (
+                    <Text style={styles.productPrice}>
+                      ${product.price.toLocaleString()}
+                    </Text>
+                  )}
                   <View style={styles.productFooter}>
                     <View style={styles.locationContainer}>
                       <Ionicons
@@ -177,7 +183,12 @@ export default function HomeScreen() {
                         color="#757575"
                       />
                       <Text style={styles.locationText}>
-                        {new Date(post.createdAt).toLocaleDateString()}
+                        {new Date(product.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>
+                        {product.type === "rent" ? "Alquiler" : "Venta"}
                       </Text>
                     </View>
                   </View>

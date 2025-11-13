@@ -115,18 +115,18 @@ export default function SearchScreen() {
               </View>
             ) : (
               <>
-                {results.posts.length > 0 && (
+                {results.products.length > 0 && (
                   <>
-                    <Text style={styles.sectionTitle}>Publicaciones</Text>
-                    {results.posts.map((post) => (
+                    <Text style={styles.sectionTitle}>Productos</Text>
+                    {results.products.map((product) => (
                       <TouchableOpacity
-                        key={post._id}
+                        key={product._id}
                         style={styles.recentItem}
-                        onPress={() => router.push(`/product/${post._id}`)}
+                        onPress={() => router.push(`/product/${product._id}`)}
                       >
                         <Ionicons name="document-text-outline" size={20} color="#757575" />
                         <Text style={styles.recentText} numberOfLines={2}>
-                          {post.text}
+                          {product.name}
                         </Text>
                         <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
                       </TouchableOpacity>
@@ -150,7 +150,7 @@ export default function SearchScreen() {
                     ))}
                   </>
                 )}
-                {results.posts.length === 0 && results.profiles.length === 0 && (
+                {results.products.length === 0 && results.profiles.length === 0 && (
                   <View style={styles.emptyState}>
                     <Ionicons name="search-outline" size={48} color="#E0E0E0" />
                     <Text style={styles.emptyText}>No se encontraron resultados</Text>

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -16,6 +15,9 @@ import { useRouter, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { ConvexImage } from "@/components/ConvexImage";
+import { Id } from "../convex/_generated/dataModel";
 
 const CATEGORIES = [
   "Maquinaria",
@@ -30,26 +32,53 @@ const CATEGORIES = [
 export default function CreatePostScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
-  const createPost = useMutation(api.posts.create);
+  const createProduct = useMutation(api.products.create);
+  const { pickImage, uploading: uploadingImage } = useFileUpload();
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [type, setType] = useState<"rent" | "sell">("sell");
+  const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
+  const [mediaIds, setMediaIds] = useState<Id<"_storage">[]>([]);
+
+  const handleAddImage = async () => {
+    if (mediaIds.length >= 5) {
+      Alert.alert("Límite alcanzado", "Puedes agregar hasta 5 fotos");
+      return;
+    }
+
+    try {
+      const storageId = await pickImage();
+      if (storageId) {
+        setMediaIds([...mediaIds, storageId]);
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "No se pudo subir la imagen");
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setMediaIds(mediaIds.filter((_, i) => i !== index));
+  };
 
   const handlePublish = async () => {
-    if (!description.trim() || !isAuthenticated) {
-      Alert.alert("Error", "Por favor completa la descripción");
+    if (!name.trim() || !isAuthenticated) {
+      Alert.alert("Error", "Por favor completa el nombre del producto");
       return;
     }
 
     setLoading(true);
     try {
-      await createPost({ 
-        text: description.trim(),
-        mediaIds: undefined, // TODO: Add media upload support
+      await createProduct({ 
+        name: name.trim(),
+        description: description.trim() || undefined,
+        type: type,
+        price: price ? parseFloat(price) : undefined,
+        mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
       });
       router.back();
     } catch (error: any) {
-      Alert.alert("Error", error?.message || "No se pudo crear la publicación");
+      Alert.alert("Error", error?.message || "No se pudo crear el producto");
     } finally {
       setLoading(false);
     }
@@ -75,7 +104,7 @@ export default function CreatePostScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="close" size={28} color="#212121" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nueva publicación</Text>
+        <Text style={styles.headerTitle}>Nuevo producto</Text>
         <TouchableOpacity onPress={handlePublish} disabled={loading}>
           {loading ? (
             <ActivityIndicator size="small" color="#2E7D32" />
@@ -96,15 +125,35 @@ export default function CreatePostScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.imagesContainer}
           >
-            <TouchableOpacity style={styles.addImageButton}>
-              <Ionicons name="camera" size={32} color="#2E7D32" />
-              <Text style={styles.addImageText}>Agregar foto</Text>
-            </TouchableOpacity>
+            {mediaIds.length < 5 && (
+              <TouchableOpacity 
+                style={[styles.addImageButton, uploadingImage && styles.addImageButtonDisabled]}
+                onPress={handleAddImage}
+                disabled={uploadingImage || loading}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color="#2E7D32" />
+                ) : (
+                  <>
+                    <Ionicons name="camera" size={32} color="#2E7D32" />
+                    <Text style={styles.addImageText}>Agregar foto</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
-            {images.map((image, index) => (
+            {mediaIds.map((storageId, index) => (
               <View key={index} style={styles.imagePreview}>
-                <Image source={{ uri: image }} style={styles.previewImage} />
-                <TouchableOpacity style={styles.removeImageButton}>
+                <ConvexImage 
+                  storageId={storageId} 
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity 
+                  style={styles.removeImageButton}
+                  onPress={() => handleRemoveImage(index)}
+                  disabled={loading}
+                >
                   <Ionicons name="close-circle" size={24} color="#F44336" />
                 </TouchableOpacity>
               </View>
@@ -115,14 +164,101 @@ export default function CreatePostScreen() {
           </Text>
         </View>
 
-        {/* Description */}
+        {/* Product Name */}
         <View style={styles.section}>
           <Text style={styles.label}>
-            Descripción <Text style={styles.required}>*</Text>
+            Nombre del producto <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
+            style={styles.input}
+            placeholder="Ej: Tractor John Deere 2020"
+            value={name}
+            onChangeText={setName}
+            placeholderTextColor="#9E9E9E"
+            editable={!loading}
+          />
+        </View>
+
+        {/* Type Selection */}
+        <View style={styles.section}>
+          <Text style={styles.label}>
+            Tipo <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.typeContainer}>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                type === "sell" && styles.typeButtonSelected,
+              ]}
+              onPress={() => setType("sell")}
+              disabled={loading}
+            >
+              <Ionicons
+                name="cash"
+                size={20}
+                color={type === "sell" ? "#FFFFFF" : "#2E7D32"}
+              />
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  type === "sell" && styles.typeButtonTextSelected,
+                ]}
+              >
+                Venta
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                type === "rent" && styles.typeButtonSelected,
+              ]}
+              onPress={() => setType("rent")}
+              disabled={loading}
+            >
+              <Ionicons
+                name="calendar"
+                size={20}
+                color={type === "rent" ? "#FFFFFF" : "#2E7D32"}
+              />
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  type === "rent" && styles.typeButtonTextSelected,
+                ]}
+              >
+                Alquiler
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Price */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Precio (opcional)</Text>
+          <View style={styles.priceInputContainer}>
+            <Text style={styles.currencySymbol}>$</Text>
+            <TextInput
+              style={styles.priceInput}
+              placeholder="0.00"
+              value={price}
+              onChangeText={(text) => {
+                // Only allow numbers and decimal point
+                const cleaned = text.replace(/[^0-9.]/g, "");
+                setPrice(cleaned);
+              }}
+              keyboardType="numeric"
+              placeholderTextColor="#9E9E9E"
+              editable={!loading}
+            />
+          </View>
+        </View>
+
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Descripción (opcional)</Text>
+          <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="¿Qué quieres compartir?"
+            placeholder="Describe tu producto o servicio..."
             value={description}
             onChangeText={setDescription}
             multiline
@@ -131,7 +267,9 @@ export default function CreatePostScreen() {
             placeholderTextColor="#9E9E9E"
             editable={!loading}
           />
-          <Text style={styles.helperText}>Comparte tus pensamientos con la comunidad</Text>
+          <Text style={styles.helperText}>
+            Incluye detalles importantes como condición, características, etc.
+          </Text>
         </View>
 
         {/* Additional Information */}
@@ -223,6 +361,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
+  addImageButtonDisabled: {
+    opacity: 0.5,
+  },
   addImageText: {
     fontSize: 12,
     color: "#2E7D32",
@@ -284,6 +425,34 @@ const styles = StyleSheet.create({
     color: "#212121",
   },
   categoryTextSelected: {
+    color: "#FFFFFF",
+  },
+  typeContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  typeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "#2E7D32",
+    gap: 8,
+  },
+  typeButtonSelected: {
+    backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
+  },
+  typeButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2E7D32",
+  },
+  typeButtonTextSelected: {
     color: "#FFFFFF",
   },
   priceInputContainer: {

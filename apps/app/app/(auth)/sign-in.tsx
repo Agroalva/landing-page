@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     View,
     Text,
@@ -22,9 +22,60 @@ export default function SignInScreen() {
     const { isAuthenticated, isLoading } = useAuthSession();
 
     // Redirect if already authenticated
-    if (!isLoading && isAuthenticated) {
-        return <Redirect href="/(tabs)" />;
-    }
+    useEffect(() => {
+        if (!isLoading && isAuthenticated) {
+            router.replace("/(tabs)");
+        }
+    }, [isAuthenticated, isLoading]);
+
+    const getErrorMessage = (error: any): string => {
+        const errorMessage = error?.message || "";
+        const errorString = String(errorMessage).toLowerCase();
+
+        // Check for invalid credentials
+        if (
+            errorString.includes("invalid") ||
+            errorString.includes("incorrect") ||
+            errorString.includes("wrong") ||
+            errorString.includes("credentials") ||
+            errorString.includes("password") ||
+            errorString.includes("email") ||
+            errorString.includes("user not found")
+        ) {
+            return "Correo electrónico o contraseña incorrectos. Por favor, verifica tus credenciales.";
+        }
+
+        // Check for account not found
+        if (
+            errorString.includes("not found") ||
+            errorString.includes("does not exist") ||
+            errorString.includes("no user")
+        ) {
+            return "No existe una cuenta con este correo electrónico. ¿Quieres registrarte?";
+        }
+
+        // Check for network/connection errors
+        if (
+            errorString.includes("network") ||
+            errorString.includes("connection") ||
+            errorString.includes("fetch") ||
+            errorString.includes("timeout")
+        ) {
+            return "Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.";
+        }
+
+        // Check for account locked/suspended
+        if (
+            errorString.includes("locked") ||
+            errorString.includes("suspended") ||
+            errorString.includes("disabled")
+        ) {
+            return "Tu cuenta ha sido bloqueada. Por favor, contacta al soporte.";
+        }
+
+        // Default error message
+        return error?.message || "No se pudo iniciar sesión. Por favor, intenta nuevamente.";
+    };
 
     const handleSignIn = async () => {
         if (!email.trim() || !password.trim()) {
@@ -38,12 +89,25 @@ export default function SignInScreen() {
                 email: email.trim(),
                 password,
             });
-            router.replace("/(tabs)");
+            // Session will update reactively, and useEffect will handle the redirect
         } catch (error: any) {
-            Alert.alert(
-                "Error",
-                error?.message || "No se pudo iniciar sesión. Verifica tus credenciales."
-            );
+            const errorMessage = getErrorMessage(error);
+            const buttons: any[] = [
+                {
+                    text: "OK",
+                    style: "default" as const,
+                },
+            ];
+            
+            if (errorMessage.includes("no existe una cuenta")) {
+                buttons.push({
+                    text: "Registrarse",
+                    style: "default" as const,
+                    onPress: () => router.push("/(auth)/sign-up"),
+                });
+            }
+            
+            Alert.alert("Error al iniciar sesión", errorMessage, buttons);
         } finally {
             setLoading(false);
         }

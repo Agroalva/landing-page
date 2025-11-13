@@ -1,0 +1,178 @@
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+import { authComponent } from "./auth";
+
+// Create a new product
+export const create = mutation({
+    args: {
+        name: v.string(),
+        description: v.optional(v.string()),
+        type: v.union(v.literal("rent"), v.literal("sell")),
+        price: v.optional(v.number()),
+        mediaIds: v.optional(v.array(v.id("_storage"))),
+    },
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        if (!args.name.trim()) {
+            throw new Error("Product name cannot be empty");
+        }
+
+        return await ctx.db.insert("products", {
+            authorId: user._id as string,
+            name: args.name.trim(),
+            description: args.description?.trim(),
+            type: args.type,
+            price: args.price,
+            mediaIds: args.mediaIds || [],
+            viewCount: 0,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+// Get feed of products (chronological)
+export const feed = query({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 20;
+        
+        return await ctx.db
+            .query("products")
+            .withIndex("by_createdAt")
+            .order("desc")
+            .take(limit);
+    },
+});
+
+// Get a single product by ID
+export const getById = query({
+    args: {
+        productId: v.id("products"),
+    },
+    handler: async (ctx, args) => {
+        return await ctx.db.get(args.productId);
+    },
+});
+
+// Get products by a specific user
+export const byUser = query({
+    args: {
+        userId: v.string(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 20;
+        
+        return await ctx.db
+            .query("products")
+            .withIndex("by_authorId", (q) => q.eq("authorId", args.userId))
+            .order("desc")
+            .take(limit);
+    },
+});
+
+// Delete a product (only by author)
+export const deleteProduct = mutation({
+    args: {
+        productId: v.id("products"),
+    },
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        const product = await ctx.db.get(args.productId);
+        if (!product) {
+            throw new Error("Product not found");
+        }
+
+        if (product.authorId !== (user._id as string)) {
+            throw new Error("Not authorized to delete this product");
+        }
+
+        await ctx.db.delete(args.productId);
+    },
+});
+
+// Increment view count for a product
+export const incrementViewCount = mutation({
+    args: {
+        productId: v.id("products"),
+    },
+    handler: async (ctx, args) => {
+        const product = await ctx.db.get(args.productId);
+        if (!product) {
+            throw new Error("Product not found");
+        }
+
+        const currentViewCount = product.viewCount || 0;
+        await ctx.db.patch(args.productId, {
+            viewCount: currentViewCount + 1,
+        });
+    },
+});
+
+// Update a product (only by author)
+export const update = mutation({
+    args: {
+        productId: v.id("products"),
+        name: v.optional(v.string()),
+        description: v.optional(v.string()),
+        type: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
+        price: v.optional(v.number()),
+        mediaIds: v.optional(v.array(v.id("_storage"))),
+    },
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        const product = await ctx.db.get(args.productId);
+        if (!product) {
+            throw new Error("Product not found");
+        }
+
+        if (product.authorId !== (user._id as string)) {
+            throw new Error("Not authorized to update this product");
+        }
+
+        const updates: any = {
+            updatedAt: Date.now(),
+        };
+
+        if (args.name !== undefined) {
+            if (!args.name.trim()) {
+                throw new Error("Product name cannot be empty");
+            }
+            updates.name = args.name.trim();
+        }
+
+        if (args.description !== undefined) {
+            updates.description = args.description?.trim();
+        }
+
+        if (args.type !== undefined) {
+            updates.type = args.type;
+        }
+
+        if (args.price !== undefined) {
+            updates.price = args.price;
+        }
+
+        if (args.mediaIds !== undefined) {
+            updates.mediaIds = args.mediaIds;
+        }
+
+        await ctx.db.patch(args.productId, updates);
+    },
+});
+
