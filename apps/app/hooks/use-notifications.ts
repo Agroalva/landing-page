@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "./use-session";
@@ -83,15 +84,36 @@ async function registerForPushNotificationsAsync(
   }
 
   try {
-    token = (await Notifications.getExpoPushTokenAsync()).data;
+    // Get projectId from Constants (can be in extra.eas.projectId or easConfig.projectId)
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
+                      Constants.expoConfig?.extra?.projectId ||
+                      Constants.easConfig?.projectId;
+    
+    // Skip push token if no projectId (required for push notifications)
+    // In Expo Go, projectId is not available, so push notifications won't work
+    if (!projectId) {
+      if (__DEV__) {
+        console.log("Skipping push token registration: projectId not found. Push notifications require a development build or projectId in app.json");
+      }
+      return;
+    }
+
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     console.log("Push token:", token);
 
     // Store token in profile
     if (token) {
       await updateProfile({ pushToken: token });
     }
-  } catch (error) {
-    console.error("Error getting push token:", error);
+  } catch (error: any) {
+    // Handle errors gracefully
+    if (error?.message?.includes("projectId")) {
+      if (__DEV__) {
+        console.log("Push notifications require a projectId. Configure in app.json under 'extra.eas.projectId' or use a development build.");
+      }
+    } else {
+      console.error("Error getting push token:", error);
+    }
   }
 
   return token;

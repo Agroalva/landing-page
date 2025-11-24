@@ -140,8 +140,8 @@ export default function SearchScreen() {
     );
   };
 
-  const getSelectedCategory = () => {
-    return selectedFilter === "Todos" ? undefined : selectedFilter;
+  const getSelectedCategory = (): string | undefined => {
+    return selectedFilter === "Todos" || selectedFilter === null ? undefined : selectedFilter;
   };
 
   const results = useQuery(
@@ -246,6 +246,7 @@ export default function SearchScreen() {
                       <TouchableOpacity
                         key={profile._id}
                         style={styles.recentItem}
+                        onPress={() => router.push(`/user-profile/${profile.userId}`)}
                       >
                         <Ionicons name="person-outline" size={20} color="#757575" />
                         <Text style={styles.recentText}>
@@ -313,7 +314,12 @@ export default function SearchScreen() {
                     style={styles.popularCard}
                     onPress={() => {
                       setSelectedFilter(cat.name);
-                      // Scroll to top or focus search
+                      // Trigger search with category filter by setting a search query
+                      // This will show products in that category
+                      if (!searchQuery.trim()) {
+                        // If no search query, set a generic one to trigger search
+                        setSearchQuery(cat.name);
+                      }
                     }}
                   >
                     <View

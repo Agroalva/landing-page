@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Redirect } from "expo-router";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
@@ -27,6 +27,23 @@ export default function HomeScreen() {
   const products = useQuery(api.products.feed, { limit: 20 });
   const categories = useQuery(api.products.getCategories);
   const unreadNotificationCount = useQuery(api.notifications.getUnreadCount);
+  const toggleFavorite = useMutation(api.favorites.toggleFavorite);
+
+  // Get favorite status for all products
+  const productIds = useMemo(() => products?.map(p => p._id) || [], [products]);
+  const favoritesMap = useQuery(
+    api.favorites.getFavoritesMap,
+    productIds.length > 0 ? { productIds } : "skip"
+  );
+
+  // Create a map for quick lookup
+  const isFavoriteMap = useMemo(() => {
+    const map = new Map<Id<"products">, boolean>();
+    favoritesMap?.forEach(({ productId, isFavorite }) => {
+      map.set(productId, isFavorite);
+    });
+    return map;
+  }, [favoritesMap]);
 
   // Show loading while checking auth state
   if (isLoading) {
@@ -66,22 +83,33 @@ export default function HomeScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
+        <TouchableOpacity
+          style={styles.searchContainer}
+          onPress={() => router.push("/(tabs)/search")}
+          activeOpacity={0.7}
+        >
           <Ionicons
             name="search"
             size={20}
             color="#9E9E9E"
             style={styles.searchIcon}
           />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar productos, servicios..."
-            placeholderTextColor="#9E9E9E"
-          />
-          <TouchableOpacity style={styles.filterButton}>
+          <Text style={styles.searchInputPlaceholder}>
+            Buscar productos, servicios...
+          </Text>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push({
+                pathname: "/(tabs)/search",
+                params: { showFilters: "true" },
+              });
+            }}
+          >
             <Ionicons name="options-outline" size={20} color="#2E7D32" />
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
 
         {/* Categories Carousel */}
         <View style={styles.section}>
@@ -131,7 +159,17 @@ export default function HomeScreen() {
 
         {/* Featured Banner */}
         <View style={styles.bannerContainer}>
-          <View style={styles.banner}>
+          <TouchableOpacity
+            style={styles.banner}
+            onPress={() => {
+              // Navigate to search with "Semillas" category filter
+              router.push({
+                pathname: "/(tabs)/search",
+                params: { category: "Semillas" },
+              });
+            }}
+            activeOpacity={0.8}
+          >
             <View style={styles.bannerContent}>
               <Text style={styles.bannerTitle}>🌾 Temporada de Siembra</Text>
               <Text style={styles.bannerSubtitle}>
@@ -139,14 +177,16 @@ export default function HomeScreen() {
               </Text>
             </View>
             <Ionicons name="arrow-forward" size={24} color="#FBC02D" />
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Products List */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Publicaciones Recientes</Text>
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/search")}
+            >
               <Text style={styles.seeAllText}>Ver todas</Text>
             </TouchableOpacity>
           </View>
@@ -186,11 +226,27 @@ export default function HomeScreen() {
                     <Text style={styles.productTitle} numberOfLines={2}>
                       {product.name}
                     </Text>
-                    <TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await toggleFavorite({ productId: product._id });
+                        } catch (error) {
+                          console.error("Failed to toggle favorite:", error);
+                        }
+                      }}
+                      style={styles.favoriteButton}
+                    >
                       <Ionicons
-                        name="heart-outline"
+                        name={
+                          isFavoriteMap.get(product._id)
+                            ? "heart"
+                            : "heart-outline"
+                        }
                         size={22}
-                        color="#2E7D32"
+                        color={
+                          isFavoriteMap.get(product._id) ? "#F44336" : "#2E7D32"
+                        }
                       />
                     </TouchableOpacity>
                   </View>
@@ -301,6 +357,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: "#212121",
+  },
+  searchInputPlaceholder: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#9E9E9E",
+  },
+  favoriteButton: {
+    padding: 4,
   },
   filterButton: {
     padding: 4,
