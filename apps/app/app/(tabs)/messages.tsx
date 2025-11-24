@@ -155,11 +155,7 @@ export default function MessagesScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mensajes</Text>
         <TouchableOpacity
-          onPress={() => {
-            // TODO: Navigate to user picker for creating new conversation
-            // For now, just show an alert
-            router.push("/(tabs)/search");
-          }}
+          onPress={() => router.push("/new-message")}
         >
           <Ionicons name="create-outline" size={24} color="#2E7D32" />
         </TouchableOpacity>
@@ -183,7 +179,7 @@ export default function MessagesScreen() {
             <ConversationItem
               key={conversation._id}
               conversation={conversation}
-              currentUserId={user?._id as string | undefined}
+              currentUserId={user?.id as string | undefined}
               router={router}
             />
           ))

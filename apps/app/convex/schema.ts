@@ -8,6 +8,7 @@ import { notificationsTable } from "./schema/notifications";
 
 export default defineSchema({
     // Better Auth will create internal tables automatically
+    // Presence component creates its own tables automatically
     // We only define app-specific tables here
 
     profiles: profilesTable,

@@ -11,6 +11,13 @@ export const create = mutation({
         category: v.optional(v.string()),
         price: v.optional(v.number()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
+        location: v.optional(v.object({
+            latitude: v.number(),
+            longitude: v.number(),
+            accuracy: v.optional(v.number()),
+            address: v.optional(v.string()),
+            label: v.optional(v.string()),
+        })),
     },
     handler: async (ctx, args) => {
         const user = await authComponent.getAuthUser(ctx);
@@ -30,6 +37,7 @@ export const create = mutation({
             category: args.category,
             price: args.price,
             mediaIds: args.mediaIds || [],
+            location: args.location,
             viewCount: 0,
             createdAt: Date.now(),
             updatedAt: Date.now(),

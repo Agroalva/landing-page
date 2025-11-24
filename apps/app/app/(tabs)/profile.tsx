@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -99,7 +100,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Perfil</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("/settings")}>
           <Ionicons name="settings-outline" size={24} color="#2E7D32" />
         </TouchableOpacity>
       </View>
@@ -143,7 +144,23 @@ export default function ProfileScreen() {
               <Ionicons name="create-outline" size={20} color="#FFFFFF" />
               <Text style={styles.primaryButtonText}>Editar perfil</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton}>
+            <TouchableOpacity 
+              style={styles.secondaryButton}
+              onPress={async () => {
+                try {
+                  const profileUrl = `agroalva://user/${userId}`;
+                  const displayName = profile?.displayName || user?.name || "Usuario";
+                  await Share.share({
+                    message: `Mira el perfil de ${displayName} en AgroAlva: ${profileUrl}`,
+                    title: `Perfil de ${displayName}`,
+                  });
+                } catch (error: any) {
+                  if (error.message !== "User did not share") {
+                    Alert.alert("Error", "No se pudo compartir el perfil");
+                  }
+                }
+              }}
+            >
               <Ionicons name="share-outline" size={20} color="#2E7D32" />
               <Text style={styles.secondaryButtonText}>Compartir</Text>
             </TouchableOpacity>
@@ -183,7 +200,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Mis publicaciones</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/my-posts")}>
               <Text style={styles.seeAllText}>Ver todas</Text>
             </TouchableOpacity>
           </View>
@@ -227,7 +244,10 @@ export default function ProfileScreen() {
 
         {/* Menu Options */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push("/favorites")}
+          >
             <View style={styles.menuItemLeft}>
               <Ionicons name="heart-outline" size={22} color="#2E7D32" />
               <Text style={styles.menuText}>Favoritos</Text>
@@ -246,7 +266,10 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push("/help-support")}
+          >
             <View style={styles.menuItemLeft}>
               <Ionicons name="help-circle-outline" size={22} color="#2E7D32" />
               <Text style={styles.menuText}>Ayuda y soporte</Text>
@@ -577,14 +600,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#757575",
     marginTop: 8,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#E0E0E0",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
 

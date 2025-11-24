@@ -126,8 +126,8 @@ export default function ProductDetailScreen() {
         memberIds: [currentUserId, product.authorId],
       });
       
-      // Navigate to chat with conversationId
-      router.push(`/chat/${conversationId}`);
+      // Navigate to chat with conversationId (replace modal)
+      router.replace(`/chat/${conversationId}`);
     } catch (error: any) {
       Alert.alert("Error", error?.message || "No se pudo iniciar la conversación");
     }
@@ -290,13 +290,26 @@ export default function ProductDetailScreen() {
               <TouchableOpacity
                 style={styles.viewProfileButton}
                 onPress={() => {
-                  // Navigate to author's profile - for now just show alert
-                  // TODO: Implement user profile view screen
-                  Alert.alert("Perfil", `Ver perfil de ${authorProfile.displayName}`);
+                  // Replace modal with user profile screen
+                  router.replace(`/user-profile/${product.authorId}`);
                 }}
               >
                 <Text style={styles.viewProfileText}>Ver perfil</Text>
               </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Location */}
+          {product.location && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ubicación</Text>
+              <View style={styles.locationContainer}>
+                <Ionicons name="location" size={20} color="#2E7D32" />
+                <Text style={styles.location}>
+                  {product.location.label || product.location.address || 
+                   `${product.location.latitude.toFixed(6)}, ${product.location.longitude.toFixed(6)}`}
+                </Text>
+              </View>
             </View>
           )}
 

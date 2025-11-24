@@ -153,6 +153,13 @@ export default function CreatePostScreen() {
         category: category || undefined,
         price: price ? parseFloat(price) : undefined,
         mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
+        location: productLocation ? {
+          latitude: productLocation.latitude,
+          longitude: productLocation.longitude,
+          accuracy: productLocation.accuracy,
+          address: productLocation.address,
+          label: productLocation.label,
+        } : undefined,
       });
       router.back();
     } catch (error: any) {

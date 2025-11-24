@@ -6,11 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Redirect } from "expo-router";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
@@ -27,6 +28,7 @@ export default function UserProfileScreen() {
     api.products.byUser,
     params.userId ? { userId: params.userId, limit: 50 } : "skip"
   );
+  const ensureConversation = useMutation(api.conversations.ensureConversation);
 
   if (authLoading) {
     return (
@@ -98,10 +100,35 @@ export default function UserProfileScreen() {
           {!isOwnProfile && (
             <TouchableOpacity
               style={styles.messageButton}
-              onPress={() => {
-                // Navigate to messages or create conversation
-                // For now, navigate to messages screen
-                router.push("/(tabs)/messages");
+              onPress={async () => {
+                if (!user || !params.userId) {
+                  Alert.alert("Error", "No se pudo iniciar la conversación");
+                  return;
+                }
+
+                const currentUserId = user.id || user.userId;
+                if (!currentUserId) {
+                  Alert.alert("Error", "No se pudo identificar al usuario");
+                  return;
+                }
+
+                // Don't allow messaging yourself
+                if (currentUserId === params.userId) {
+                  Alert.alert("Error", "No puedes enviarte un mensaje a ti mismo");
+                  return;
+                }
+
+                try {
+                  // Ensure conversation exists between current user and profile user
+                  const conversationId = await ensureConversation({
+                    memberIds: [currentUserId, params.userId],
+                  });
+                  
+                  // Navigate to chat with conversationId
+                  router.push(`/chat/${conversationId}`);
+                } catch (error: any) {
+                  Alert.alert("Error", error?.message || "No se pudo iniciar la conversación");
+                }
               }}
             >
               <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />

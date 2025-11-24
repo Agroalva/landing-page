@@ -220,11 +220,17 @@ export default function ChatScreen() {
             <Text style={styles.contactName}>
               {otherMemberProfile?.displayName || "Usuario"}
             </Text>
-            <Text style={styles.onlineStatus}>Activa</Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.moreButton}>
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={() => {
+            if (otherMemberId) {
+              router.push(`/user-profile/${otherMemberId}`);
+            }
+          }}
+        >
           <Ionicons name="ellipsis-vertical" size={20} color="#212121" />
         </TouchableOpacity>
       </View>
@@ -341,26 +347,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#E0E0E0",
   },
-  onlineIndicator: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#4CAF50",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
   contactName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#212121",
-  },
-  onlineStatus: {
-    fontSize: 12,
-    color: "#4CAF50",
-    marginTop: 2,
   },
   moreButton: {
     padding: 4,

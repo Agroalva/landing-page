@@ -10,6 +10,13 @@ export const productsTable = defineTable({
     price: v.optional(v.number()),
     mediaIds: v.optional(v.array(v.id("_storage"))), // Array of file storage IDs
     viewCount: v.optional(v.number()),
+    location: v.optional(v.object({
+        latitude: v.number(),
+        longitude: v.number(),
+        accuracy: v.optional(v.number()),
+        address: v.optional(v.string()),
+        label: v.optional(v.string()),
+    })),
     createdAt: v.number(),
     updatedAt: v.number(),
 })
