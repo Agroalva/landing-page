@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -15,11 +15,44 @@ import { useAuthSession } from "@/hooks/use-session";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { ConvexImage } from "@/components/ConvexImage";
 
-export default function MessagesScreen() {
-  const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuthSession();
-  const conversations = useQuery(api.conversations.listForUser);
+type Conversation = {
+  _id: Id<"conversations">;
+  memberIds: string[];
+  lastMessageAt?: number;
+  lastMessageText?: string;
+  lastMessageSenderId?: string;
+};
+
+function ConversationItem({
+  conversation,
+  currentUserId,
+  router,
+}: {
+  conversation: Conversation;
+  currentUserId: string | undefined;
+  router: any;
+}) {
+  const otherMembers = conversation.memberIds.filter(
+    (id) => id !== currentUserId
+  );
+  const otherMemberId = otherMembers[0];
+  const otherMemberProfile = useQuery(
+    api.users.getByUserId,
+    otherMemberId ? { userId: otherMemberId } : "skip"
+  );
+  const unreadCount = useQuery(
+    api.conversations.getUnreadCount,
+    conversation._id ? { conversationId: conversation._id } : "skip"
+  );
+
+  const isLastMessageFromMe =
+    currentUserId &&
+    conversation.lastMessageSenderId === currentUserId;
+  const displayName =
+    otherMemberProfile?.displayName ||
+    (otherMembers.length === 1 ? "Usuario" : `${otherMembers.length} personas`);
 
   const formatTime = (timestamp?: number) => {
     if (!timestamp) return "";
@@ -27,17 +60,81 @@ export default function MessagesScreen() {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
+
     if (days === 0) {
-      return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } else if (days === 1) {
       return "Ayer";
     } else if (days < 7) {
       return `Hace ${days} días`;
     } else {
-      return date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      return date.toLocaleDateString("es-ES", {
+        day: "numeric",
+        month: "short",
+      });
     }
   };
+
+  return (
+    <TouchableOpacity
+      style={styles.conversationItem}
+      onPress={() => router.push(`/chat/${conversation._id}`)}
+    >
+      <View style={styles.avatarContainer}>
+        {otherMemberProfile?.avatarId ? (
+          <ConvexImage
+            storageId={otherMemberProfile.avatarId}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.avatar}>
+            <Ionicons name="person" size={28} color="#9E9E9E" />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.conversationInfo}>
+        <View style={styles.conversationHeader}>
+          <Text style={styles.conversationName} numberOfLines={1}>
+            {displayName}
+          </Text>
+          <Text style={styles.conversationTime}>
+            {formatTime(conversation.lastMessageAt)}
+          </Text>
+        </View>
+        <View style={styles.conversationFooter}>
+          <Text
+            style={[
+              styles.lastMessage,
+              (unreadCount ?? 0) > 0 && styles.lastMessageUnread,
+            ]}
+            numberOfLines={1}
+          >
+            {isLastMessageFromMe && conversation.lastMessageText
+              ? `Tú: ${conversation.lastMessageText}`
+              : conversation.lastMessageText || "Nueva conversación"}
+          </Text>
+          {(unreadCount ?? 0) > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>
+                {unreadCount! > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+export default function MessagesScreen() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading, user } = useAuthSession();
+  const conversations = useQuery(api.conversations.listForUser);
 
   if (isLoading) {
     return (
@@ -57,7 +154,13 @@ export default function MessagesScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mensajes</Text>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            // TODO: Navigate to user picker for creating new conversation
+            // For now, just show an alert
+            router.push("/(tabs)/search");
+          }}
+        >
           <Ionicons name="create-outline" size={24} color="#2E7D32" />
         </TouchableOpacity>
       </View>
@@ -77,33 +180,12 @@ export default function MessagesScreen() {
           </View>
         ) : (
           conversations.map((conversation) => (
-            <TouchableOpacity
+            <ConversationItem
               key={conversation._id}
-              style={styles.conversationItem}
-              onPress={() => router.push(`/chat/${conversation._id}`)}
-            >
-              <View style={styles.avatarContainer}>
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={28} color="#9E9E9E" />
-                </View>
-              </View>
-
-              <View style={styles.conversationInfo}>
-                <View style={styles.conversationHeader}>
-                  <Text style={styles.conversationName}>
-                    Conversación con {conversation.memberIds.length - 1} {conversation.memberIds.length === 2 ? "persona" : "personas"}
-                  </Text>
-                  <Text style={styles.conversationTime}>
-                    {formatTime(conversation.lastMessageAt)}
-                  </Text>
-                </View>
-                <View style={styles.conversationFooter}>
-                  <Text style={styles.lastMessage} numberOfLines={1}>
-                    {conversation.lastMessageAt ? "Último mensaje" : "Nueva conversación"}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
+              conversation={conversation}
+              currentUserId={user?._id as string | undefined}
+              router={router}
+            />
           ))
         )}
       </ScrollView>
@@ -150,6 +232,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: "#E0E0E0",
+    overflow: "hidden",
   },
   onlineIndicator: {
     position: "absolute",

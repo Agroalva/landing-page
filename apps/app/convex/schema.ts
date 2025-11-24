@@ -4,6 +4,7 @@ import { conversationsTable } from "./schema/conversations";
 import { messagesTable } from "./schema/messages";
 import { productsTable } from "./schema/products";
 import { favoritesTable } from "./schema/favorites";
+import { notificationsTable } from "./schema/notifications";
 
 export default defineSchema({
     // Better Auth will create internal tables automatically
@@ -14,5 +15,6 @@ export default defineSchema({
     messages: messagesTable,
     products: productsTable,
     favorites: favoritesTable,
+    notifications: notificationsTable,
 });
 

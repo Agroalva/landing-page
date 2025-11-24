@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,70 @@ import { useAuthSession } from "@/hooks/use-session";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { ConvexImage } from "@/components/ConvexImage";
+
+type Message = {
+  _id: Id<"messages">;
+  senderId: string;
+  text: string;
+  createdAt: number;
+};
+
+function MessageItem({
+  msg,
+  isMe,
+  formatTime,
+}: {
+  msg: Message;
+  isMe: boolean;
+  formatTime: (timestamp: number) => string;
+}) {
+  const senderProfile = useQuery(
+    api.users.getByUserId,
+    msg.senderId ? { userId: msg.senderId } : "skip"
+  );
+
+  return (
+    <View
+      style={[styles.messageRow, isMe && styles.messageRowMe]}
+    >
+      {!isMe && (
+        <View style={styles.senderAvatar}>
+          {senderProfile?.avatarId ? (
+            <ConvexImage
+              storageId={senderProfile.avatarId}
+              style={styles.senderAvatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.senderAvatarPlaceholder}>
+              <Ionicons name="person" size={16} color="#9E9E9E" />
+            </View>
+          )}
+        </View>
+      )}
+      <View
+        style={[styles.messageBubble, isMe && styles.messageBubbleMe]}
+      >
+        {!isMe && (
+          <Text style={styles.senderName}>
+            {senderProfile?.displayName || "Usuario"}
+          </Text>
+        )}
+        <Text
+          style={[styles.messageText, isMe && styles.messageTextMe]}
+        >
+          {msg.text}
+        </Text>
+        <Text
+          style={[styles.messageTime, isMe && styles.messageTimeMe]}
+        >
+          {formatTime(msg.createdAt)}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -26,11 +90,35 @@ export default function ChatScreen() {
   const [message, setMessage] = useState("");
   const conversationId = params.id as Id<"conversations">;
   
+  // Get conversation details
+  const allConversations = useQuery(api.conversations.listForUser);
+  const conversation = useMemo(() => {
+    return allConversations?.find((c) => c._id === conversationId);
+  }, [allConversations, conversationId]);
   const messages = useQuery(
     api.conversations.listMessages,
     conversationId ? { conversationId, limit: 50 } : "skip"
   );
   const sendMessage = useMutation(api.conversations.sendMessage);
+  const markAsRead = useMutation(api.conversations.markMessagesAsRead);
+
+  // Get other participant
+  const otherMemberId = useMemo(() => {
+    if (!conversation || !user) return null;
+    return conversation.memberIds.find((id: string) => id !== user.id) || null;
+  }, [conversation, user]);
+
+  const otherMemberProfile = useQuery(
+    api.users.getByUserId,
+    otherMemberId ? { userId: otherMemberId } : "skip"
+  );
+
+  // Mark messages as read when viewing
+  useEffect(() => {
+    if (conversationId && user) {
+      markAsRead({ conversationId }).catch(console.error);
+    }
+  }, [conversationId, user, markAsRead]);
 
   const handleSend = async () => {
     if (!message.trim() || !conversationId) return;
@@ -50,6 +138,44 @@ export default function ChatScreen() {
     const date = new Date(timestamp);
     return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
   };
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return "Hoy";
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return "Ayer";
+    } else {
+      return date.toLocaleDateString("es-ES", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    }
+  };
+
+  // Group messages by date
+  const groupedMessages = useMemo(() => {
+    if (!messages) return [];
+    const groups: Array<{ date: string; messages: typeof messages }> = [];
+    let currentDate = "";
+    
+    messages.forEach((msg) => {
+      const msgDate = formatDate(msg.createdAt);
+      if (msgDate !== currentDate) {
+        currentDate = msgDate;
+        groups.push({ date: msgDate, messages: [msg] });
+      } else {
+        groups[groups.length - 1].messages.push(msg);
+      }
+    });
+    
+    return groups;
+  }, [messages]);
 
   if (isLoading) {
     return (
@@ -78,12 +204,22 @@ export default function ChatScreen() {
 
         <View style={styles.contactInfo}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={20} color="#9E9E9E" />
-            </View>
+            {otherMemberProfile?.avatarId ? (
+              <ConvexImage
+                storageId={otherMemberProfile.avatarId}
+                style={styles.avatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={20} color="#9E9E9E" />
+              </View>
+            )}
           </View>
           <View>
-            <Text style={styles.contactName}>Conversación</Text>
+            <Text style={styles.contactName}>
+              {otherMemberProfile?.displayName || "Usuario"}
+            </Text>
             <Text style={styles.onlineStatus}>Activa</Text>
           </View>
         </View>
@@ -115,51 +251,29 @@ export default function ChatScreen() {
               <Text style={styles.emptySubtext}>Envía el primer mensaje</Text>
             </View>
           ) : (
-            messages.map((msg) => {
-              const isMe = user && msg.senderId === (user._id as string);
-              return (
-                <View
-                  key={msg._id}
-                  style={[
-                    styles.messageRow,
-                    isMe && styles.messageRowMe,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.messageBubble,
-                      isMe && styles.messageBubbleMe,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.messageText,
-                        isMe && styles.messageTextMe,
-                      ]}
-                    >
-                      {msg.text}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.messageTime,
-                        isMe && styles.messageTimeMe,
-                      ]}
-                    >
-                      {formatTime(msg.createdAt)}
-                    </Text>
-                  </View>
+            groupedMessages.map((group) => (
+              <View key={group.date}>
+                <View style={styles.dateHeader}>
+                  <Text style={styles.dateText}>{group.date}</Text>
                 </View>
-              );
-            })
+                {group.messages.map((msg) => {
+                  const isMe = user && msg.senderId === user.id;
+                  return (
+                    <MessageItem
+                      key={msg._id}
+                      msg={msg}
+                      isMe={!!isMe}
+                      formatTime={formatTime}
+                    />
+                  );
+                })}
+              </View>
+            ))
           )}
         </ScrollView>
 
         {/* Input Bar */}
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachButton}>
-            <Ionicons name="add-circle-outline" size={28} color="#2E7D32" />
-          </TouchableOpacity>
-
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
@@ -326,8 +440,30 @@ const styles = StyleSheet.create({
     elevation: 4,
     gap: 8,
   },
-  attachButton: {
-    padding: 4,
+  senderAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  senderAvatarImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  senderAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#757575",
     marginBottom: 4,
   },
   inputWrapper: {
@@ -375,14 +511,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#757575",
     marginTop: 4,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E0E0E0",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
 

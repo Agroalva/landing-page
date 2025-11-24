@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
+import { internal } from "./_generated/api";
 
 // Ensure a conversation exists between members, create if not
 export const ensureConversation = mutation({
@@ -41,6 +42,17 @@ export const ensureConversation = mutation({
 // List conversations for current user
 export const listForUser = query({
     args: {},
+    returns: v.array(
+        v.object({
+            _id: v.id("conversations"),
+            _creationTime: v.number(),
+            memberIds: v.array(v.string()),
+            lastMessageAt: v.optional(v.number()),
+            lastMessageText: v.optional(v.string()),
+            lastMessageSenderId: v.optional(v.string()),
+            createdAt: v.number(),
+        })
+    ),
     handler: async (ctx) => {
         const user = await authComponent.getAuthUser(ctx);
         if (!user) {
@@ -52,7 +64,16 @@ export const listForUser = query({
             .query("conversations")
             .collect();
 
-        return conversations.filter(c => c.memberIds.includes(user._id as string));
+        const userConversations = conversations.filter(c => 
+            c.memberIds.includes(user._id as string)
+        );
+
+        // Sort by lastMessageAt descending (most recent first)
+        return userConversations.sort((a, b) => {
+            const aTime = a.lastMessageAt || a.createdAt;
+            const bTime = b.lastMessageAt || b.createdAt;
+            return bTime - aTime;
+        });
     },
 });
 
@@ -84,13 +105,30 @@ export const sendMessage = mutation({
             senderId: user._id as string,
             text: args.text,
             mediaId: args.mediaId,
+            readBy: [user._id as string], // Sender has read their own message
             createdAt: Date.now(),
         });
 
-        // Update conversation lastMessageAt
+        // Update conversation with last message info
         await ctx.db.patch(args.conversationId, {
             lastMessageAt: Date.now(),
+            lastMessageText: args.text,
+            lastMessageSenderId: user._id as string,
         });
+
+        // Create notifications for other members
+        const otherMembers = conversation.memberIds.filter(
+            (id) => id !== (user._id as string)
+        );
+        for (const memberId of otherMembers) {
+            await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+                userId: memberId,
+                type: "message",
+                title: "Nuevo mensaje",
+                body: args.text.length > 50 ? args.text.substring(0, 50) + "..." : args.text,
+                relatedId: args.conversationId,
+            });
+        }
 
         return messageId;
     },
@@ -122,6 +160,85 @@ export const listMessages = query({
             )
             .order("asc")
             .take(limit);
+    },
+});
+
+// Mark messages as read for current user
+export const markMessagesAsRead = mutation({
+    args: {
+        conversationId: v.id("conversations"),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        const conversation = await ctx.db.get(args.conversationId);
+        if (!conversation || !conversation.memberIds.includes(user._id as string)) {
+            throw new Error("Conversation not found or not a member");
+        }
+
+        // Get all unread messages in this conversation
+        const messages = await ctx.db
+            .query("messages")
+            .withIndex("by_conversationId", (q) =>
+                q.eq("conversationId", args.conversationId)
+            )
+            .collect();
+
+        const userId = user._id as string;
+
+        // Update messages that haven't been read by this user
+        for (const message of messages) {
+            const readBy = message.readBy || [];
+            if (!readBy.includes(userId)) {
+                await ctx.db.patch(message._id, {
+                    readBy: [...readBy, userId],
+                });
+            }
+        }
+
+        return null;
+    },
+});
+
+// Get unread count for a conversation
+export const getUnreadCount = query({
+    args: {
+        conversationId: v.id("conversations"),
+    },
+    returns: v.number(),
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            return 0;
+        }
+
+        const conversation = await ctx.db.get(args.conversationId);
+        if (!conversation || !conversation.memberIds.includes(user._id as string)) {
+            return 0;
+        }
+
+        const messages = await ctx.db
+            .query("messages")
+            .withIndex("by_conversationId", (q) =>
+                q.eq("conversationId", args.conversationId)
+            )
+            .collect();
+
+        const userId = user._id as string;
+        let unreadCount = 0;
+
+        for (const message of messages) {
+            const readBy = message.readBy || [];
+            if (!readBy.includes(userId) && message.senderId !== userId) {
+                unreadCount++;
+            }
+        }
+
+        return unreadCount;
     },
 });
 

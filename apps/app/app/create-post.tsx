@@ -13,18 +13,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
 import { Id } from "../convex/_generated/dataModel";
+import * as Location from "expo-location";
+import { CATEGORY_METADATA } from "../constants/categories";
 
 export default function CreatePostScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
   const createProduct = useMutation(api.products.create);
   const { pickImage, uploading: uploadingImage } = useFileUpload();
-  const categories = useQuery(api.products.getCategories);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"rent" | "sell">("sell");
@@ -32,9 +33,20 @@ export default function CreatePostScreen() {
   const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [mediaIds, setMediaIds] = useState<Id<"_storage">[]>([]);
+  const [productLocation, setProductLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    address?: string;
+    label?: string;
+    permissionStatus?: Location.PermissionStatus;
+  } | null>(null);
+  const [locationStatus, setLocationStatus] =
+    useState<Location.PermissionStatus | null>(null);
+  const [requestingLocation, setRequestingLocation] = useState(false);
 
-  // Get category names from query result
-  const categoryNames = categories?.map(cat => cat.name) || [];
+  // Use hardcoded categories from constants
+  const categoryNames = Object.keys(CATEGORY_METADATA);
 
   const handleAddImage = async () => {
     if (mediaIds.length >= 5) {
@@ -54,6 +66,76 @@ export default function CreatePostScreen() {
 
   const handleRemoveImage = (index: number) => {
     setMediaIds(mediaIds.filter((_, i) => i !== index));
+  };
+
+  const handleUseCurrentLocation = async () => {
+    if (loading || requestingLocation) {
+      return;
+    }
+
+    try {
+      setRequestingLocation(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationStatus(status);
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permisos requeridos",
+          "Necesitamos acceso a tu ubicación para adjuntarla a la publicación."
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({});
+      let formattedAddress: string | undefined;
+      let label: string | undefined;
+
+      try {
+        const reverse = await Location.reverseGeocodeAsync({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+
+        if (reverse.length > 0) {
+          const place = reverse[0];
+          const cityParts = [place.city, place.region, place.country]
+            .filter(Boolean)
+            .join(", ");
+          label = cityParts || place.name || place.street || undefined;
+          formattedAddress = [
+            place.name,
+            place.street,
+            place.city,
+            place.region,
+            place.country,
+          ]
+            .filter(Boolean)
+            .join(", ");
+        }
+      } catch (error) {
+        console.warn("reverseGeocode failed", error);
+      }
+
+      setProductLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy ?? undefined,
+        address: formattedAddress,
+        label: label || formattedAddress,
+        permissionStatus: status,
+      });
+    } catch (error: any) {
+      Alert.alert(
+        "Ubicación",
+        error?.message || "No se pudo obtener la ubicación actual"
+      );
+    } finally {
+      setRequestingLocation(false);
+    }
+  };
+
+  const handleClearLocation = () => {
+    setProductLocation(null);
   };
 
   const handlePublish = async () => {
@@ -236,8 +318,9 @@ export default function CreatePostScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {categoryNames.length > 0 ? (
-              categoryNames.map((cat) => (
+            {categoryNames.map((cat) => {
+              const metadata = CATEGORY_METADATA[cat];
+              return (
                 <TouchableOpacity
                   key={cat}
                   style={[
@@ -247,6 +330,12 @@ export default function CreatePostScreen() {
                   onPress={() => setCategory(category === cat ? "" : cat)}
                   disabled={loading}
                 >
+                  <Ionicons
+                    name={metadata.icon as any}
+                    size={16}
+                    color={category === cat ? "#FFFFFF" : metadata.color}
+                    style={styles.categoryIcon}
+                  />
                   <Text
                     style={[
                       styles.categoryText,
@@ -256,10 +345,8 @@ export default function CreatePostScreen() {
                     {cat}
                   </Text>
                 </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.helperText}>Cargando categorías...</Text>
-            )}
+              );
+            })}
           </ScrollView>
         </View>
 
@@ -282,6 +369,50 @@ export default function CreatePostScreen() {
               editable={!loading}
             />
           </View>
+        </View>
+
+        {/* Location */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Ubicación (opcional)</Text>
+          <TouchableOpacity
+            style={[
+              styles.locationButton,
+              (loading || requestingLocation) && styles.locationButtonDisabled,
+            ]}
+            onPress={handleUseCurrentLocation}
+            disabled={loading || requestingLocation}
+          >
+            <Ionicons
+              name="location-outline"
+              size={20}
+              color={productLocation ? "#2E7D32" : "#757575"}
+            />
+            <Text style={styles.locationButtonText}>
+              {productLocation
+                ? productLocation.label || "Ubicación guardada"
+                : "Usar mi ubicación actual"}
+            </Text>
+            {requestingLocation && (
+              <ActivityIndicator size="small" color="#2E7D32" />
+            )}
+          </TouchableOpacity>
+          {productLocation && (
+            <View style={styles.locationSummary}>
+              <Text style={styles.locationDetails}>
+                {productLocation.address ||
+                  `${productLocation.latitude.toFixed(3)}, ${productLocation.longitude.toFixed(3)}`}
+              </Text>
+              <TouchableOpacity onPress={handleClearLocation}>
+                <Text style={styles.clearLocationText}>Quitar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {locationStatus === "denied" && (
+            <Text style={styles.helperText}>
+              Otorga permisos en la configuración del dispositivo para adjuntar
+              tu ubicación.
+            </Text>
+          )}
         </View>
 
         {/* Description */}
@@ -438,6 +569,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   categoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -445,10 +578,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E0E0E0",
     marginRight: 8,
+    gap: 6,
   },
   categoryChipSelected: {
     backgroundColor: "#2E7D32",
     borderColor: "#2E7D32",
+  },
+  categoryIcon: {
+    marginRight: 0,
   },
   categoryText: {
     fontSize: 14,
@@ -515,12 +652,33 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#E0E0E0",
+    gap: 8,
+  },
+  locationButtonDisabled: {
+    opacity: 0.6,
   },
   locationButtonText: {
     flex: 1,
     fontSize: 15,
     color: "#212121",
-    marginLeft: 8,
+  },
+  locationSummary: {
+    marginTop: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  locationDetails: {
+    fontSize: 14,
+    color: "#424242",
+    marginBottom: 8,
+  },
+  clearLocationText: {
+    fontSize: 13,
+    color: "#F44336",
+    fontWeight: "600",
   },
   infoCard: {
     flexDirection: "row",

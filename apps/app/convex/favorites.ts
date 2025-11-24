@@ -1,6 +1,23 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
+import { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+
+const productValidator = v.object({
+    _id: v.id("products"),
+    _creationTime: v.number(),
+    authorId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    type: v.union(v.literal("rent"), v.literal("sell")),
+    category: v.optional(v.string()),
+    price: v.optional(v.number()),
+    mediaIds: v.optional(v.array(v.id("_storage"))),
+    viewCount: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+});
 
 // Check if current user has favorited a product
 export const isFavorite = query({
@@ -60,6 +77,18 @@ export const toggleFavorite = mutation({
                 productId: args.productId,
                 createdAt: Date.now(),
             });
+
+            // Create notification for product owner
+            if (product.authorId !== (user._id as string)) {
+                await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+                    userId: product.authorId,
+                    type: "favorite",
+                    title: "Nuevo favorito",
+                    body: `A alguien le gustó tu producto: ${product.name}`,
+                    relatedId: args.productId,
+                });
+            }
+
             return true;
         }
     },
@@ -84,6 +113,47 @@ export const getFavorites = query({
     },
 });
 
+// Return favorite status for a batch of product IDs
+export const getFavoritesMap = query({
+    args: {
+        productIds: v.array(v.id("products")),
+    },
+    returns: v.array(
+        v.object({
+            productId: v.id("products"),
+            isFavorite: v.boolean(),
+        })
+    ),
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            return args.productIds.map((productId) => ({
+                productId,
+                isFavorite: false,
+            }));
+        }
+
+        const favoriteSet = new Set<Id<"products">>();
+        for (const productId of args.productIds) {
+            const favorite = await ctx.db
+                .query("favorites")
+                .withIndex("by_userId_productId", (q) =>
+                    q.eq("userId", user._id as string).eq("productId", productId)
+                )
+                .first();
+
+            if (favorite) {
+                favoriteSet.add(productId);
+            }
+        }
+
+        return args.productIds.map((productId) => ({
+            productId,
+            isFavorite: favoriteSet.has(productId),
+        }));
+    },
+});
+
 // Get favorite count for a product
 export const getFavoriteCount = query({
     args: {
@@ -96,6 +166,78 @@ export const getFavoriteCount = query({
             .collect();
 
         return favorites.length;
+    },
+});
+
+// Get favorite counts for multiple products
+export const getFavoriteCounts = query({
+    args: {
+        productIds: v.array(v.id("products")),
+    },
+    returns: v.array(
+        v.object({
+            productId: v.id("products"),
+            count: v.number(),
+        })
+    ),
+    handler: async (ctx, args) => {
+        const counts: Record<string, number> = {};
+
+        for (const productId of args.productIds) {
+            const favorites = await ctx.db
+                .query("favorites")
+                .withIndex("by_productId", (q) => q.eq("productId", productId))
+                .collect();
+
+            counts[productId] = favorites.length;
+        }
+
+        return args.productIds.map((productId) => ({
+            productId,
+            count: counts[productId] || 0,
+        }));
+    },
+});
+
+// Get favorite products (with product data) for current user
+export const listFavoriteProducts = query({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    returns: v.array(
+        v.object({
+            favoriteId: v.id("favorites"),
+            product: productValidator,
+        })
+    ),
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            return [];
+        }
+
+        const limit = args.limit || 50;
+
+        const favorites = await ctx.db
+            .query("favorites")
+            .withIndex("by_userId", (q) => q.eq("userId", user._id as string))
+            .order("desc")
+            .take(limit);
+
+        const results: Array<{ favoriteId: Id<"favorites">; product: Doc<"products"> }> =
+            [];
+
+        for (const favorite of favorites) {
+            const product = await ctx.db.get(favorite.productId);
+            if (product) {
+                results.push({
+                    favoriteId: favorite._id,
+                    product,
+                });
+            }
+        }
+
+        return results;
     },
 });
 

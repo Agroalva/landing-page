@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const { isAuthenticated, isLoading } = useAuthSession();
   const products = useQuery(api.products.feed, { limit: 20 });
   const categories = useQuery(api.products.getCategories);
+  const unreadNotificationCount = useQuery(api.notifications.getUnreadCount);
 
   // Show loading while checking auth state
   if (isLoading) {
@@ -48,8 +49,18 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.logo}>AgroAlva</Text>
-        <TouchableOpacity style={styles.notificationButton}>
+        <TouchableOpacity
+          style={styles.notificationButton}
+          onPress={() => router.push("/notifications")}
+        >
           <Ionicons name="notifications-outline" size={24} color="#2E7D32" />
+          {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -248,6 +259,26 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     padding: 4,
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#F44336",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   searchContainer: {
     flexDirection: "row",

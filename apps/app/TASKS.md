@@ -79,15 +79,15 @@ This document outlines all tasks needed to bring the AgroAlva mobile app to 100%
   - [x] Persist across app sessions
 
 ### Favorites/Bookmarks
-- [ ] Implement favorites system
-  - [ ] Add favorites table to schema
-  - [ ] Create favorite mutation
-  - [ ] Create unfavorite mutation
-  - [ ] Add favorites query
-  - [ ] Wire up heart button in feed
-  - [ ] Wire up heart button in product detail
-  - [ ] Show favorites in profile
-  - [ ] Add favorites tab/section
+- [x] Implement favorites system
+  - [x] Add favorites table to schema
+  - [x] Create favorite mutation
+  - [x] Create unfavorite mutation
+  - [x] Add favorites query
+  - [x] Wire up heart button in feed
+  - [x] Wire up heart button in product detail
+  - [x] Show favorites in profile
+  - [x] Add favorites tab/section
 
 ### Post Creation Enhancement
 - [x] Add category selection to create post
@@ -95,58 +95,58 @@ This document outlines all tasks needed to bring the AgroAlva mobile app to 100%
   - [x] Validate category selection
   - [x] Save category with post
 
-- [ ] Add location support
-  - [ ] Request location permissions
-  - [ ] Get user location (expo-location)
-  - [ ] Store location with post
-  - [ ] Display location in post
-  - [ ] Add location picker UI
+- [x] Add location support
+  - [x] Request location permissions
+  - [x] Get user location (expo-location)
+  - [x] Store location with post
+  - [x] Display location in post
+  - [x] Add location picker UI
 
-- [ ] Add price field (optional)
-  - [ ] Price input component
-  - [ ] Currency formatting
-  - [ ] Display price in feed and detail
+- [x] Add price field (optional)
+  - [x] Price input component
+  - [x] Currency formatting
+  - [x] Display price in feed and detail
 
 ### Messaging Enhancements
-- [ ] Improve conversation list
-  - [ ] Fetch and display last message text
-  - [ ] Show sender name/profile
-  - [ ] Add unread message badges
-  - [ ] Sort by last message time
-  - [ ] Add conversation avatars (group/multi-user support)
+- [x] Improve conversation list
+  - [x] Fetch and display last message text
+  - [x] Show sender name/profile
+  - [x] Add unread message badges
+  - [x] Sort by last message time
+  - [x] Add conversation avatars (group/multi-user support)
 
-- [ ] Wire up "create message" button
-  - [ ] Create conversation creation flow
-  - [ ] Select user to message
-  - [ ] Start new conversation
-  - [ ] Navigate to chat screen
+- [x] Wire up "create message" button
+  - [x] Create conversation creation flow
+  - [x] Select user to message
+  - [x] Start new conversation
+  - [x] Navigate to chat screen
 
-- [ ] Remove attach button from chat UI
-  - [ ] Remove attach button from chat input bar
-  - [ ] Update chat input layout (text-only)
-  - [ ] Clean up unused attach button styles
+- [x] Remove attach button from chat UI
+  - [x] Remove attach button from chat input bar
+  - [x] Update chat input layout (text-only)
+  - [x] Clean up unused attach button styles
 
-- [ ] Add message sender names
-  - [ ] Fetch sender profiles
-  - [ ] Display sender name in chat
-  - [ ] Show sender avatar in chat
+- [x] Add message sender names
+  - [x] Fetch sender profiles
+  - [x] Display sender name in chat
+  - [x] Show sender avatar in chat
 
-- [ ] Add message timestamps
-  - [ ] Group messages by date
-  - [ ] Show date headers
-  - [ ] Format timestamps properly
+- [x] Add message timestamps
+  - [x] Group messages by date
+  - [x] Show date headers
+  - [x] Format timestamps properly
 
 **Note:** Chat messages are text-only (no image support needed)
 
 ### Notifications System
-- [ ] Implement notifications
-  - [ ] Set up push notifications (expo-notifications)
-  - [ ] Request notification permissions
-  - [ ] Create notification schema
-  - [ ] Notify on new messages
-  - [ ] Notify on new comments/likes
-  - [ ] Notification settings screen
-  - [ ] Wire up notification button
+- [x] Implement notifications
+  - [x] Set up push notifications (expo-notifications)
+  - [x] Request notification permissions
+  - [x] Create notification schema
+  - [x] Notify on new messages
+  - [x] Notify on new favorites
+  - [x] Notification screen
+  - [x] Wire up notification button
 
 ---
 

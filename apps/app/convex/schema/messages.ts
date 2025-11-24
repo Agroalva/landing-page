@@ -6,6 +6,7 @@ export const messagesTable = defineTable({
     senderId: v.string(), // References Better Auth user ID
     text: v.string(),
     mediaId: v.optional(v.id("_storage")),
+    readBy: v.optional(v.array(v.string())), // Array of user IDs who have read this message
     createdAt: v.number(),
 })
     .index("by_conversationId", ["conversationId"])

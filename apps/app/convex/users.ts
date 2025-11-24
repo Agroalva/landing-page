@@ -68,6 +68,7 @@ export const updateProfile = mutation({
         bio: v.optional(v.string()),
         avatarId: v.optional(v.id("_storage")),
         phoneNumber: v.optional(v.string()),
+        pushToken: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const user = await authComponent.getAuthUser(ctx);
