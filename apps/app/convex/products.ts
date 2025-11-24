@@ -8,6 +8,7 @@ export const create = mutation({
         name: v.string(),
         description: v.optional(v.string()),
         type: v.union(v.literal("rent"), v.literal("sell")),
+        category: v.optional(v.string()),
         price: v.optional(v.number()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
     },
@@ -26,6 +27,7 @@ export const create = mutation({
             name: args.name.trim(),
             description: args.description?.trim(),
             type: args.type,
+            category: args.category,
             price: args.price,
             mediaIds: args.mediaIds || [],
             viewCount: 0,
@@ -35,13 +37,24 @@ export const create = mutation({
     },
 });
 
-// Get feed of products (chronological)
+// Get feed of products (chronological) with optional category filter
 export const feed = query({
     args: {
         limit: v.optional(v.number()),
+        category: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const limit = args.limit || 20;
+        
+        if (args.category && args.category !== "Todos") {
+            return await ctx.db
+                .query("products")
+                .withIndex("by_category_createdAt", (q) => 
+                    q.eq("category", args.category)
+                )
+                .order("desc")
+                .take(limit);
+        }
         
         return await ctx.db
             .query("products")
@@ -127,6 +140,7 @@ export const update = mutation({
         name: v.optional(v.string()),
         description: v.optional(v.string()),
         type: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
+        category: v.optional(v.string()),
         price: v.optional(v.number()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
     },
@@ -164,6 +178,10 @@ export const update = mutation({
             updates.type = args.type;
         }
 
+        if (args.category !== undefined) {
+            updates.category = args.category;
+        }
+
         if (args.price !== undefined) {
             updates.price = args.price;
         }
@@ -173,6 +191,31 @@ export const update = mutation({
         }
 
         await ctx.db.patch(args.productId, updates);
+    },
+});
+
+// Get all categories with product counts
+export const getCategories = query({
+    args: {},
+    handler: async (ctx) => {
+        const allProducts = await ctx.db
+            .query("products")
+            .collect();
+        
+        // Count products by category
+        const categoryCounts: Record<string, number> = {};
+        allProducts.forEach(product => {
+            if (product.category) {
+                categoryCounts[product.category] = (categoryCounts[product.category] || 0) + 1;
+            }
+        });
+        
+        // Convert to array and sort by count (descending)
+        const categories = Object.entries(categoryCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+        
+        return categories;
     },
 });
 

@@ -17,21 +17,15 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
+import { getCategoryMetadata } from "../../constants/categories";
 
 const { width } = Dimensions.get("window");
-
-const CATEGORIES = [
-  { id: 1, name: "Maquinaria", icon: "construct", color: "#2E7D32" },
-  { id: 2, name: "Semillas", icon: "leaf", color: "#FBC02D" },
-  { id: 3, name: "Servicios", icon: "people", color: "#2E7D32" },
-  { id: 4, name: "Fertilizantes", icon: "flask", color: "#FBC02D" },
-  { id: 5, name: "Transporte", icon: "car", color: "#2E7D32" },
-];
 
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
   const products = useQuery(api.products.feed, { limit: 20 });
+  const categories = useQuery(api.products.getCategories);
 
   // Show loading while checking auth state
   if (isLoading) {
@@ -86,22 +80,41 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {CATEGORIES.map((category) => (
-              <TouchableOpacity
-                key={category.id}
-                style={[
-                  styles.categoryCard,
-                  { backgroundColor: category.color + "15" },
-                ]}
-              >
-                <Ionicons
-                  name={category.icon as any}
-                  size={28}
-                  color={category.color}
-                />
-                <Text style={styles.categoryName}>{category.name}</Text>
-              </TouchableOpacity>
-            ))}
+            {categories && categories.length > 0 ? (
+              categories.slice(0, 8).map((cat) => {
+                const metadata = getCategoryMetadata(cat.name);
+                return (
+                  <TouchableOpacity
+                    key={cat.name}
+                    style={[
+                      styles.categoryCard,
+                      { backgroundColor: metadata.color + "15" },
+                    ]}
+                    onPress={() => {
+                      // Navigate to search with category filter
+                      router.push({
+                        pathname: "/(tabs)/search",
+                        params: { category: cat.name },
+                      });
+                    }}
+                  >
+                    <Ionicons
+                      name={metadata.icon as any}
+                      size={28}
+                      color={metadata.color}
+                    />
+                    <Text style={styles.categoryName}>{cat.name}</Text>
+                    {cat.count > 0 && (
+                      <Text style={styles.categoryCount}>{cat.count}</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#2E7D32" />
+              </View>
+            )}
           </ScrollView>
         </View>
 
@@ -296,10 +309,15 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   categoryName: {
-    marginTop: 8,
+    marginTop: 4,
     fontSize: 13,
     fontWeight: "600",
     color: "#212121",
+  },
+  categoryCount: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#757575",
   },
   bannerContainer: {
     paddingHorizontal: 16,

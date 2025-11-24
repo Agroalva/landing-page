@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,33 +7,62 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getCategoryMetadata, type CategoryIcon } from "../../constants/categories";
 
-const FILTERS = [
-  { id: 1, name: "Todos", icon: "apps" },
-  { id: 2, name: "Maquinaria", icon: "construct" },
-  { id: 3, name: "Semillas", icon: "leaf" },
-  { id: 4, name: "Servicios", icon: "people" },
-  { id: 5, name: "Fertilizantes", icon: "flask" },
-];
-
-const RECENT_SEARCHES = [
-  "Tractor John Deere",
-  "Semillas de tomate",
-  "Servicio de fumigación",
-  "Fertilizante orgánico",
-];
+const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
+const MAX_RECENT_SEARCHES = 10;
 
 export default function SearchScreen() {
   const router = useRouter();
-  const [selectedFilter, setSelectedFilter] = useState(1);
+  const params = useLocalSearchParams<{ category?: string }>();
+  const [selectedFilter, setSelectedFilter] = useState<string | null>("Todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+
+  // Fetch dynamic categories
+  const categories = useQuery(api.products.getCategories);
+
+  // Set initial filter from route params
+  useEffect(() => {
+    if (params.category) {
+      setSelectedFilter(params.category);
+    }
+  }, [params.category]);
+
+  // Build filters array dynamically
+  const filters = useMemo(() => {
+    const allFilters = [
+      { id: "Todos", name: "Todos", icon: "apps" as CategoryIcon },
+    ];
+    
+    if (categories) {
+      categories.forEach((cat) => {
+        const metadata = getCategoryMetadata(cat.name);
+        allFilters.push({
+          id: cat.name,
+          name: cat.name,
+          icon: metadata.icon,
+        });
+      });
+    }
+    
+    return allFilters;
+  }, [categories]);
+
+  // Load recent searches on mount
+  useEffect(() => {
+    loadRecentSearches();
+  }, []);
 
   // Debounce search query to avoid querying on every keystroke
   useEffect(() => {
@@ -44,9 +73,86 @@ export default function SearchScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Save search to recent searches when user searches
+  useEffect(() => {
+    if (debouncedQuery.length >= 3) {
+      saveRecentSearch(debouncedQuery);
+    }
+  }, [debouncedQuery]);
+
+  const loadRecentSearches = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+      if (stored) {
+        const searches = JSON.parse(stored);
+        setRecentSearches(Array.isArray(searches) ? searches : []);
+      }
+    } catch (error) {
+      console.error("Error loading recent searches:", error);
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  };
+
+  const saveRecentSearch = async (query: string) => {
+    try {
+      const trimmedQuery = query.trim();
+      if (trimmedQuery.length < 3) return;
+
+      const stored = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+      let searches: string[] = stored ? JSON.parse(stored) : [];
+      
+      // Remove if already exists
+      searches = searches.filter(s => s.toLowerCase() !== trimmedQuery.toLowerCase());
+      // Add to beginning
+      searches.unshift(trimmedQuery);
+      // Keep only MAX_RECENT_SEARCHES
+      searches = searches.slice(0, MAX_RECENT_SEARCHES);
+      
+      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
+      setRecentSearches(searches);
+    } catch (error) {
+      console.error("Error saving recent search:", error);
+    }
+  };
+
+  const clearRecentSearches = async () => {
+    try {
+      await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
+      setRecentSearches([]);
+    } catch (error) {
+      console.error("Error clearing recent searches:", error);
+    }
+  };
+
+  const handleRecentSearchPress = (search: string) => {
+    setSearchQuery(search);
+  };
+
+  const handleClearRecentSearches = () => {
+    Alert.alert(
+      "Limpiar búsquedas",
+      "¿Estás seguro de que quieres eliminar todas las búsquedas recientes?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Limpiar", style: "destructive", onPress: clearRecentSearches },
+      ]
+    );
+  };
+
+  const getSelectedCategory = () => {
+    return selectedFilter === "Todos" ? undefined : selectedFilter;
+  };
+
   const results = useQuery(
     api.search.querySearch,
-    debouncedQuery.length >= 3 ? { query: debouncedQuery, limit: 20 } : "skip"
+    debouncedQuery.length >= 3 
+      ? { 
+          query: debouncedQuery, 
+          category: getSelectedCategory(),
+          limit: 20 
+        } 
+      : "skip"
   );
 
   return (
@@ -79,7 +185,7 @@ export default function SearchScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersContainer}
         >
-          {FILTERS.map((filter) => (
+          {filters.map((filter) => (
             <TouchableOpacity
               key={filter.id}
               style={[
@@ -164,58 +270,70 @@ export default function SearchScreen() {
         {/* Recent Searches - Show when no search query */}
         {!searchQuery.trim() && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Búsquedas recientes</Text>
-            {RECENT_SEARCHES.map((search, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.recentItem}
-                onPress={() => setSearchQuery(search)}
-              >
-                <Ionicons name="time-outline" size={20} color="#757575" />
-                <Text style={styles.recentText}>{search}</Text>
-                <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
-              </TouchableOpacity>
-            ))}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Búsquedas recientes</Text>
+              {recentSearches.length > 0 && (
+                <TouchableOpacity onPress={handleClearRecentSearches}>
+                  <Text style={styles.clearText}>Limpiar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {isLoadingRecent ? (
+              <ActivityIndicator size="small" color="#2E7D32" style={styles.loadingRecent} />
+            ) : recentSearches.length > 0 ? (
+              recentSearches.map((search, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.recentItem}
+                  onPress={() => handleRecentSearchPress(search)}
+                >
+                  <Ionicons name="time-outline" size={20} color="#757575" />
+                  <Text style={styles.recentText}>{search}</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyRecent}>
+                <Text style={styles.emptyRecentText}>No hay búsquedas recientes</Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* Popular Categories */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categorías populares</Text>
-          <View style={styles.popularGrid}>
-            <TouchableOpacity style={styles.popularCard}>
-              <View style={[styles.popularIcon, { backgroundColor: "#2E7D3220" }]}>
-                <Ionicons name="construct" size={32} color="#2E7D32" />
-              </View>
-              <Text style={styles.popularText}>Maquinaria</Text>
-              <Text style={styles.popularCount}>120+ productos</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.popularCard}>
-              <View style={[styles.popularIcon, { backgroundColor: "#FBC02D20" }]}>
-                <Ionicons name="leaf" size={32} color="#F57F17" />
-              </View>
-              <Text style={styles.popularText}>Semillas</Text>
-              <Text style={styles.popularCount}>85+ productos</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.popularCard}>
-              <View style={[styles.popularIcon, { backgroundColor: "#2E7D3220" }]}>
-                <Ionicons name="people" size={32} color="#2E7D32" />
-              </View>
-              <Text style={styles.popularText}>Servicios</Text>
-              <Text style={styles.popularCount}>45+ servicios</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.popularCard}>
-              <View style={[styles.popularIcon, { backgroundColor: "#FBC02D20" }]}>
-                <Ionicons name="flask" size={32} color="#F57F17" />
-              </View>
-              <Text style={styles.popularText}>Fertilizantes</Text>
-              <Text style={styles.popularCount}>60+ productos</Text>
-            </TouchableOpacity>
+        {categories && categories.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Categorías populares</Text>
+            <View style={styles.popularGrid}>
+              {categories.slice(0, 4).map((cat) => {
+                const metadata = getCategoryMetadata(cat.name);
+                return (
+                  <TouchableOpacity
+                    key={cat.name}
+                    style={styles.popularCard}
+                    onPress={() => {
+                      setSelectedFilter(cat.name);
+                      // Scroll to top or focus search
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.popularIcon,
+                        { backgroundColor: metadata.color + "20" },
+                      ]}
+                    >
+                      <Ionicons name={metadata.icon as any} size={32} color={metadata.color} />
+                    </View>
+                    <Text style={styles.popularText}>{cat.name}</Text>
+                    <Text style={styles.popularCount}>
+                      {cat.count} {cat.count === 1 ? "producto" : "productos"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -297,11 +415,32 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingHorizontal: 16,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#212121",
-    marginBottom: 16,
+  },
+  clearText: {
+    fontSize: 14,
+    color: "#F44336",
+    fontWeight: "600",
+  },
+  loadingRecent: {
+    padding: 20,
+  },
+  emptyRecent: {
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyRecentText: {
+    fontSize: 14,
+    color: "#757575",
   },
   recentItem: {
     flexDirection: "row",

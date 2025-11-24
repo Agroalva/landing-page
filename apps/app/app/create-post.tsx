@@ -13,33 +13,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
 import { Id } from "../convex/_generated/dataModel";
-
-const CATEGORIES = [
-  "Maquinaria",
-  "Semillas",
-  "Servicios",
-  "Fertilizantes",
-  "Transporte",
-  "Herramientas",
-  "Otros",
-];
 
 export default function CreatePostScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
   const createProduct = useMutation(api.products.create);
   const { pickImage, uploading: uploadingImage } = useFileUpload();
+  const categories = useQuery(api.products.getCategories);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"rent" | "sell">("sell");
+  const [category, setCategory] = useState<string>("");
   const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [mediaIds, setMediaIds] = useState<Id<"_storage">[]>([]);
+
+  // Get category names from query result
+  const categoryNames = categories?.map(cat => cat.name) || [];
 
   const handleAddImage = async () => {
     if (mediaIds.length >= 5) {
@@ -73,6 +68,7 @@ export default function CreatePostScreen() {
         name: name.trim(),
         description: description.trim() || undefined,
         type: type,
+        category: category || undefined,
         price: price ? parseFloat(price) : undefined,
         mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
       });
@@ -230,6 +226,41 @@ export default function CreatePostScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Category Selection */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Categoría</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesContainer}
+          >
+            {categoryNames.length > 0 ? (
+              categoryNames.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryChip,
+                    category === cat && styles.categoryChipSelected,
+                  ]}
+                  onPress={() => setCategory(category === cat ? "" : cat)}
+                  disabled={loading}
+                >
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      category === cat && styles.categoryTextSelected,
+                    ]}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.helperText}>Cargando categorías...</Text>
+            )}
+          </ScrollView>
         </View>
 
         {/* Price */}
