@@ -23,6 +23,7 @@ export default function RootLayout() {
         <Stack.Screen name="chat/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
         <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
+        <Stack.Screen name="edit-product/[id]" options={{ presentation: "modal" }} />
       </Stack>
     </ConvexClientProvider>
   );

@@ -9,10 +9,11 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, type Href } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -46,6 +47,11 @@ export default function ProductDetailScreen() {
   const toggleFavorite = useMutation(api.favorites.toggleFavorite);
   const incrementViewCount = useMutation(api.products.incrementViewCount);
   const ensureConversation = useMutation(api.conversations.ensureConversation);
+  const deleteProduct = useMutation(api.products.deleteProduct);
+
+  // Check if current user is the author
+  const currentUserId = user?.id || user?.userId;
+  const isAuthor = currentUserId && product?.authorId === currentUserId;
 
   const images = product?.mediaIds || [];
 
@@ -133,6 +139,51 @@ export default function ProductDetailScreen() {
     }
   };
 
+  const handleShare = async () => {
+    if (!product) return;
+    
+    try {
+      const productUrl = `agroalva://product/${product._id}`;
+      const shareMessage = `Mira este producto: ${product.name}${product.price ? ` - $${product.price.toLocaleString()}` : ""}\n\n${productUrl}`;
+      
+      await Share.share({
+        message: shareMessage,
+        title: product.name,
+      });
+    } catch (error: any) {
+      if (error.message !== "User did not share") {
+        Alert.alert("Error", "No se pudo compartir el producto");
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    if (!productId) return;
+    
+    Alert.alert(
+      "Eliminar publicación",
+      "¿Estás seguro de que deseas eliminar esta publicación? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteProduct({ productId });
+              router.back();
+            } catch (error: any) {
+              Alert.alert("Error", error?.message || "No se pudo eliminar la publicación");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (product === undefined) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -168,17 +219,46 @@ export default function ProductDetailScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#212121" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.favoriteButton}
-          onPress={handleToggleFavorite}
-          disabled={isFavorite === undefined}
-        >
-          <Ionicons
-            name={isFavorite ? "heart" : "heart-outline"}
-            size={24}
-            color={isFavorite ? "#F44336" : "#212121"}
-          />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {isAuthor && (
+            <>
+              <TouchableOpacity
+                style={styles.headerActionButton}
+                onPress={() => {
+                  router.push({
+                    pathname: "/edit-product/[id]",
+                    params: { id: productId },
+                  });
+                }}
+              >
+                <Ionicons name="create-outline" size={22} color="#212121" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerActionButton}
+                onPress={handleDelete}
+              >
+                <Ionicons name="trash-outline" size={22} color="#F44336" />
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleShare}
+          >
+            <Ionicons name="share-outline" size={22} color="#212121" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={handleToggleFavorite}
+            disabled={isFavorite === undefined}
+          >
+            <Ionicons
+              name={isFavorite ? "heart" : "heart-outline"}
+              size={24}
+              color={isFavorite ? "#F44336" : "#212121"}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -362,8 +442,27 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     zIndex: 10,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerActionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   backButton: {
     width: 40,
@@ -586,6 +685,9 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
   sellerAvatarPlaceholder: {
     justifyContent: "center",

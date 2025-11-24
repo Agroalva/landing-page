@@ -250,6 +250,9 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
   userInfo: {
     flex: 1,

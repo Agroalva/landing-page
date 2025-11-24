@@ -229,6 +229,8 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: "#E0E0E0",
     overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
   },
   onlineIndicator: {
     position: "absolute",

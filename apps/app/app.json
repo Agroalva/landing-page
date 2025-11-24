@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "app",
-    "slug": "app",
+    "slug": "agroalva",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.tymkiwdylan.dev.agroalva"
     },
     "web": {
       "output": "static",
@@ -45,11 +49,19 @@
           "photosPermission": "La aplicación necesita acceso a tus fotos para que puedas compartir imágenes en tus publicaciones.",
           "cameraPermission": "La aplicación necesita acceso a tu cámara para que puedas tomar fotos directamente."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8dedbe1f-914d-4280-afc9-44ccc9a59d32"
+      }
+    },
+    "owner": "tymkiwdylan.dev"
   }
 }

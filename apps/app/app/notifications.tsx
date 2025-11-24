@@ -105,11 +105,11 @@ export default function NotificationsScreen() {
           <Ionicons name="arrow-back" size={24} color="#212121" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notificaciones</Text>
-        {unreadCount && unreadCount > 0 && (
+        {unreadCount !== undefined && unreadCount > 0 ? (
           <TouchableOpacity onPress={handleMarkAllAsRead}>
             <Text style={styles.markAllReadText}>Marcar todas</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>

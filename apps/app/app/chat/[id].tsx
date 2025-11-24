@@ -346,6 +346,9 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
   contactName: {
     fontSize: 16,

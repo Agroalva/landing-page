@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
 
 // Create a new product
@@ -45,15 +46,13 @@ export const create = mutation({
     },
 });
 
-// Get feed of products (chronological) with optional category filter
+// Get feed of products (chronological) with optional category filter and pagination
 export const feed = query({
     args: {
-        limit: v.optional(v.number()),
+        paginationOpts: paginationOptsValidator,
         category: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const limit = args.limit || 20;
-        
         if (args.category && args.category !== "Todos") {
             return await ctx.db
                 .query("products")
@@ -61,14 +60,14 @@ export const feed = query({
                     q.eq("category", args.category)
                 )
                 .order("desc")
-                .take(limit);
+                .paginate(args.paginationOpts);
         }
         
         return await ctx.db
             .query("products")
             .withIndex("by_createdAt")
             .order("desc")
-            .take(limit);
+            .paginate(args.paginationOpts);
     },
 });
 
@@ -151,6 +150,13 @@ export const update = mutation({
         category: v.optional(v.string()),
         price: v.optional(v.number()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
+        location: v.optional(v.object({
+            latitude: v.number(),
+            longitude: v.number(),
+            accuracy: v.optional(v.number()),
+            address: v.optional(v.string()),
+            label: v.optional(v.string()),
+        })),
     },
     handler: async (ctx, args) => {
         const user = await authComponent.getAuthUser(ctx);
@@ -196,6 +202,10 @@ export const update = mutation({
 
         if (args.mediaIds !== undefined) {
             updates.mediaIds = args.mediaIds;
+        }
+
+        if (args.location !== undefined) {
+            updates.location = args.location;
         }
 
         await ctx.db.patch(args.productId, updates);

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,13 +25,48 @@ const { width } = Dimensions.get("window");
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
-  const products = useQuery(api.products.feed, { limit: 20 });
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [allProducts, setAllProducts] = useState<Array<any>>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  // Query with pagination
+  const feedResult = useQuery(
+    api.products.feed,
+    { 
+      paginationOpts: { 
+        numItems: 20, 
+        cursor: cursor 
+      } 
+    }
+  );
+  
   const categories = useQuery(api.products.getCategories);
   const unreadNotificationCount = useQuery(api.notifications.getUnreadCount);
   const toggleFavorite = useMutation(api.favorites.toggleFavorite);
 
+  // Update accumulated products when new page loads
+  // Convex queries are real-time, so data updates automatically
+  useEffect(() => {
+    if (feedResult) {
+      if (cursor === null) {
+        // First page - replace all products
+        // Real-time updates will automatically refresh the list
+        setAllProducts(feedResult.page);
+      } else {
+        // Append new page for infinite scroll
+        setAllProducts(prev => {
+          // Avoid duplicates by checking if product already exists
+          const existingIds = new Set(prev.map(p => p._id));
+          const newProducts = feedResult.page.filter(p => !existingIds.has(p._id));
+          return [...prev, ...newProducts];
+        });
+      }
+      setIsLoadingMore(false);
+    }
+  }, [feedResult, cursor]);
+
   // Get favorite status for all products
-  const productIds = useMemo(() => products?.map(p => p._id) || [], [products]);
+  const productIds = useMemo(() => allProducts.map(p => p._id) || [], [allProducts]);
   const favoritesMap = useQuery(
     api.favorites.getFavoritesMap,
     productIds.length > 0 ? { productIds } : "skip"
@@ -44,6 +80,14 @@ export default function HomeScreen() {
     });
     return map;
   }, [favoritesMap]);
+
+  // Handle load more (infinite scroll)
+  const handleLoadMore = useCallback(() => {
+    if (feedResult && !feedResult.isDone && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setCursor(feedResult.continueCursor);
+    }
+  }, [feedResult, isLoadingMore]);
 
   // Show loading while checking auth state
   if (isLoading) {
@@ -60,6 +104,221 @@ export default function HomeScreen() {
   if (!isAuthenticated) {
     return <Redirect href="/(auth)/sign-in" />;
   }
+
+  // Render product item
+  const renderProductItem = ({ item: product }: { item: any }) => (
+    <TouchableOpacity
+      style={styles.productCard}
+      onPress={() => router.push(`/product/${product._id}`)}
+    >
+      {product.mediaIds && product.mediaIds.length > 0 ? (
+        <ConvexImage
+          storageId={product.mediaIds[0]}
+          style={styles.productImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.productImagePlaceholder}>
+          <Ionicons name="image-outline" size={48} color="#9E9E9E" />
+        </View>
+      )}
+      <View style={styles.productInfo}>
+        <View style={styles.productHeader}>
+          <Text style={styles.productTitle} numberOfLines={2}>
+            {product.name}
+          </Text>
+          <TouchableOpacity
+            onPress={async (e) => {
+              e.stopPropagation();
+              try {
+                await toggleFavorite({ productId: product._id });
+              } catch (error) {
+                console.error("Failed to toggle favorite:", error);
+              }
+            }}
+            style={styles.favoriteButton}
+          >
+            <Ionicons
+              name={
+                isFavoriteMap.get(product._id)
+                  ? "heart"
+                  : "heart-outline"
+              }
+              size={22}
+              color={
+                isFavoriteMap.get(product._id) ? "#F44336" : "#2E7D32"
+              }
+            />
+          </TouchableOpacity>
+        </View>
+        {product.price && (
+          <Text style={styles.productPrice}>
+            ${product.price.toLocaleString()}
+          </Text>
+        )}
+        <View style={styles.productFooter}>
+          <View style={styles.locationContainer}>
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color="#757575"
+            />
+            <Text style={styles.locationText}>
+              {new Date(product.createdAt).toLocaleDateString()}
+            </Text>
+          </View>
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryBadgeText}>
+              {product.type === "rent" ? "Alquiler" : "Venta"}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  // List header component
+  const renderHeader = () => (
+    <>
+      {/* Search Bar */}
+      <TouchableOpacity
+        style={styles.searchContainer}
+        onPress={() => router.push("/(tabs)/search")}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name="search"
+          size={20}
+          color="#9E9E9E"
+          style={styles.searchIcon}
+        />
+        <Text style={styles.searchInputPlaceholder}>
+          Buscar productos, servicios...
+        </Text>
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            router.push({
+              pathname: "/(tabs)/search",
+              params: { showFilters: "true" },
+            });
+          }}
+        >
+          <Ionicons name="options-outline" size={20} color="#2E7D32" />
+        </TouchableOpacity>
+      </TouchableOpacity>
+
+      {/* Categories Carousel */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Categorías</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesContainer}
+        >
+          {categories && categories.length > 0 ? (
+            categories.slice(0, 8).map((cat) => {
+              const metadata = getCategoryMetadata(cat.name);
+              return (
+                <TouchableOpacity
+                  key={cat.name}
+                  style={[
+                    styles.categoryCard,
+                    { backgroundColor: metadata.color + "15" },
+                  ]}
+                  onPress={() => {
+                    router.push({
+                      pathname: "/(tabs)/search",
+                      params: { category: cat.name },
+                    });
+                  }}
+                >
+                  <Ionicons
+                    name={metadata.icon as any}
+                    size={28}
+                    color={metadata.color}
+                  />
+                  <Text style={styles.categoryName}>{cat.name}</Text>
+                  {cat.count > 0 && (
+                    <Text style={styles.categoryCount}>{cat.count}</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#2E7D32" />
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Featured Banner */}
+      <View style={styles.bannerContainer}>
+        <TouchableOpacity
+          style={styles.banner}
+          onPress={() => {
+            router.push({
+              pathname: "/(tabs)/search",
+              params: { category: "Semillas" },
+            });
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.bannerContent}>
+            <Text style={styles.bannerTitle}>🌾 Temporada de Siembra</Text>
+            <Text style={styles.bannerSubtitle}>
+              Encuentra las mejores semillas para tu cosecha
+            </Text>
+          </View>
+          <Ionicons name="arrow-forward" size={24} color="#FBC02D" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Products Section Header */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Publicaciones Recientes</Text>
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/search")}
+          >
+            <Text style={styles.seeAllText}>Ver todas</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+
+  // List footer component (loading indicator for load more)
+  const renderFooter = () => {
+    if (!isLoadingMore) return null;
+    return (
+      <View style={styles.loadMoreContainer}>
+        <ActivityIndicator size="small" color="#2E7D32" />
+      </View>
+    );
+  };
+
+  // List empty component
+  const renderEmpty = () => {
+    if (feedResult === undefined) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="document-text-outline" size={64} color="#E0E0E0" />
+        <Text style={styles.emptyTitle}>No hay productos</Text>
+        <Text style={styles.emptySubtitle}>
+          Sé el primero en compartir algo
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -81,203 +340,18 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Search Bar */}
-        <TouchableOpacity
-          style={styles.searchContainer}
-          onPress={() => router.push("/(tabs)/search")}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="search"
-            size={20}
-            color="#9E9E9E"
-            style={styles.searchIcon}
-          />
-          <Text style={styles.searchInputPlaceholder}>
-            Buscar productos, servicios...
-          </Text>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              router.push({
-                pathname: "/(tabs)/search",
-                params: { showFilters: "true" },
-              });
-            }}
-          >
-            <Ionicons name="options-outline" size={20} color="#2E7D32" />
-          </TouchableOpacity>
-        </TouchableOpacity>
-
-        {/* Categories Carousel */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categorías</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesContainer}
-          >
-            {categories && categories.length > 0 ? (
-              categories.slice(0, 8).map((cat) => {
-                const metadata = getCategoryMetadata(cat.name);
-                return (
-                  <TouchableOpacity
-                    key={cat.name}
-                    style={[
-                      styles.categoryCard,
-                      { backgroundColor: metadata.color + "15" },
-                    ]}
-                    onPress={() => {
-                      // Navigate to search with category filter
-                      router.push({
-                        pathname: "/(tabs)/search",
-                        params: { category: cat.name },
-                      });
-                    }}
-                  >
-                    <Ionicons
-                      name={metadata.icon as any}
-                      size={28}
-                      color={metadata.color}
-                    />
-                    <Text style={styles.categoryName}>{cat.name}</Text>
-                    {cat.count > 0 && (
-                      <Text style={styles.categoryCount}>{cat.count}</Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#2E7D32" />
-              </View>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* Featured Banner */}
-        <View style={styles.bannerContainer}>
-          <TouchableOpacity
-            style={styles.banner}
-            onPress={() => {
-              // Navigate to search with "Semillas" category filter
-              router.push({
-                pathname: "/(tabs)/search",
-                params: { category: "Semillas" },
-              });
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={styles.bannerContent}>
-              <Text style={styles.bannerTitle}>🌾 Temporada de Siembra</Text>
-              <Text style={styles.bannerSubtitle}>
-                Encuentra las mejores semillas para tu cosecha
-              </Text>
-            </View>
-            <Ionicons name="arrow-forward" size={24} color="#FBC02D" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Products List */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Publicaciones Recientes</Text>
-            <TouchableOpacity
-              onPress={() => router.push("/(tabs)/search")}
-            >
-              <Text style={styles.seeAllText}>Ver todas</Text>
-            </TouchableOpacity>
-          </View>
-
-          {products === undefined ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2E7D32" />
-            </View>
-          ) : products.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={64} color="#E0E0E0" />
-              <Text style={styles.emptyTitle}>No hay productos</Text>
-              <Text style={styles.emptySubtitle}>
-                Sé el primero en compartir algo
-              </Text>
-            </View>
-          ) : (
-            products.map((product) => (
-              <TouchableOpacity
-                key={product._id}
-                style={styles.productCard}
-                onPress={() => router.push(`/product/${product._id}`)}
-              >
-                {product.mediaIds && product.mediaIds.length > 0 ? (
-                  <ConvexImage
-                    storageId={product.mediaIds[0]}
-                    style={styles.productImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.productImagePlaceholder}>
-                    <Ionicons name="image-outline" size={48} color="#9E9E9E" />
-                  </View>
-                )}
-                <View style={styles.productInfo}>
-                  <View style={styles.productHeader}>
-                    <Text style={styles.productTitle} numberOfLines={2}>
-                      {product.name}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          await toggleFavorite({ productId: product._id });
-                        } catch (error) {
-                          console.error("Failed to toggle favorite:", error);
-                        }
-                      }}
-                      style={styles.favoriteButton}
-                    >
-                      <Ionicons
-                        name={
-                          isFavoriteMap.get(product._id)
-                            ? "heart"
-                            : "heart-outline"
-                        }
-                        size={22}
-                        color={
-                          isFavoriteMap.get(product._id) ? "#F44336" : "#2E7D32"
-                        }
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {product.price && (
-                    <Text style={styles.productPrice}>
-                      ${product.price.toLocaleString()}
-                    </Text>
-                  )}
-                  <View style={styles.productFooter}>
-                    <View style={styles.locationContainer}>
-                      <Ionicons
-                        name="time-outline"
-                        size={16}
-                        color="#757575"
-                      />
-                      <Text style={styles.locationText}>
-                        {new Date(product.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {product.type === "rent" ? "Alquiler" : "Venta"}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-      </ScrollView>
+      <FlatList
+        data={allProducts}
+        renderItem={renderProductItem}
+        keyExtractor={(item) => item._id}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
 
       {/* Floating Action Button */}
       <TouchableOpacity
@@ -551,6 +625,13 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: "#E0E0E0",
     justifyContent: "center",
+    alignItems: "center",
+  },
+  listContent: {
+    paddingBottom: 100, // Space for FAB
+  },
+  loadMoreContainer: {
+    padding: 20,
     alignItems: "center",
   },
 });

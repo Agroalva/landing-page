@@ -344,6 +344,9 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
   verifiedBadge: {
     position: "absolute",
