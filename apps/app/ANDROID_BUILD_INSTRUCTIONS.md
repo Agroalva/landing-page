@@ -217,10 +217,76 @@ cat .env.local
 - Check that `BETTER_AUTH_SECRET` is set in Convex
 - Ensure `SITE_URL` in Convex matches your Convex site URL
 
+## APK Size Optimization
+
+The app is configured with several optimizations to reduce APK size:
+
+### Enabled Optimizations
+
+1. **ProGuard/R8 Code Shrinking** (`enableProguardInReleaseBuilds: true`)
+   - Removes unused code and obfuscates the codebase
+   - Can reduce APK size by 20-40%
+
+2. **Resource Shrinking** (`enableShrinkResourcesInReleaseBuilds: true`)
+   - Removes unused resources (images, strings, etc.)
+   - Works in conjunction with ProGuard
+
+3. **Split APKs by ABI** (`enableSplitApksByAbi: true`)
+   - Creates separate APKs for different CPU architectures (arm64-v8a, armeabi-v7a, x86, x86_64)
+   - Each APK only includes native libraries for its specific architecture
+   - Can reduce individual APK size by 30-50%
+
+4. **App Bundle (AAB) for Production**
+   - Production builds use AAB format instead of APK
+   - Google Play automatically generates optimized APKs for each device
+   - Typically 15-20% smaller than universal APKs
+
+### Expected Size Reduction
+
+With these optimizations enabled:
+- **Before**: ~200MB universal APK
+- **After**: 
+  - Individual split APKs: ~60-80MB each (architecture-specific)
+  - AAB for Play Store: ~80-100MB (Google Play optimizes further)
+
+### Additional Optimization Tips
+
+1. **Optimize Images**
+   - Compress PNG images using tools like `pngquant` or `tinypng`
+   - Convert images to WebP format where possible
+   - Use vector drawables instead of PNGs for icons
+
+2. **Remove Unused Dependencies**
+   - Review `package.json` and remove any unused packages
+   - Use `npx depcheck` to find unused dependencies
+
+3. **Use Lazy Loading**
+   - Code-split large features
+   - Load heavy libraries only when needed
+
+4. **Monitor Bundle Size**
+   - Use `npx expo-doctor` to check for issues
+   - Review build logs for size breakdown
+
+### Building Optimized Versions
+
+```bash
+# Build optimized APK (split by ABI)
+cd apps/app
+eas build --platform android --profile preview
+
+# Build optimized AAB for Play Store (recommended)
+eas build --platform android --profile production
+```
+
+**Note**: The first build with ProGuard enabled may take longer, but subsequent builds will be faster.
+
 ## Additional Resources
 
 - [Expo EAS Build Documentation](https://docs.expo.dev/build/introduction/)
 - [Expo Environment Variables](https://docs.expo.dev/guides/environment-variables/)
+- [Android App Bundle Guide](https://developer.android.com/guide/app-bundle)
+- [Reducing APK Size](https://developer.android.com/topic/performance/reduce-apk-size)
 - [Convex Documentation](https://docs.convex.dev/)
 - [Better Auth Documentation](https://www.better-auth.com/docs)
 
