@@ -12,42 +12,61 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
 export function useNotifications() {
   const { user, isAuthenticated } = useAuthSession();
   const updateProfile = useMutation(api.users.updateProfile);
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
-    // Request permissions
-    registerForPushNotificationsAsync(updateProfile);
+    // Request permissions with error handling
+    registerForPushNotificationsAsync(updateProfile).catch((error) => {
+      console.error("Failed to register for push notifications:", error);
+      // Don't crash the app if notification registration fails
+    });
 
     // Handle notifications received while app is foregrounded
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log("Notification received:", notification);
-      });
+    try {
+      notificationListener.current =
+        Notifications.addNotificationReceivedListener((notification) => {
+          console.log("Notification received:", notification);
+        });
+    } catch (error) {
+      console.error("Failed to add notification received listener:", error);
+    }
 
     // Handle user tapping on notification
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log("Notification response:", response);
-        // Handle navigation based on notification type
-      });
+    try {
+      responseListener.current =
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          console.log("Notification response:", response);
+          // Handle navigation based on notification type
+        });
+    } catch (error) {
+      console.error("Failed to add notification response listener:", error);
+    }
 
     return () => {
       if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(
-          notificationListener.current
-        );
+        try {
+          notificationListener.current.remove();
+        } catch (error) {
+          console.error("Failed to remove notification listener:", error);
+        }
       }
       if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+        try {
+          responseListener.current.remove();
+        } catch (error) {
+          console.error("Failed to remove response listener:", error);
+        }
       }
     };
   }, [isAuthenticated, user, updateProfile]);
@@ -60,30 +79,41 @@ async function registerForPushNotificationsAsync(
 ) {
   let token;
 
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#2E7D32",
-    });
-  }
-
-  const { status: existingStatus } =
-    await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== "granted") {
-    console.log("Failed to get push token for push notification!");
-    return;
-  }
-
   try {
+    if (Platform.OS === "android") {
+      try {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#2E7D32",
+        });
+      } catch (error) {
+        console.error("Failed to set notification channel:", error);
+        // Continue even if channel setup fails
+      }
+    }
+
+    let finalStatus;
+    try {
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+    } catch (error) {
+      console.error("Failed to get or request permissions:", error);
+      return;
+    }
+
+    if (finalStatus !== "granted") {
+      console.log("Failed to get push token for push notification!");
+      return;
+    }
+
     // Get projectId from Constants (can be in extra.eas.projectId or easConfig.projectId)
     const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
                       Constants.expoConfig?.extra?.projectId ||
@@ -98,22 +128,34 @@ async function registerForPushNotificationsAsync(
       return;
     }
 
-    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    console.log("Push token:", token);
+    try {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      console.log("Push token:", token);
 
-    // Store token in profile
-    if (token) {
-      await updateProfile({ pushToken: token });
-    }
-  } catch (error: any) {
-    // Handle errors gracefully
-    if (error?.message?.includes("projectId")) {
-      if (__DEV__) {
-        console.log("Push notifications require a projectId. Configure in app.json under 'extra.eas.projectId' or use a development build.");
+      // Store token in profile
+      if (token) {
+        try {
+          await updateProfile({ pushToken: token });
+        } catch (error) {
+          console.error("Failed to update profile with push token:", error);
+          // Don't throw - token was obtained successfully, just couldn't save it
+        }
       }
-    } else {
-      console.error("Error getting push token:", error);
+    } catch (error: any) {
+      // Handle errors gracefully
+      if (error?.message?.includes("projectId")) {
+        if (__DEV__) {
+          console.log("Push notifications require a projectId. Configure in app.json under 'extra.eas.projectId' or use a development build.");
+        }
+      } else {
+        console.error("Error getting push token:", error);
+      }
+      // Don't throw - allow app to continue without push notifications
     }
+  } catch (error) {
+    // Catch any unexpected errors
+    console.error("Unexpected error in registerForPushNotificationsAsync:", error);
+    // Don't throw - allow app to continue without push notifications
   }
 
   return token;

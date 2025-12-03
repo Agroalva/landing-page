@@ -25,7 +25,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "package": "com.tymkiwdylan.dev.agroalva"
     },
@@ -52,6 +53,14 @@
         {
           "photosPermission": "La aplicación necesita acceso a tus fotos para que puedas compartir imágenes en tus publicaciones.",
           "cameraPermission": "La aplicación necesita acceso a tu cámara para que puedas tomar fotos directamente."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#2E7D32",
+          "sounds": []
         }
       ],
       "expo-web-browser"
