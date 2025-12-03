@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -88,7 +89,10 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const { isAuthenticated, isLoading, user } = useAuthSession();
   const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const conversationId = params.id as Id<"conversations">;
+  const messageInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   
   // Get conversation details
   const allConversations = useQuery(api.conversations.listForUser);
@@ -120,17 +124,43 @@ export default function ChatScreen() {
     }
   }, [conversationId, user, markAsRead]);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messages && messages.length > 0 && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages]);
+
   const handleSend = async () => {
-    if (!message.trim() || !conversationId) return;
+    if (!message.trim() || !conversationId || isSending || !user) return;
+
+    const messageText = message.trim();
+    const tempMessageId = `temp-${Date.now()}` as Id<"messages">;
+    
+    setMessage("");
+    setIsSending(true);
+    Keyboard.dismiss();
+    
+    // Clear focus from input
+    messageInputRef.current?.blur();
 
     try {
       await sendMessage({
         conversationId,
-        text: message.trim(),
+        text: messageText,
       });
-      setMessage("");
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     } catch (error: any) {
       console.error("Failed to send message:", error);
+      // Restore message on error
+      setMessage(messageText);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -192,7 +222,7 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -238,10 +268,11 @@ export default function ChatScreen() {
       {/* Messages */}
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={100}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <ScrollView
+          ref={scrollViewRef}
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
@@ -282,28 +313,34 @@ export default function ChatScreen() {
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <TextInput
+              ref={messageInputRef}
               style={styles.input}
               placeholder="Escribe un mensaje..."
               value={message}
               onChangeText={setMessage}
               multiline
               placeholderTextColor="#9E9E9E"
+              editable={!isSending}
             />
           </View>
 
           <TouchableOpacity
             style={[
               styles.sendButton,
-              message.trim() && styles.sendButtonActive,
+              message.trim() && !isSending && styles.sendButtonActive,
             ]}
             onPress={handleSend}
-            disabled={!message.trim()}
+            disabled={!message.trim() || isSending}
           >
-            <Ionicons
-              name="send"
-              size={20}
-              color={message.trim() ? "#FFFFFF" : "#9E9E9E"}
-            />
+            {isSending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons
+                name="send"
+                size={20}
+                color={message.trim() ? "#FFFFFF" : "#9E9E9E"}
+              />
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

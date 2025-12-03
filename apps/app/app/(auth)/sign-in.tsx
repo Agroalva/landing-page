@@ -19,6 +19,7 @@ export default function SignInScreen() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
     const { isAuthenticated, isLoading } = useAuthSession();
 
     // Redirect if already authenticated
@@ -74,7 +75,7 @@ export default function SignInScreen() {
         }
 
         // Default error message
-        return error?.message || "No se pudo iniciar sesión. Por favor, intenta nuevamente.";
+        return "No se pudo iniciar sesión. Por favor, intenta nuevamente.";
     };
 
     const handleSignIn = async () => {
@@ -84,6 +85,7 @@ export default function SignInScreen() {
         }
 
         setLoading(true);
+        setAuthError(null);
         try {
             await authClient.signIn.email({
                 email: email.trim(),
@@ -106,7 +108,8 @@ export default function SignInScreen() {
                     onPress: () => router.push("/(auth)/sign-up"),
                 });
             }
-            
+
+            setAuthError(errorMessage);
             Alert.alert("Error al iniciar sesión", errorMessage, buttons);
         } finally {
             setLoading(false);
@@ -122,6 +125,13 @@ export default function SignInScreen() {
                 </View>
 
                 <View style={styles.form}>
+                    {authError && (
+                        <View style={styles.errorContainer}>
+                            <Ionicons name="warning-outline" size={20} color="#D32F2F" />
+                            <Text style={styles.errorText}>{authError}</Text>
+                        </View>
+                    )}
+
                     <View style={styles.inputContainer}>
                         <Ionicons name="mail-outline" size={20} color="#757575" style={styles.inputIcon} />
                         <TextInput
@@ -271,6 +281,23 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#2E7D32",
         fontWeight: "600",
+    },
+    errorContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFEBEE",
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#EF9A9A",
+    },
+    errorText: {
+        flex: 1,
+        fontSize: 13,
+        color: "#C62828",
+        marginLeft: 8,
+        lineHeight: 18,
     },
 });
 

@@ -19,6 +19,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
 import { getCategoryMetadata } from "../../constants/categories";
+import { formatPrice } from "../../utils/currency";
 
 const { width } = Dimensions.get("window");
 
@@ -153,7 +154,7 @@ export default function HomeScreen() {
         </View>
         {product.price && (
           <Text style={styles.productPrice}>
-            ${product.price.toLocaleString()}
+            {formatPrice(product.price, product.currency)}
           </Text>
         )}
         <View style={styles.productFooter}>

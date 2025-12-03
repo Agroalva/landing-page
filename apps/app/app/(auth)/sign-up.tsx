@@ -25,6 +25,7 @@ export default function SignUpScreen() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
     const [signUpSuccess, setSignUpSuccess] = useState(false);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
@@ -117,7 +118,7 @@ export default function SignUpScreen() {
         }
 
         // Default error message
-        return error?.message || "No se pudo crear la cuenta. Por favor, intenta nuevamente.";
+        return "No se pudo crear la cuenta. Por favor, intenta nuevamente.";
     };
 
     const handleSignUp = async () => {
@@ -137,6 +138,7 @@ export default function SignUpScreen() {
         }
 
         // Reset error states
+        setAuthError(null);
         setSignUpSuccess(false);
         setProfileError(null);
         setRetryCount(0);
@@ -152,6 +154,7 @@ export default function SignUpScreen() {
             // Session will update reactively, and useEffect will handle profile creation
         } catch (error: any) {
             const errorMessage = getErrorMessage(error);
+            setAuthError(errorMessage);
             const buttons: any[] = [
                 {
                     text: "OK",
@@ -186,6 +189,13 @@ export default function SignUpScreen() {
                     </View>
 
                     <View style={styles.form}>
+                        {authError && (
+                            <View style={styles.errorContainer}>
+                                <Ionicons name="warning-outline" size={20} color="#D32F2F" />
+                                <Text style={styles.errorText}>{authError}</Text>
+                            </View>
+                        )}
+
                         <View style={styles.inputContainer}>
                             <Ionicons name="person-outline" size={20} color="#757575" style={styles.inputIcon} />
                             <TextInput

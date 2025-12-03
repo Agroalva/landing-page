@@ -19,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
 import { useAuthSession } from "@/hooks/use-session";
+import { formatPrice } from "../../utils/currency";
 
 const { width } = Dimensions.get("window");
 
@@ -333,7 +334,7 @@ export default function ProductDetailScreen() {
 
           <Text style={styles.title}>{product.name}</Text>
           {product.price && (
-            <Text style={styles.price}>${product.price.toLocaleString()}</Text>
+            <Text style={styles.price}>{formatPrice(product.price, product.currency)}</Text>
           )}
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>

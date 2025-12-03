@@ -14,6 +14,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
+import { formatPrice } from "../utils/currency";
 
 export default function FavoritesScreen() {
   const router = useRouter();
@@ -105,7 +106,7 @@ export default function FavoritesScreen() {
                   </Text>
                   {product.price && (
                     <Text style={styles.productPrice}>
-                      ${product.price.toLocaleString()}
+                      {formatPrice(product.price, product.currency)}
                     </Text>
                   )}
                   <View style={styles.productFooter}>

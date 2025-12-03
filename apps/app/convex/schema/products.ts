@@ -8,6 +8,7 @@ export const productsTable = defineTable({
     type: v.union(v.literal("rent"), v.literal("sell")), // Rent or Sell
     category: v.optional(v.string()), // Category for filtering
     price: v.optional(v.number()),
+    currency: v.optional(v.string()), // Currency code (e.g., "USD", "MXN", "EUR")
     mediaIds: v.optional(v.array(v.id("_storage"))), // Array of file storage IDs
     viewCount: v.optional(v.number()),
     location: v.optional(v.object({

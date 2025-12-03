@@ -31,6 +31,7 @@ export default function CreatePostScreen() {
   const [type, setType] = useState<"rent" | "sell">("sell");
   const [category, setCategory] = useState<string>("");
   const [price, setPrice] = useState("");
+  const [currency, setCurrency] = useState<string>("USD");
   const [loading, setLoading] = useState(false);
   const [mediaIds, setMediaIds] = useState<Id<"_storage">[]>([]);
   const [productLocation, setProductLocation] = useState<{
@@ -47,6 +48,14 @@ export default function CreatePostScreen() {
 
   // Use hardcoded categories from constants
   const categoryNames = Object.keys(CATEGORY_METADATA);
+
+  // Currency options with symbols
+  const currencies = [
+    { code: "USD", symbol: "$", name: "Dólar estadounidense" },
+    { code: "ARS", symbol: "$", name: "Peso argentino" },
+  ];
+
+  const selectedCurrency = currencies.find((c) => c.code === currency) || currencies[0];
 
   const handleAddImage = async () => {
     if (mediaIds.length >= 5) {
@@ -152,6 +161,7 @@ export default function CreatePostScreen() {
         type: type,
         category: category || undefined,
         price: price ? parseFloat(price) : undefined,
+        currency: price ? currency : undefined,
         mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
         location: productLocation ? {
           latitude: productLocation.latitude,
@@ -361,7 +371,7 @@ export default function CreatePostScreen() {
         <View style={styles.section}>
           <Text style={styles.label}>Precio (opcional)</Text>
           <View style={styles.priceInputContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
+            <Text style={styles.currencySymbol}>{selectedCurrency.symbol}</Text>
             <TextInput
               style={styles.priceInput}
               placeholder="0.00"
@@ -375,6 +385,35 @@ export default function CreatePostScreen() {
               placeholderTextColor="#9E9E9E"
               editable={!loading}
             />
+          </View>
+          <View style={styles.currencySelectorContainer}>
+            <Text style={styles.currencyLabel}>Moneda:</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.currenciesContainer}
+            >
+              {currencies.map((curr) => (
+                <TouchableOpacity
+                  key={curr.code}
+                  style={[
+                    styles.currencyChip,
+                    currency === curr.code && styles.currencyChipSelected,
+                  ]}
+                  onPress={() => setCurrency(curr.code)}
+                  disabled={loading}
+                >
+                  <Text
+                    style={[
+                      styles.currencyChipText,
+                      currency === curr.code && styles.currencyChipTextSelected,
+                    ]}
+                  >
+                    {curr.code} {curr.symbol}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
 
@@ -650,6 +689,39 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     fontSize: 15,
     color: "#212121",
+  },
+  currencySelectorContainer: {
+    marginTop: 12,
+  },
+  currencyLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#757575",
+    marginBottom: 8,
+  },
+  currenciesContainer: {
+    paddingBottom: 4,
+  },
+  currencyChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    marginRight: 8,
+  },
+  currencyChipSelected: {
+    backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
+  },
+  currencyChipText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#212121",
+  },
+  currencyChipTextSelected: {
+    color: "#FFFFFF",
   },
   locationButton: {
     flexDirection: "row",

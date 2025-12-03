@@ -11,6 +11,7 @@ export const create = mutation({
         type: v.union(v.literal("rent"), v.literal("sell")),
         category: v.optional(v.string()),
         price: v.optional(v.number()),
+        currency: v.optional(v.string()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
         location: v.optional(v.object({
             latitude: v.number(),
@@ -37,6 +38,7 @@ export const create = mutation({
             type: args.type,
             category: args.category,
             price: args.price,
+            currency: args.currency,
             mediaIds: args.mediaIds || [],
             location: args.location,
             viewCount: 0,
@@ -149,6 +151,7 @@ export const update = mutation({
         type: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
         category: v.optional(v.string()),
         price: v.optional(v.number()),
+        currency: v.optional(v.string()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
         location: v.optional(v.object({
             latitude: v.number(),
@@ -198,6 +201,10 @@ export const update = mutation({
 
         if (args.price !== undefined) {
             updates.price = args.price;
+        }
+
+        if (args.currency !== undefined) {
+            updates.currency = args.currency;
         }
 
         if (args.mediaIds !== undefined) {

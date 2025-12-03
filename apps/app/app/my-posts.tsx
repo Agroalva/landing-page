@@ -14,6 +14,7 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
+import { formatPrice } from "../utils/currency";
 
 export default function MyPostsScreen() {
   const router = useRouter();
@@ -93,7 +94,7 @@ export default function MyPostsScreen() {
                   </Text>
                   {product.price && (
                     <Text style={styles.productPrice}>
-                      ${product.price.toLocaleString()}
+                      {formatPrice(product.price, product.currency)}
                     </Text>
                   )}
                   <View style={styles.productFooter}>
