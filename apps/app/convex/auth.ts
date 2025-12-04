@@ -17,6 +17,7 @@ export const createAuth = (
 ) => {
     return betterAuth({
         // Disable logging when createAuth is called just to generate options
+        secret: process.env.BETTER_AUTH_SECRET!,
         logger: {
             disabled: optionsOnly,
         },
