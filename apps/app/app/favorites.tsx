@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Component, ReactNode } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,53 @@ import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
 import { formatPrice } from "../utils/currency";
 
-export default function FavoritesScreen() {
+class FavoritesErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    console.error("Error rendering Favorites screen:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={styles.container} edges={["top"]}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              // Fallback: rely on router.back via global router in screen
+              onPress={() => {
+                // No router here; prefer user reopening via navigation
+              }}
+            >
+              <Ionicons name="arrow-back" size={24} color="#212121" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Favoritos</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <Ionicons name="warning-outline" size={40} color="#F44336" />
+            <Text style={styles.emptyText}>Ocurrió un error al cargar tus favoritos</Text>
+            <Text style={styles.emptySubtext}>
+              Intenta volver a abrir esta sección o revisa tu conexión a internet.
+            </Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function FavoritesScreenContent() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
   const favorites = useQuery(api.favorites.listFavoriteProducts, { limit: 100 });
@@ -126,6 +172,14 @@ export default function FavoritesScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function FavoritesScreen() {
+  return (
+    <FavoritesErrorBoundary>
+      <FavoritesScreenContent />
+    </FavoritesErrorBoundary>
   );
 }
 

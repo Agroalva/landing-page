@@ -4,6 +4,9 @@ import { authComponent } from "./auth";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 
+// Keep this validator in sync with the products table schema in
+// `convex/schema/products.ts` to avoid ReturnsValidationError when
+// returning product documents from queries.
 const productValidator = v.object({
     _id: v.id("products"),
     _creationTime: v.number(),
@@ -13,8 +16,18 @@ const productValidator = v.object({
     type: v.union(v.literal("rent"), v.literal("sell")),
     category: v.optional(v.string()),
     price: v.optional(v.number()),
+    currency: v.optional(v.string()),
     mediaIds: v.optional(v.array(v.id("_storage"))),
     viewCount: v.optional(v.number()),
+    location: v.optional(
+        v.object({
+            latitude: v.number(),
+            longitude: v.number(),
+            accuracy: v.optional(v.number()),
+            address: v.optional(v.string()),
+            label: v.optional(v.string()),
+        })
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
 });
