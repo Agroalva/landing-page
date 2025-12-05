@@ -201,12 +201,7 @@ export default function SignInScreen() {
 
                     <TouchableOpacity
                         style={styles.forgotPasswordContainer}
-                        onPress={() =>
-                            Alert.alert(
-                                "Recuperar contraseña",
-                                "La recuperación de contraseña estará disponible próximamente."
-                            )
-                        }
+                        onPress={() => router.push("/(auth)/forgot-password")}
                         disabled={loading}
                         accessibilityRole="button"
                         accessibilityLabel="Recuperar contraseña"

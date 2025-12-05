@@ -1,7 +1,7 @@
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
 import { expo } from "@better-auth/expo";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { betterAuth } from "better-auth";
@@ -23,16 +23,28 @@ export const createAuth = (
         },
         baseURL: siteUrl,
         database: authComponent.adapter(ctx),
-        // Configure simple, non-verified email/password to get started
         emailAndPassword: {
             enabled: true,
             requireEmailVerification: false,
+            sendResetPassword: async ({ user, url }, _request) => {
+                // Use Convex Resend integration to send the reset email as a background action.
+                const actionCtx = ctx as any;
+                await actionCtx.scheduler.runAfter(
+                    0,
+                    internal.emails.sendPasswordResetEmail,
+                    {
+                        to: user.email,
+                        url,
+                    },
+                );
+            },
+            onPasswordReset: async ({ user }, _request) => {
+                console.log(`Password for user ${user.email} has been reset.`);
+            },
         },
         trustedOrigins: ["app://"], // Scheme from app.json for deep linking
         plugins: [
-            // The Convex plugin is required for Convex compatibility
             convex(),
-            // Expo plugin for Expo-specific features (social auth, secure storage)
             expo(),
         ],
     });
