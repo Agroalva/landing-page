@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -20,7 +20,10 @@ export default function SignInScreen() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
+    const [emailError, setEmailError] = useState<string | null>(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
     const { isAuthenticated, isLoading } = useAuthSession();
+    const passwordInputRef = useRef<TextInput | null>(null);
 
     // Redirect if already authenticated
     useEffect(() => {
@@ -79,38 +82,44 @@ export default function SignInScreen() {
     };
 
     const handleSignIn = async () => {
-        if (!email.trim() || !password.trim()) {
-            Alert.alert("Error", "Por favor completa todos los campos");
+        // Reset errores previos
+        setAuthError(null);
+        setEmailError(null);
+        setPasswordError(null);
+
+        const trimmedEmail = email.trim();
+        let hasError = false;
+
+        if (!trimmedEmail) {
+            setEmailError("Ingresa tu correo electrónico.");
+            hasError = true;
+        }
+        if (!password.trim()) {
+            setPasswordError("Ingresa tu contraseña.");
+            hasError = true;
+        }
+
+        if (hasError) {
+            setAuthError("Por favor corrige los campos marcados en rojo.");
             return;
         }
 
         setLoading(true);
-        setAuthError(null);
         try {
-            await authClient.signIn.email({
-                email: email.trim(),
+            const { error } = await authClient.signIn.email({
+                email: trimmedEmail,
                 password,
             });
+
+            if (error) {
+                const errorMessage = getErrorMessage(error);
+                setAuthError(errorMessage);
+                return;
+            }
             // Session will update reactively, and useEffect will handle the redirect
         } catch (error: any) {
             const errorMessage = getErrorMessage(error);
-            const buttons: any[] = [
-                {
-                    text: "OK",
-                    style: "default" as const,
-                },
-            ];
-            
-            if (errorMessage.includes("no existe una cuenta")) {
-                buttons.push({
-                    text: "Registrarse",
-                    style: "default" as const,
-                    onPress: () => router.push("/(auth)/sign-up"),
-                });
-            }
-
             setAuthError(errorMessage);
-            Alert.alert("Error al iniciar sesión", errorMessage, buttons);
         } finally {
             setLoading(false);
         }
@@ -135,7 +144,10 @@ export default function SignInScreen() {
                     <View style={styles.inputContainer}>
                         <Ionicons name="mail-outline" size={20} color="#757575" style={styles.inputIcon} />
                         <TextInput
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                emailError && styles.inputError,
+                            ]}
                             placeholder="Correo electrónico"
                             placeholderTextColor="#9E9E9E"
                             value={email}
@@ -144,13 +156,21 @@ export default function SignInScreen() {
                             keyboardType="email-address"
                             autoComplete="email"
                             editable={!loading}
+                            returnKeyType="next"
+                            onSubmitEditing={() => passwordInputRef.current?.focus()}
                         />
                     </View>
+                    {emailError && (
+                        <Text style={styles.fieldErrorText}>{emailError}</Text>
+                    )}
 
                     <View style={styles.inputContainer}>
                         <Ionicons name="lock-closed-outline" size={20} color="#757575" style={styles.inputIcon} />
                         <TextInput
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                passwordError && styles.inputError,
+                            ]}
                             placeholder="Contraseña"
                             placeholderTextColor="#9E9E9E"
                             value={password}
@@ -159,10 +179,14 @@ export default function SignInScreen() {
                             autoCapitalize="none"
                             autoComplete="password"
                             editable={!loading}
+                            ref={passwordInputRef}
+                            returnKeyType="done"
+                            onSubmitEditing={handleSignIn}
                         />
                         <TouchableOpacity
                             onPress={() => setShowPassword(!showPassword)}
                             style={styles.eyeIcon}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                             <Ionicons
                                 name={showPassword ? "eye-outline" : "eye-off-outline"}
@@ -171,11 +195,34 @@ export default function SignInScreen() {
                             />
                         </TouchableOpacity>
                     </View>
+                    {passwordError && (
+                        <Text style={styles.fieldErrorText}>{passwordError}</Text>
+                    )}
+
+                    <TouchableOpacity
+                        style={styles.forgotPasswordContainer}
+                        onPress={() =>
+                            Alert.alert(
+                                "Recuperar contraseña",
+                                "La recuperación de contraseña estará disponible próximamente."
+                            )
+                        }
+                        disabled={loading}
+                        accessibilityRole="button"
+                        accessibilityLabel="Recuperar contraseña"
+                    >
+                        <Text style={styles.forgotPasswordText}>
+                            ¿Olvidaste tu contraseña?
+                        </Text>
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                         style={[styles.button, loading && styles.buttonDisabled]}
                         onPress={handleSignIn}
                         disabled={loading}
+                        accessibilityRole="button"
+                        accessibilityLabel="Iniciar sesión"
+                        accessibilityState={{ disabled: loading }}
                     >
                         {loading ? (
                             <ActivityIndicator color="#FFFFFF" />
@@ -189,6 +236,8 @@ export default function SignInScreen() {
                         <TouchableOpacity
                             onPress={() => router.push("/(auth)/sign-up")}
                             disabled={loading}
+                            accessibilityRole="button"
+                            accessibilityLabel="Ir a la pantalla de registro"
                         >
                             <Text style={styles.footerLink}>Regístrate</Text>
                         </TouchableOpacity>
@@ -244,8 +293,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: "#212121",
     },
+    inputError: {
+        borderColor: "#E53935",
+    },
     eyeIcon: {
-        padding: 4,
+        padding: 8,
     },
     button: {
         backgroundColor: "#2E7D32",
@@ -298,6 +350,21 @@ const styles = StyleSheet.create({
         color: "#C62828",
         marginLeft: 8,
         lineHeight: 18,
+    },
+    fieldErrorText: {
+        fontSize: 12,
+        color: "#C62828",
+        marginBottom: 8,
+        marginLeft: 4,
+    },
+    forgotPasswordContainer: {
+        alignItems: "flex-end",
+        marginTop: 4,
+    },
+    forgotPasswordText: {
+        fontSize: 13,
+        color: "#2E7D32",
+        fontWeight: "500",
     },
 });
 

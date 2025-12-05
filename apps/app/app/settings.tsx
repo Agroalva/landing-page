@@ -48,7 +48,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await authClient.signOut();
-              router.replace("/(auth)/sign-in");
+              // La navegación se gestionará automáticamente por el estado de autenticación
             } catch (error) {
               Alert.alert("Error", "No se pudo cerrar sesión");
             }

@@ -37,7 +37,7 @@ export const ensureProfile = mutation({
     handler: async (ctx) => {
         const user = await authComponent.getAuthUser(ctx);
         if (!user) {
-            throw new Error("Not authenticated");
+            throw new Error("Unauthenticated");
         }
 
         let profile = await ctx.db

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -30,7 +30,14 @@ export default function SignUpScreen() {
     const [profileError, setProfileError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
     const ensureProfile = useMutation(api.users.ensureProfile);
+    const [nameError, setNameError] = useState<string | null>(null);
+    const [emailError, setEmailError] = useState<string | null>(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
     const { isAuthenticated, isLoading } = useAuthSession();
+    const emailInputRef = useRef<TextInput | null>(null);
+    const passwordInputRef = useRef<TextInput | null>(null);
+    const confirmPasswordInputRef = useRef<TextInput | null>(null);
 
     // Redirect if already authenticated
     useEffect(() => {
@@ -122,55 +129,70 @@ export default function SignUpScreen() {
     };
 
     const handleSignUp = async () => {
-        if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-            Alert.alert("Error", "Por favor completa todos los campos");
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            Alert.alert("Error", "Las contraseñas no coinciden");
-            return;
-        }
-
-        if (password.length < 6) {
-            Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
-            return;
-        }
-
         // Reset error states
         setAuthError(null);
+        setNameError(null);
+        setEmailError(null);
+        setPasswordError(null);
+        setConfirmPasswordError(null);
         setSignUpSuccess(false);
         setProfileError(null);
         setRetryCount(0);
 
+        const trimmedName = name.trim();
+        const trimmedEmail = email.trim();
+        let hasError = false;
+
+        if (!trimmedName) {
+            setNameError("Ingresa tu nombre completo.");
+            hasError = true;
+        }
+        if (!trimmedEmail) {
+            setEmailError("Ingresa tu correo electrónico.");
+            hasError = true;
+        }
+        if (!password.trim()) {
+            setPasswordError("Ingresa una contraseña.");
+            hasError = true;
+        }
+        if (!confirmPassword.trim()) {
+            setConfirmPasswordError("Confirma tu contraseña.");
+            hasError = true;
+        }
+        if (password && confirmPassword && password !== confirmPassword) {
+            setPasswordError("Las contraseñas no coinciden.");
+            setConfirmPasswordError("Las contraseñas no coinciden.");
+            hasError = true;
+        }
+        if (password && password.length < 6) {
+            setPasswordError("La contraseña debe tener al menos 6 caracteres.");
+            hasError = true;
+        }
+
+        if (hasError) {
+            setAuthError("Por favor corrige los campos marcados en rojo.");
+            return;
+        }
+
         setLoading(true);
         try {
-            await authClient.signUp.email({
-                email: email.trim(),
+            const { error } = await authClient.signUp.email({
+                email: trimmedEmail,
                 password,
-                name: name.trim(),
+                name: trimmedName,
             });
+
+            if (error) {
+                const errorMessage = getErrorMessage(error);
+                setAuthError(errorMessage);
+                return;
+            }
+
             setSignUpSuccess(true);
             // Session will update reactively, and useEffect will handle profile creation
         } catch (error: any) {
             const errorMessage = getErrorMessage(error);
             setAuthError(errorMessage);
-            const buttons: any[] = [
-                {
-                    text: "OK",
-                    style: "default" as const,
-                },
-            ];
-            
-            if (errorMessage.includes("ya está registrado")) {
-                buttons.push({
-                    text: "Iniciar sesión",
-                    style: "default" as const,
-                    onPress: () => router.push("/(auth)/sign-in"),
-                });
-            }
-            
-            Alert.alert("Error al registrarse", errorMessage, buttons);
         } finally {
             setLoading(false);
         }
@@ -189,9 +211,18 @@ export default function SignUpScreen() {
                     </View>
 
                     <View style={styles.form}>
+                        {signUpSuccess && !authError && (
+                            <View style={styles.successContainer}>
+                                <Ionicons name="checkmark-circle-outline" size={20} color="#2E7D32" />
+                                <Text style={styles.successText}>
+                                    Cuenta creada correctamente. Te estamos redirigiendo a AgroAlva.
+                                </Text>
+                            </View>
+                        )}
+
                         {authError && (
                             <View style={styles.errorContainer}>
-                                <Ionicons name="warning-outline" size={20} color="#D32F2F" />
+                                <Ionicons name="warning-outline" size={20} color="#C62828" />
                                 <Text style={styles.errorText}>{authError}</Text>
                             </View>
                         )}
@@ -199,20 +230,31 @@ export default function SignUpScreen() {
                         <View style={styles.inputContainer}>
                             <Ionicons name="person-outline" size={20} color="#757575" style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[
+                                    styles.input,
+                                    nameError && styles.inputError,
+                                ]}
                                 placeholder="Nombre completo"
                                 placeholderTextColor="#9E9E9E"
                                 value={name}
                                 onChangeText={setName}
                                 autoCapitalize="words"
                                 editable={!loading}
+                                returnKeyType="next"
+                                onSubmitEditing={() => emailInputRef.current?.focus()}
                             />
                         </View>
+                        {nameError && (
+                            <Text style={styles.fieldErrorText}>{nameError}</Text>
+                        )}
 
                         <View style={styles.inputContainer}>
                             <Ionicons name="mail-outline" size={20} color="#757575" style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[
+                                    styles.input,
+                                    emailError && styles.inputError,
+                                ]}
                                 placeholder="Correo electrónico"
                                 placeholderTextColor="#9E9E9E"
                                 value={email}
@@ -221,14 +263,23 @@ export default function SignUpScreen() {
                                 keyboardType="email-address"
                                 autoComplete="email"
                                 editable={!loading}
+                                ref={emailInputRef}
+                                returnKeyType="next"
+                                onSubmitEditing={() => passwordInputRef.current?.focus()}
                             />
                         </View>
+                        {emailError && (
+                            <Text style={styles.fieldErrorText}>{emailError}</Text>
+                        )}
 
                         <View style={styles.inputContainer}>
                             <Ionicons name="lock-closed-outline" size={20} color="#757575" style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
-                                placeholder="Contraseña"
+                                style={[
+                                    styles.input,
+                                    passwordError && styles.inputError,
+                                ]}
+                                placeholder="Contraseña (mín. 6 caracteres)"
                                 placeholderTextColor="#9E9E9E"
                                 value={password}
                                 onChangeText={setPassword}
@@ -236,10 +287,14 @@ export default function SignUpScreen() {
                                 autoCapitalize="none"
                                 autoComplete="password-new"
                                 editable={!loading}
+                                ref={passwordInputRef}
+                                returnKeyType="next"
+                                onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
                             />
                             <TouchableOpacity
                                 onPress={() => setShowPassword(!showPassword)}
                                 style={styles.eyeIcon}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
                                 <Ionicons
                                     name={showPassword ? "eye-outline" : "eye-off-outline"}
@@ -248,11 +303,17 @@ export default function SignUpScreen() {
                                 />
                             </TouchableOpacity>
                         </View>
+                        {passwordError && (
+                            <Text style={styles.fieldErrorText}>{passwordError}</Text>
+                        )}
 
                         <View style={styles.inputContainer}>
                             <Ionicons name="lock-closed-outline" size={20} color="#757575" style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[
+                                    styles.input,
+                                    confirmPasswordError && styles.inputError,
+                                ]}
                                 placeholder="Confirmar contraseña"
                                 placeholderTextColor="#9E9E9E"
                                 value={confirmPassword}
@@ -261,10 +322,14 @@ export default function SignUpScreen() {
                                 autoCapitalize="none"
                                 autoComplete="password-new"
                                 editable={!loading}
+                                ref={confirmPasswordInputRef}
+                                returnKeyType="done"
+                                onSubmitEditing={handleSignUp}
                             />
                             <TouchableOpacity
                                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                                 style={styles.eyeIcon}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
                                 <Ionicons
                                     name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
@@ -273,11 +338,27 @@ export default function SignUpScreen() {
                                 />
                             </TouchableOpacity>
                         </View>
+                        {confirmPasswordError && (
+                            <Text style={styles.fieldErrorText}>{confirmPasswordError}</Text>
+                        )}
 
                         {profileError && (
-                            <View style={styles.errorContainer}>
+                            <View style={styles.warningContainer}>
                                 <Ionicons name="information-circle-outline" size={20} color="#FF9800" />
-                                <Text style={styles.errorText}>{profileError}</Text>
+                                <Text style={styles.warningText}>{profileError}</Text>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        try {
+                                            await ensureProfile();
+                                            setProfileError(null);
+                                        } catch (e) {
+                                            // Se mantendrá el mensaje existente si falla
+                                        }
+                                    }}
+                                    style={styles.retryProfileButton}
+                                >
+                                    <Text style={styles.retryProfileText}>Reintentar ahora</Text>
+                                </TouchableOpacity>
                             </View>
                         )}
 
@@ -294,6 +375,9 @@ export default function SignUpScreen() {
                             style={[styles.button, loading && styles.buttonDisabled]}
                             onPress={handleSignUp}
                             disabled={loading}
+                            accessibilityRole="button"
+                            accessibilityLabel="Crear cuenta"
+                            accessibilityState={{ disabled: loading }}
                         >
                             {loading ? (
                                 <ActivityIndicator color="#FFFFFF" />
@@ -307,10 +391,39 @@ export default function SignUpScreen() {
                             <TouchableOpacity
                                 onPress={() => router.push("/(auth)/sign-in")}
                                 disabled={loading}
+                                accessibilityRole="button"
+                                accessibilityLabel="Ir a la pantalla de inicio de sesión"
                             >
                                 <Text style={styles.footerLink}>Inicia sesión</Text>
                             </TouchableOpacity>
                         </View>
+                        <Text style={styles.termsText}>
+                            Al registrarte aceptas nuestros{" "}
+                            <Text
+                                style={styles.termsLink}
+                                onPress={() =>
+                                    Alert.alert(
+                                        "Términos y privacidad",
+                                        "Los términos de servicio y la política de privacidad estarán disponibles dentro de la app."
+                                    )
+                                }
+                            >
+                                Términos de servicio
+                            </Text>{" "}
+                            y{" "}
+                            <Text
+                                style={styles.termsLink}
+                                onPress={() =>
+                                    Alert.alert(
+                                        "Términos y privacidad",
+                                        "Los términos de servicio y la política de privacidad estarán disponibles dentro de la app."
+                                    )
+                                }
+                            >
+                                Política de privacidad
+                            </Text>
+                            .
+                        </Text>
                     </View>
                 </View>
             </ScrollView>
@@ -367,8 +480,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: "#212121",
     },
+    inputError: {
+        borderColor: "#E53935",
+    },
     eyeIcon: {
-        padding: 4,
+        padding: 8,
     },
     button: {
         backgroundColor: "#2E7D32",
@@ -408,17 +524,17 @@ const styles = StyleSheet.create({
     errorContainer: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#FFF3E0",
+        backgroundColor: "#FFEBEE",
         borderRadius: 8,
         padding: 12,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: "#FFB74D",
+        borderColor: "#EF9A9A",
     },
     errorText: {
         flex: 1,
         fontSize: 13,
-        color: "#E65100",
+        color: "#C62828",
         marginLeft: 8,
         lineHeight: 18,
     },
@@ -436,6 +552,68 @@ const styles = StyleSheet.create({
         color: "#2E7D32",
         marginLeft: 8,
         fontWeight: "500",
+    },
+    fieldErrorText: {
+        fontSize: 12,
+        color: "#C62828",
+        marginBottom: 8,
+        marginLeft: 4,
+    },
+    warningContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFF3E0",
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#FFB74D",
+    },
+    warningText: {
+        flex: 1,
+        fontSize: 13,
+        color: "#E65100",
+        marginLeft: 8,
+        lineHeight: 18,
+    },
+    retryProfileButton: {
+        marginLeft: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        backgroundColor: "#FFE0B2",
+    },
+    retryProfileText: {
+        fontSize: 12,
+        color: "#E65100",
+        fontWeight: "600",
+    },
+    successContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#E8F5E9",
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#A5D6A7",
+    },
+    successText: {
+        flex: 1,
+        fontSize: 13,
+        color: "#2E7D32",
+        marginLeft: 8,
+        lineHeight: 18,
+    },
+    termsText: {
+        fontSize: 12,
+        color: "#757575",
+        textAlign: "center",
+        marginTop: 16,
+    },
+    termsLink: {
+        color: "#2E7D32",
+        fontWeight: "600",
     },
 });
 
