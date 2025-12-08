@@ -325,7 +325,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>AgroAlva</Text>
+        <Text style={styles.logo}>Agroalva</Text>
         <TouchableOpacity
           style={styles.notificationButton}
           onPress={() => router.push("/notifications")}

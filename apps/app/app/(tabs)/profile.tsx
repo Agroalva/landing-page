@@ -151,7 +151,7 @@ export default function ProfileScreen() {
                   const profileUrl = `agroalva://user/${userId}`;
                   const displayName = profile?.displayName || user?.name || "Usuario";
                   await Share.share({
-                    message: `Mira el perfil de ${displayName} en AgroAlva: ${profileUrl}`,
+                    message: `Mira el perfil de ${displayName} en Agroalva: ${profileUrl}`,
                     title: `Perfil de ${displayName}`,
                   });
                 } catch (error: any) {

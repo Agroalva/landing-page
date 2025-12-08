@@ -207,7 +207,7 @@ export default function SignUpScreen() {
                 <View style={styles.content}>
                     <View style={styles.header}>
                         <Text style={styles.title}>Crear cuenta</Text>
-                        <Text style={styles.subtitle}>Únete a la comunidad AgroAlva</Text>
+                        <Text style={styles.subtitle}>Únete a la comunidad Agroalva</Text>
                     </View>
 
                     <View style={styles.form}>
@@ -215,7 +215,7 @@ export default function SignUpScreen() {
                             <View style={styles.successContainer}>
                                 <Ionicons name="checkmark-circle-outline" size={20} color="#2E7D32" />
                                 <Text style={styles.successText}>
-                                    Cuenta creada correctamente. Te estamos redirigiendo a AgroAlva.
+                                    Cuenta creada correctamente. Te estamos redirigiendo a Agroalva.
                                 </Text>
                             </View>
                         )}

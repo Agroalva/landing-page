@@ -1,6 +1,6 @@
 # Incomplete UI Features
 
-This document lists all UI elements and features that are not fully implemented yet in the AgroAlva mobile app.
+This document lists all UI elements and features that are not fully implemented yet in the Agroalva mobile app.
 
 ## 🏠 Home Feed (`app/(tabs)/index.tsx`)
 

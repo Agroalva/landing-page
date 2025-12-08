@@ -1,4 +1,4 @@
-# 🌾 AgroAlva - Marketplace Agrícola
+# 🌾 Agroalva - Marketplace Agrícola
 
 Un marketplace móvil moderno para conectar productores, distribuidores y prestadores de servicios agrícolas en Latinoamérica.
 

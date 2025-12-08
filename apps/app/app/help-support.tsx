@@ -79,9 +79,9 @@ export default function HelpSupportScreen() {
           <Text style={styles.sectionTitle}>Información</Text>
           
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>¿Cómo funciona AgroAlva?</Text>
+            <Text style={styles.infoTitle}>¿Cómo funciona Agroalva?</Text>
             <Text style={styles.infoText}>
-              AgroAlva es una plataforma donde puedes comprar, vender o alquilar productos agrícolas. 
+              Agroalva es una plataforma donde puedes comprar, vender o alquilar productos agrícolas. 
               Explora productos, contacta a vendedores y realiza transacciones de forma segura.
             </Text>
           </View>

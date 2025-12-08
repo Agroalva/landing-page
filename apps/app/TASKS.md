@@ -1,6 +1,6 @@
-# AgroAlva App - Task Completion Roadmap
+# Agroalva App - Task Completion Roadmap
 
-This document outlines all tasks needed to bring the AgroAlva mobile app to 100% completion.
+This document outlines all tasks needed to bring the Agroalva mobile app to 100% completion.
 
 **Current Progress: ~65-70%**
 

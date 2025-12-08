@@ -23,6 +23,7 @@ import type * as schema_notifications from "../schema/notifications.js";
 import type * as schema_products from "../schema/products.js";
 import type * as schema_profiles from "../schema/profiles.js";
 import type * as search from "../search.js";
+import type * as seed from "../seed.js";
 import type * as storage from "../storage.js";
 import type * as users from "../users.js";
 
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "schema/products": typeof schema_products;
   "schema/profiles": typeof schema_profiles;
   search: typeof search;
+  seed: typeof seed;
   storage: typeof storage;
   users: typeof users;
 }>;
