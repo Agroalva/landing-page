@@ -19,7 +19,7 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
 import { Id } from "../convex/_generated/dataModel";
 import * as Location from "expo-location";
-import { CATEGORY_METADATA } from "../constants/categories";
+import { CATEGORY_METADATA, getCategoriesForType, SELL_CATEGORIES, RENT_CATEGORIES } from "../constants/categories";
 
 export default function CreatePostScreen() {
   const router = useRouter();
@@ -46,8 +46,8 @@ export default function CreatePostScreen() {
     useState<Location.PermissionStatus | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
 
-  // Use hardcoded categories from constants
-  const categoryNames = Object.keys(CATEGORY_METADATA);
+  // Get categories based on selected type
+  const categoryNames = getCategoriesForType(type);
 
   // Currency options with symbols
   const currencies = [
@@ -285,7 +285,13 @@ export default function CreatePostScreen() {
                 styles.typeButton,
                 type === "sell" && styles.typeButtonSelected,
               ]}
-              onPress={() => setType("sell")}
+              onPress={() => {
+                setType("sell");
+                // Clear category if it's not valid for sell type
+                if (category && !SELL_CATEGORIES.includes(category)) {
+                  setCategory("");
+                }
+              }}
               disabled={loading}
             >
               <Ionicons
@@ -307,7 +313,13 @@ export default function CreatePostScreen() {
                 styles.typeButton,
                 type === "rent" && styles.typeButtonSelected,
               ]}
-              onPress={() => setType("rent")}
+              onPress={() => {
+                setType("rent");
+                // Clear category if it's not valid for rent type
+                if (category && !RENT_CATEGORIES.includes(category)) {
+                  setCategory("");
+                }
+              }}
               disabled={loading}
             >
               <Ionicons
@@ -321,7 +333,7 @@ export default function CreatePostScreen() {
                   type === "rent" && styles.typeButtonTextSelected,
                 ]}
               >
-                Alquiler
+                Servicios
               </Text>
             </TouchableOpacity>
           </View>

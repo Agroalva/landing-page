@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import Constants from "expo-constants";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "./use-session";
@@ -26,9 +26,21 @@ export function useNotifications() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
+    // Skip push notifications in Expo Go (they don't work properly)
+    if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+      // We're in Expo Go - skip push notifications
+      if (__DEV__) {
+        console.log("Skipping push notifications: Expo Go doesn't fully support push notifications. Use a development build for full functionality.");
+      }
+      return;
+    }
+
     // Request permissions with error handling
     registerForPushNotificationsAsync(updateProfile).catch((error) => {
-      console.error("Failed to register for push notifications:", error);
+      // Only log as warning in dev, not as error
+      if (__DEV__) {
+        console.warn("Failed to register for push notifications:", error?.message || error);
+      }
       // Don't crash the app if notification registration fails
     });
 
@@ -39,7 +51,9 @@ export function useNotifications() {
           console.log("Notification received:", notification);
         });
     } catch (error) {
-      console.error("Failed to add notification received listener:", error);
+      if (__DEV__) {
+        console.warn("Failed to add notification received listener:", error);
+      }
     }
 
     // Handle user tapping on notification
@@ -50,7 +64,9 @@ export function useNotifications() {
           // Handle navigation based on notification type
         });
     } catch (error) {
-      console.error("Failed to add notification response listener:", error);
+      if (__DEV__) {
+        console.warn("Failed to add notification response listener:", error);
+      }
     }
 
     return () => {
@@ -58,14 +74,14 @@ export function useNotifications() {
         try {
           notificationListener.current.remove();
         } catch (error) {
-          console.error("Failed to remove notification listener:", error);
+          // Silently fail on cleanup errors
         }
       }
       if (responseListener.current) {
         try {
           responseListener.current.remove();
         } catch (error) {
-          console.error("Failed to remove response listener:", error);
+          // Silently fail on cleanup errors
         }
       }
     };
@@ -89,7 +105,9 @@ async function registerForPushNotificationsAsync(
           lightColor: "#2E7D32",
         });
       } catch (error) {
-        console.error("Failed to set notification channel:", error);
+        if (__DEV__) {
+          console.warn("Failed to set notification channel:", error);
+        }
         // Continue even if channel setup fails
       }
     }
@@ -105,7 +123,9 @@ async function registerForPushNotificationsAsync(
         finalStatus = status;
       }
     } catch (error) {
-      console.error("Failed to get or request permissions:", error);
+      if (__DEV__) {
+        console.warn("Failed to get or request permissions:", error);
+      }
       return;
     }
 
@@ -130,31 +150,51 @@ async function registerForPushNotificationsAsync(
 
     try {
       token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      console.log("Push token:", token);
+      if (__DEV__) {
+        console.log("Push token obtained successfully");
+      }
 
       // Store token in profile
       if (token) {
         try {
           await updateProfile({ pushToken: token });
         } catch (error) {
-          console.error("Failed to update profile with push token:", error);
+          if (__DEV__) {
+            console.warn("Failed to update profile with push token:", error);
+          }
           // Don't throw - token was obtained successfully, just couldn't save it
         }
       }
     } catch (error: any) {
-      // Handle errors gracefully
-      if (error?.message?.includes("projectId")) {
+      // Handle errors gracefully - don't log as error for expected failures
+      const errorMessage = error?.message || String(error);
+      
+      // Check for common expected errors
+      if (
+        errorMessage.includes("projectId") ||
+        errorMessage.includes("Network request failed") ||
+        errorMessage.includes("Expo token") ||
+        errorMessage.includes("not supported in Expo Go")
+      ) {
+        // These are expected in Expo Go or when projectId is missing
         if (__DEV__) {
-          console.log("Push notifications require a projectId. Configure in app.json under 'extra.eas.projectId' or use a development build.");
+          console.log("Push notifications not available:", errorMessage.includes("Network") 
+            ? "Network error (common in Expo Go)" 
+            : "ProjectId required. Configure in app.json under 'extra.eas.projectId' or use a development build.");
         }
       } else {
-        console.error("Error getting push token:", error);
+        // Unexpected error - log as warning in dev only
+        if (__DEV__) {
+          console.warn("Error getting push token:", errorMessage);
+        }
       }
       // Don't throw - allow app to continue without push notifications
     }
   } catch (error) {
-    // Catch any unexpected errors
-    console.error("Unexpected error in registerForPushNotificationsAsync:", error);
+    // Catch any unexpected errors - only log in dev as warning
+    if (__DEV__) {
+      console.warn("Unexpected error in registerForPushNotificationsAsync:", error);
+    }
     // Don't throw - allow app to continue without push notifications
   }
 

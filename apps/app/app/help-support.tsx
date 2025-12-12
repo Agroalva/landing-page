@@ -89,7 +89,7 @@ export default function HelpSupportScreen() {
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>¿Cómo publico un producto?</Text>
             <Text style={styles.infoText}>
-              Ve a la pantalla de inicio y presiona el botón "+" para crear una nueva publicación. 
+              Ve a la pantalla de inicio y presiona el botón &quot;+&quot; para crear una nueva publicación. 
               Completa la información del producto, añade fotos y publica.
             </Text>
           </View>

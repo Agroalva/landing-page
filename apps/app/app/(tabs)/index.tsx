@@ -1,12 +1,10 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
-  Dimensions,
   ActivityIndicator,
   FlatList,
 } from "react-native";
@@ -18,17 +16,19 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
-import { getCategoryMetadata } from "../../constants/categories";
+import { CATEGORY_METADATA, getCategoryMetadata } from "../../constants/categories";
 import { formatPrice } from "../../utils/currency";
-
-const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
+  const listRef = useRef<FlatList<any>>(null);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [allProducts, setAllProducts] = useState<Array<any>>([]);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
+
+  const categoryArg = selectedCategory === "Todos" ? undefined : selectedCategory;
   
   // Query with pagination
   const feedResult = useQuery(
@@ -37,13 +37,47 @@ export default function HomeScreen() {
       paginationOpts: { 
         numItems: 20, 
         cursor: cursor 
-      } 
+      },
+      category: categoryArg,
     }
   );
   
   const categories = useQuery(api.products.getCategories);
   const unreadNotificationCount = useQuery(api.notifications.getUnreadCount);
   const toggleFavorite = useMutation(api.favorites.toggleFavorite);
+
+  const categoryOptions = useMemo(() => {
+    const options: string[] = ["Todos"];
+    const seen = new Set(options);
+
+    // Prefer ordering from backend (by count desc)
+    for (const cat of categories ?? []) {
+      if (!seen.has(cat.name)) {
+        options.push(cat.name);
+        seen.add(cat.name);
+      }
+    }
+
+    // Then include any known categories even if empty
+    for (const catName of Object.keys(CATEGORY_METADATA)) {
+      if (!seen.has(catName)) {
+        options.push(catName);
+        seen.add(catName);
+      }
+    }
+
+    return options;
+  }, [categories]);
+
+  const handleSelectCategory = useCallback((category: string) => {
+    setSelectedCategory(category);
+    setCursor(null);
+    setIsLoadingMore(false);
+    setAllProducts([]);
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+  }, []);
 
   // Update accumulated products when new page loads
   // Convex queries are real-time, so data updates automatically
@@ -170,7 +204,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryBadgeText}>
-              {product.type === "rent" ? "Alquiler" : "Venta"}
+              {product.type === "rent" ? "Servicios" : "Venta"}
             </Text>
           </View>
         </View>
@@ -210,7 +244,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </TouchableOpacity>
 
-      {/* Categories Carousel */}
+      {/* Category Pills (browse without searching) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Categorías</Text>
         <ScrollView
@@ -218,40 +252,60 @@ export default function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {categories && categories.length > 0 ? (
-            categories.slice(0, 8).map((cat) => {
-              const metadata = getCategoryMetadata(cat.name);
-              return (
-                <TouchableOpacity
-                  key={cat.name}
+          {categoryOptions.map((catName) => {
+            const metadata = getCategoryMetadata(catName);
+            const isSelected = catName === selectedCategory;
+            const count = categories?.find((c) => c.name === catName)?.count;
+
+            return (
+              <TouchableOpacity
+                key={catName}
+                style={[
+                  styles.categoryPill,
+                  isSelected
+                    ? { backgroundColor: "#2E7D32" }
+                    : { backgroundColor: metadata.color + "15" },
+                ]}
+                onPress={() => handleSelectCategory(catName)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={metadata.icon as any}
+                  size={16}
+                  color={isSelected ? "#FFFFFF" : metadata.color}
+                  style={styles.categoryPillIcon}
+                />
+                <Text
                   style={[
-                    styles.categoryCard,
-                    { backgroundColor: metadata.color + "15" },
+                    styles.categoryPillText,
+                    isSelected ? { color: "#FFFFFF" } : { color: "#212121" },
                   ]}
-                  onPress={() => {
-                    router.push({
-                      pathname: "/(tabs)/search",
-                      params: { category: cat.name },
-                    });
-                  }}
+                  numberOfLines={1}
                 >
-                  <Ionicons
-                    name={metadata.icon as any}
-                    size={28}
-                    color={metadata.color}
-                  />
-                  <Text style={styles.categoryName}>{cat.name}</Text>
-                  {cat.count > 0 && (
-                    <Text style={styles.categoryCount}>{cat.count}</Text>
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          ) : (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#2E7D32" />
-            </View>
-          )}
+                  {catName}
+                </Text>
+                {typeof count === "number" && (
+                  <View
+                    style={[
+                      styles.categoryPillCountBadge,
+                      isSelected
+                        ? { backgroundColor: "rgba(255,255,255,0.25)" }
+                        : { backgroundColor: "rgba(46,125,50,0.12)" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryPillCountText,
+                        isSelected ? { color: "#FFFFFF" } : { color: "#2E7D32" },
+                      ]}
+                    >
+                      {count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -260,10 +314,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={styles.banner}
           onPress={() => {
-            router.push({
-              pathname: "/(tabs)/search",
-              params: { category: "Semillas" },
-            });
+            handleSelectCategory("Semillas");
           }}
           activeOpacity={0.8}
         >
@@ -280,9 +331,21 @@ export default function HomeScreen() {
       {/* Products Section Header */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Publicaciones Recientes</Text>
+          <Text style={styles.sectionTitle}>
+            {selectedCategory === "Todos"
+              ? "Publicaciones Recientes"
+              : `Publicaciones · ${selectedCategory}`}
+          </Text>
           <TouchableOpacity
-            onPress={() => router.push("/(tabs)/search")}
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/search",
+                params:
+                  selectedCategory === "Todos"
+                    ? undefined
+                    : { category: selectedCategory },
+              })
+            }
           >
             <Text style={styles.seeAllText}>Ver todas</Text>
           </TouchableOpacity>
@@ -342,6 +405,7 @@ export default function HomeScreen() {
       </View>
 
       <FlatList
+        ref={listRef}
         data={allProducts}
         renderItem={renderProductItem}
         keyExtractor={(item) => item._id}
@@ -470,25 +534,34 @@ const styles = StyleSheet.create({
   categoriesContainer: {
     paddingHorizontal: 12,
   },
-  categoryCard: {
+  categoryPill: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     marginHorizontal: 4,
-    borderRadius: 16,
-    minWidth: 100,
+    borderRadius: 999,
+    maxWidth: 220,
   },
-  categoryName: {
-    marginTop: 4,
-    fontSize: 13,
+  categoryPillIcon: {
+    marginRight: 8,
+  },
+  categoryPillText: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#212121",
+    maxWidth: 150,
   },
-  categoryCount: {
-    marginTop: 2,
-    fontSize: 11,
-    color: "#757575",
+  categoryPillCountBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryPillCountText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   bannerContainer: {
     paddingHorizontal: 16,

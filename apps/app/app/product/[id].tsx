@@ -338,7 +338,7 @@ export default function ProductDetailScreen() {
           )}
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>
-              {product.type === "rent" ? "Alquiler" : "Venta"}
+              {product.type === "rent" ? "Servicios" : "Venta"}
             </Text>
           </View>
 
