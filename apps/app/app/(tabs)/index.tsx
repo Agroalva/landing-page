@@ -16,7 +16,11 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
-import { CATEGORY_METADATA, getCategoryMetadata } from "../../constants/categories";
+import {
+  CategoryId,
+  FamilyId,
+  getFamilies,
+} from "../config/taxonomy";
 import { formatPrice } from "../../utils/currency";
 
 export default function HomeScreen() {
@@ -26,10 +30,19 @@ export default function HomeScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
+  const families = useMemo(() => getFamilies(), []);
+  const [selectedFamilyId, setSelectedFamilyId] = useState<FamilyId | "all">("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(null);
 
-  const categoryArg = selectedCategory === "Todos" ? undefined : selectedCategory;
-  
+  const selectedFamily = selectedFamilyId === "all"
+    ? null
+    : families.find((family) => family.id === selectedFamilyId) ?? null;
+
+  const availableCategories = selectedFamily?.categories ?? [];
+  const selectedCategory = selectedCategoryId
+    ? availableCategories.find((category) => category.id === selectedCategoryId) ?? null
+    : null;
+
   // Query with pagination
   const feedResult = useQuery(
     api.products.feed,
@@ -38,39 +51,14 @@ export default function HomeScreen() {
         numItems: 20, 
         cursor: cursor 
       },
-      category: categoryArg,
+      familyId: selectedFamily?.id,
+      categoryId: selectedCategory?.id,
     }
   );
-  
-  const categories = useQuery(api.products.getCategories);
   const unreadNotificationCount = useQuery(api.notifications.getUnreadCount);
   const toggleFavorite = useMutation(api.favorites.toggleFavorite);
 
-  const categoryOptions = useMemo(() => {
-    const options: string[] = ["Todos"];
-    const seen = new Set(options);
-
-    // Prefer ordering from backend (by count desc)
-    for (const cat of categories ?? []) {
-      if (!seen.has(cat.name)) {
-        options.push(cat.name);
-        seen.add(cat.name);
-      }
-    }
-
-    // Then include any known categories even if empty
-    for (const catName of Object.keys(CATEGORY_METADATA)) {
-      if (!seen.has(catName)) {
-        options.push(catName);
-        seen.add(catName);
-      }
-    }
-
-    return options;
-  }, [categories]);
-
-  const handleSelectCategory = useCallback((category: string) => {
-    setSelectedCategory(category);
+  const resetFeedState = useCallback(() => {
     setCursor(null);
     setIsLoadingMore(false);
     setAllProducts([]);
@@ -78,6 +66,27 @@ export default function HomeScreen() {
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
     });
   }, []);
+
+  const handleSelectFamily = useCallback((familyId: FamilyId | "all") => {
+    setSelectedFamilyId(familyId);
+    setSelectedCategoryId(null);
+    resetFeedState();
+  }, [resetFeedState]);
+
+  const handleSelectCategory = useCallback((category: CategoryId | null) => {
+    setSelectedCategoryId(category);
+    resetFeedState();
+  }, [resetFeedState]);
+
+  const listingTitle = useMemo(() => {
+    if (selectedFamily) {
+      if (selectedCategory) {
+        return `${selectedFamily.label} · ${selectedCategory.label}`;
+      }
+      return `Publicaciones · ${selectedFamily.label}`;
+    }
+    return "Publicaciones Recientes";
+  }, [selectedFamily, selectedCategory]);
 
   // Update accumulated products when new page loads
   // Convex queries are real-time, so data updates automatically
@@ -244,35 +253,54 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </TouchableOpacity>
 
-      {/* Category Pills (browse without searching) */}
+      {/* Family Filters */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Categorías</Text>
+        <Text style={styles.sectionTitle}>Familias</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {categoryOptions.map((catName) => {
-            const metadata = getCategoryMetadata(catName);
-            const isSelected = catName === selectedCategory;
-            const count = categories?.find((c) => c.name === catName)?.count;
-
+          <TouchableOpacity
+            key="all"
+            style={[
+              styles.categoryPill,
+              selectedFamilyId === "all" ? styles.categoryPillActive : styles.categoryPillInactive,
+            ]}
+            onPress={() => handleSelectFamily("all")}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="apps"
+              size={16}
+              color={selectedFamilyId === "all" ? "#FFFFFF" : "#2E7D32"}
+              style={styles.categoryPillIcon}
+            />
+            <Text
+              style={[
+                styles.categoryPillText,
+                selectedFamilyId === "all" ? { color: "#FFFFFF" } : { color: "#212121" },
+              ]}
+            >
+              Todos
+            </Text>
+          </TouchableOpacity>
+          {families.map((family) => {
+            const isSelected = selectedFamilyId === family.id;
             return (
               <TouchableOpacity
-                key={catName}
+                key={family.id}
                 style={[
                   styles.categoryPill,
-                  isSelected
-                    ? { backgroundColor: "#2E7D32" }
-                    : { backgroundColor: metadata.color + "15" },
+                  isSelected ? styles.categoryPillActive : styles.categoryPillInactive,
                 ]}
-                onPress={() => handleSelectCategory(catName)}
+                onPress={() => handleSelectFamily(family.id)}
                 activeOpacity={0.8}
               >
                 <Ionicons
-                  name={metadata.icon as any}
+                  name={family.icon as any}
                   size={16}
-                  color={isSelected ? "#FFFFFF" : metadata.color}
+                  color={isSelected ? "#FFFFFF" : family.color}
                   style={styles.categoryPillIcon}
                 />
                 <Text
@@ -280,41 +308,87 @@ export default function HomeScreen() {
                     styles.categoryPillText,
                     isSelected ? { color: "#FFFFFF" } : { color: "#212121" },
                   ]}
-                  numberOfLines={1}
                 >
-                  {catName}
+                  {family.label}
                 </Text>
-                {typeof count === "number" && (
-                  <View
-                    style={[
-                      styles.categoryPillCountBadge,
-                      isSelected
-                        ? { backgroundColor: "rgba(255,255,255,0.25)" }
-                        : { backgroundColor: "rgba(46,125,50,0.12)" },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryPillCountText,
-                        isSelected ? { color: "#FFFFFF" } : { color: "#2E7D32" },
-                      ]}
-                    >
-                      {count}
-                    </Text>
-                  </View>
-                )}
               </TouchableOpacity>
             );
           })}
         </ScrollView>
       </View>
 
+      {selectedFamily && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Categorías de {selectedFamily.label}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesContainer}
+          >
+            <TouchableOpacity
+              key="all-categories"
+              style={[
+                styles.categoryPill,
+                !selectedCategory ? styles.categoryPillActive : styles.categoryPillInactive,
+              ]}
+              onPress={() => handleSelectCategory(null)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="grid"
+                size={16}
+                color={!selectedCategory ? "#FFFFFF" : "#2E7D32"}
+                style={styles.categoryPillIcon}
+              />
+              <Text
+                style={[
+                  styles.categoryPillText,
+                  !selectedCategory ? { color: "#FFFFFF" } : { color: "#212121" },
+                ]}
+              >
+                Todas
+              </Text>
+            </TouchableOpacity>
+            {availableCategories.map((category) => {
+              const isSelected = selectedCategory?.id === category.id;
+              return (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryPill,
+                    isSelected ? styles.categoryPillActive : styles.categoryPillInactive,
+                  ]}
+                  onPress={() => handleSelectCategory(category.id)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={category.icon as any}
+                    size={16}
+                    color={isSelected ? "#FFFFFF" : category.color}
+                    style={styles.categoryPillIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryPillText,
+                      isSelected ? { color: "#FFFFFF" } : { color: "#212121" },
+                    ]}
+                  >
+                    {category.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Featured Banner */}
       <View style={styles.bannerContainer}>
         <TouchableOpacity
           style={styles.banner}
           onPress={() => {
-            handleSelectCategory("Semillas");
+            handleSelectFamily("agricultural_machinery");
+            handleSelectCategory("seeders" as CategoryId);
           }}
           activeOpacity={0.8}
         >
@@ -332,20 +406,22 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
-            {selectedCategory === "Todos"
-              ? "Publicaciones Recientes"
-              : `Publicaciones · ${selectedCategory}`}
+            {listingTitle}
           </Text>
           <TouchableOpacity
-            onPress={() =>
+            onPress={() => {
+              const searchParams: Record<string, string> = {};
+              if (selectedFamily) {
+                searchParams.familyId = selectedFamily.id;
+              }
+              if (selectedCategory) {
+                searchParams.categoryId = selectedCategory.id;
+              }
               router.push({
                 pathname: "/(tabs)/search",
-                params:
-                  selectedCategory === "Todos"
-                    ? undefined
-                    : { category: selectedCategory },
-              })
-            }
+                params: Object.keys(searchParams).length > 0 ? searchParams : undefined,
+              });
+            }}
           >
             <Text style={styles.seeAllText}>Ver todas</Text>
           </TouchableOpacity>
@@ -542,9 +618,18 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 999,
     maxWidth: 220,
+    borderWidth: 1,
   },
   categoryPillIcon: {
     marginRight: 8,
+  },
+  categoryPillActive: {
+    backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
+  },
+  categoryPillInactive: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E0E0E0",
   },
   categoryPillText: {
     fontSize: 14,

@@ -2,6 +2,83 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
+import { getCategoryById } from "../app/config/taxonomy";
+import type { AttributeValueMap, CategoryId, FamilyId } from "../app/config/taxonomy";
+import { resolveTaxonomyFilter } from "./taxonomy";
+
+const attributeValueValidator = v.union(
+    v.string(),
+    v.number(),
+    v.boolean(),
+    v.array(v.string()),
+    v.object({
+        min: v.optional(v.number()),
+        max: v.optional(v.number()),
+    }),
+);
+
+const attributesValidator = v.optional(v.record(v.string(), attributeValueValidator));
+
+const normalizeAttributes = (attributes?: AttributeValueMap | null): AttributeValueMap | undefined => {
+    if (!attributes) {
+        return undefined;
+    }
+
+    const normalized: AttributeValueMap = {};
+    for (const [key, rawValue] of Object.entries(attributes)) {
+        if (rawValue === undefined || rawValue === null) {
+            continue;
+        }
+
+        if (typeof rawValue === "string") {
+            const trimmed = rawValue.trim();
+            if (!trimmed) {
+                continue;
+            }
+            normalized[key] = trimmed;
+            continue;
+        }
+
+        if (Array.isArray(rawValue)) {
+            const cleaned = rawValue
+                .map((item) => (typeof item === "string" ? item.trim() : item))
+                .filter((item): item is string => typeof item === "string" && item.length > 0);
+            if (cleaned.length === 0) {
+                continue;
+            }
+            normalized[key] = cleaned;
+            continue;
+        }
+
+        if (typeof rawValue === "object") {
+            const rangeValue = rawValue as { min?: number; max?: number };
+            const hasMin = typeof rangeValue.min === "number";
+            const hasMax = typeof rangeValue.max === "number";
+            if (!hasMin && !hasMax) {
+                continue;
+            }
+            normalized[key] = {
+                ...(hasMin ? { min: rangeValue.min } : {}),
+                ...(hasMax ? { max: rangeValue.max } : {}),
+            };
+            continue;
+        }
+
+        normalized[key] = rawValue as any;
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const getLegacyCategoryLabel = (
+    categoryId?: CategoryId,
+    fallback?: string | null,
+) => {
+    if (categoryId) {
+        return getCategoryById(categoryId)?.label ?? fallback ?? undefined;
+    }
+    return fallback ?? undefined;
+};
 
 // Create a new product
 export const create = mutation({
@@ -10,6 +87,9 @@ export const create = mutation({
         description: v.optional(v.string()),
         type: v.union(v.literal("rent"), v.literal("sell")),
         category: v.optional(v.string()),
+        familyId: v.optional(v.string()),
+        categoryId: v.optional(v.string()),
+        attributes: attributesValidator,
         price: v.optional(v.number()),
         currency: v.optional(v.string()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
@@ -31,12 +111,19 @@ export const create = mutation({
             throw new Error("Product name cannot be empty");
         }
 
+        const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
+        const normalizedAttributes = normalizeAttributes(args.attributes);
+        const legacyCategory = getLegacyCategoryLabel(resolvedCategory, args.category);
+
         return await ctx.db.insert("products", {
             authorId: user._id as string,
             name: args.name.trim(),
             description: args.description?.trim(),
             type: args.type,
-            category: args.category,
+            category: legacyCategory,
+            familyId: resolvedFamily,
+            categoryId: resolvedCategory,
+            attributes: normalizedAttributes,
             price: args.price,
             currency: args.currency,
             mediaIds: args.mediaIds || [],
@@ -52,19 +139,41 @@ export const create = mutation({
 export const feed = query({
     args: {
         paginationOpts: paginationOptsValidator,
-        category: v.optional(v.string()),
+        familyId: v.optional(v.string()),
+        categoryId: v.optional(v.string()),
+        legacyCategory: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        if (args.category && args.category !== "Todos") {
+        const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
+
+        if (resolvedCategory) {
             return await ctx.db
                 .query("products")
-                .withIndex("by_category_createdAt", (q) => 
-                    q.eq("category", args.category)
+                .withIndex("by_family_category", (q) =>
+                    q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
                 )
                 .order("desc")
                 .paginate(args.paginationOpts);
         }
-        
+
+        if (resolvedFamily) {
+            return await ctx.db
+                .query("products")
+                .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string))
+                .order("desc")
+                .paginate(args.paginationOpts);
+        }
+
+        if (args.legacyCategory && args.legacyCategory !== "Todos") {
+            return await ctx.db
+                .query("products")
+                .withIndex("by_category_createdAt", (q) =>
+                    q.eq("category", args.legacyCategory),
+                )
+                .order("desc")
+                .paginate(args.paginationOpts);
+        }
+
         return await ctx.db
             .query("products")
             .withIndex("by_createdAt")
@@ -150,6 +259,9 @@ export const update = mutation({
         description: v.optional(v.string()),
         type: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
         category: v.optional(v.string()),
+        familyId: v.optional(v.string()),
+        categoryId: v.optional(v.string()),
+        attributes: attributesValidator,
         price: v.optional(v.number()),
         currency: v.optional(v.string()),
         mediaIds: v.optional(v.array(v.id("_storage"))),
@@ -195,8 +307,19 @@ export const update = mutation({
             updates.type = args.type;
         }
 
-        if (args.category !== undefined) {
-            updates.category = args.category;
+        if (args.attributes !== undefined) {
+            updates.attributes = normalizeAttributes(args.attributes);
+        }
+
+        if (args.familyId !== undefined || args.categoryId !== undefined || args.category !== undefined) {
+            const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(
+                args.familyId ?? product.familyId,
+                args.categoryId ?? product.categoryId,
+            );
+
+            updates.familyId = resolvedFamily;
+            updates.categoryId = resolvedCategory;
+            updates.category = getLegacyCategoryLabel(resolvedCategory, args.category ?? product.category);
         }
 
         if (args.price !== undefined) {
@@ -216,31 +339,6 @@ export const update = mutation({
         }
 
         await ctx.db.patch(args.productId, updates);
-    },
-});
-
-// Get all categories with product counts
-export const getCategories = query({
-    args: {},
-    handler: async (ctx) => {
-        const allProducts = await ctx.db
-            .query("products")
-            .collect();
-        
-        // Count products by category
-        const categoryCounts: Record<string, number> = {};
-        allProducts.forEach(product => {
-            if (product.category) {
-                categoryCounts[product.category] = (categoryCounts[product.category] || 0) + 1;
-            }
-        });
-        
-        // Convert to array and sort by count (descending)
-        const categories = Object.entries(categoryCounts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count);
-        
-        return categories;
     },
 });
 

@@ -1,11 +1,14 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { resolveTaxonomyFilter } from "./taxonomy";
 
 // Search across products and profiles with category filtering and pagination
 export const querySearch = query({
     args: {
         query: v.string(),
-        category: v.optional(v.string()),
+        familyId: v.optional(v.string()),
+        categoryId: v.optional(v.string()),
+        legacyCategory: v.optional(v.string()),
         limit: v.optional(v.number()),
         cursor: v.optional(v.string()),
     },
@@ -26,38 +29,47 @@ export const querySearch = query({
         // Use search index for products if available, otherwise fall back to filtered query
         let matchingProducts;
         
-        if (args.category && args.category !== "Todos") {
-            // Filter by category using index
-            const categoryQuery = ctx.db
+        const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
+
+        let productQuery;
+
+        if (resolvedCategory) {
+            if (!resolvedFamily) {
+                throw new Error("No se pudo resolver la familia para la categoría seleccionada");
+            }
+            productQuery = ctx.db
                 .query("products")
-                .withIndex("by_category_createdAt", (q) => 
-                    q.eq("category", args.category)
+                .withIndex("by_family_category", (q) =>
+                    q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
                 )
                 .order("desc");
-            
-            const allCategoryProducts = await categoryQuery.take(100);
-            
-            matchingProducts = allCategoryProducts
-                .filter(product => 
-                    product.name.toLowerCase().includes(searchTerm) ||
-                    product.description?.toLowerCase().includes(searchTerm)
+        } else if (resolvedFamily) {
+            productQuery = ctx.db
+                .query("products")
+                .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string))
+                .order("desc");
+        } else if (args.legacyCategory && args.legacyCategory !== "Todos") {
+            productQuery = ctx.db
+                .query("products")
+                .withIndex("by_category_createdAt", (q) =>
+                    q.eq("category", args.legacyCategory),
                 )
-                .slice(0, limit);
+                .order("desc");
         } else {
-            // Search all products, limit initial fetch for performance
-            const recentProducts = await ctx.db
+            productQuery = ctx.db
                 .query("products")
                 .withIndex("by_createdAt")
-                .order("desc")
-                .take(100); // Reduced from 500 for better performance
-            
-            matchingProducts = recentProducts
-                .filter(product => 
-                    product.name.toLowerCase().includes(searchTerm) ||
-                    product.description?.toLowerCase().includes(searchTerm)
-                )
-                .slice(0, limit);
+                .order("desc");
         }
+
+        const recentProducts = await productQuery.take(100);
+        
+        matchingProducts = recentProducts
+            .filter(product => 
+                product.name.toLowerCase().includes(searchTerm) ||
+                product.description?.toLowerCase().includes(searchTerm)
+            )
+            .slice(0, limit);
 
         // Search profiles - limit fetch for performance
         const allProfiles = await ctx.db

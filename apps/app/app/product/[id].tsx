@@ -20,6 +20,9 @@ import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
+import { getCategoryById, getFamilyForCategory, getFamilyById } from "../config/taxonomy";
+import type { AttributeValueMap } from "../config/taxonomy";
+import { CONDITION_OPTIONS } from "../config/options";
 
 const { width } = Dimensions.get("window");
 
@@ -379,6 +382,126 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Details Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Detalles</Text>
+            <View style={styles.detailsContainer}>
+              {/* Tipo de publicación */}
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Tipo</Text>
+                <Text style={styles.detailValue}>
+                  {product.type === "rent" ? "Servicio" : "Producto"}
+                </Text>
+              </View>
+
+              {/* Categoría */}
+              {product.categoryId && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Categoría</Text>
+                  <Text style={styles.detailValue}>
+                    {getCategoryById(product.categoryId)?.label || product.category || "N/A"}
+                  </Text>
+                </View>
+              )}
+
+              {/* Familia */}
+              {product.familyId && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Familia</Text>
+                  <Text style={styles.detailValue}>
+                    {getFamilyById(product.familyId)?.label || "N/A"}
+                  </Text>
+                </View>
+              )}
+
+              {/* Condición - Solo para productos */}
+              {product.type === "sell" && product.attributes?.condition && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Condición</Text>
+                  <Text style={styles.detailValue}>
+                    {CONDITION_OPTIONS.find(
+                      (opt) => opt.id === product.attributes?.condition
+                    )?.label || String(product.attributes.condition)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Precio */}
+              {product.price && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Precio</Text>
+                  <Text style={styles.detailValue}>
+                    {formatPrice(product.price, product.currency)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Ubicación */}
+              {product.location && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Ubicación</Text>
+                  <Text style={styles.detailValue}>
+                    {product.location.label || product.location.address || 
+                     `${product.location.latitude.toFixed(3)}, ${product.location.longitude.toFixed(3)}`}
+                  </Text>
+                </View>
+              )}
+
+              {/* Otros atributos */}
+              {product.attributes && Object.entries(product.attributes).map(([key, value]) => {
+                // Skip condition for services (already handled above for products)
+                if (key === "condition" && product.type === "rent") {
+                  return null;
+                }
+                // Skip condition if already shown above
+                if (key === "condition" && product.type === "sell") {
+                  return null;
+                }
+
+                const category = product.categoryId ? getCategoryById(product.categoryId) : null;
+                const attributeDef = category?.attributes.find((attr) => attr.id === key);
+                const label = attributeDef?.label || key;
+
+                let displayValue: string;
+                if (typeof value === "string") {
+                  // Try to find option label if it's a select attribute
+                  if (attributeDef?.options) {
+                    const option = attributeDef.options.find((opt) => opt.id === value);
+                    displayValue = option?.label || value;
+                  } else {
+                    displayValue = value;
+                  }
+                } else if (typeof value === "number") {
+                  displayValue = value.toString();
+                } else if (typeof value === "boolean") {
+                  displayValue = value ? "Sí" : "No";
+                } else if (Array.isArray(value)) {
+                  displayValue = value.join(", ");
+                } else if (typeof value === "object" && value !== null) {
+                  const range = value as { min?: number; max?: number };
+                  if (range.min !== undefined && range.max !== undefined) {
+                    displayValue = `${range.min} - ${range.max}`;
+                  } else if (range.min !== undefined) {
+                    displayValue = `Mín: ${range.min}`;
+                  } else if (range.max !== undefined) {
+                    displayValue = `Máx: ${range.max}`;
+                  } else {
+                    displayValue = "N/A";
+                  }
+                } else {
+                  displayValue = "N/A";
+                }
+
+                return (
+                  <View key={key} style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>{label}</Text>
+                    <Text style={styles.detailValue}>{displayValue}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
 
           {/* Location */}
           {product.location && (
@@ -773,6 +896,32 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
+  },
+  detailsContainer: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 16,
+    padding: 16,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: "#757575",
+    fontWeight: "500",
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: "#212121",
+    fontWeight: "600",
+    flex: 1,
+    textAlign: "right",
   },
 });
 

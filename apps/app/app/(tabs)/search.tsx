@@ -15,49 +15,61 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getCategoryMetadata, type CategoryIcon } from "../../constants/categories";
+import {
+  CategoryId,
+  FamilyId,
+  getFamilies,
+} from "../config/taxonomy";
+import { ListingCard } from "../../components/ListingCard";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
 const MAX_RECENT_SEARCHES = 10;
 
 export default function SearchScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ category?: string }>();
-  const [selectedFilter, setSelectedFilter] = useState<string | null>("Todos");
+  const params = useLocalSearchParams<{ familyId?: string; categoryId?: string }>();
+  const families = useMemo(() => getFamilies(), []);
+  const [selectedFamilyId, setSelectedFamilyId] = useState<FamilyId | "all">("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const selectedFamily = selectedFamilyId === "all"
+    ? null
+    : families.find((family) => family.id === selectedFamilyId) ?? null;
+  const availableCategories = selectedFamily?.categories ?? [];
+  const selectedCategory = selectedCategoryId
+    ? availableCategories.find((category) => category.id === selectedCategoryId) ?? null
+    : null;
 
-  // Fetch dynamic categories
-  const categories = useQuery(api.products.getCategories);
+  const handleSelectFamily = (familyId: FamilyId | "all") => {
+    setSelectedFamilyId(familyId);
+    setSelectedCategoryId(null);
+  };
 
-  // Set initial filter from route params
+  const handleSelectCategory = (categoryId: CategoryId | null) => {
+    setSelectedCategoryId(categoryId);
+  };
+
+  // Set initial filters from route params
   useEffect(() => {
-    if (params.category) {
-      setSelectedFilter(params.category);
+    if (params.familyId && typeof params.familyId === "string") {
+      setSelectedFamilyId(params.familyId as FamilyId);
     }
-  }, [params.category]);
-
-  // Build filters array dynamically
-  const filters = useMemo(() => {
-    const allFilters = [
-      { id: "Todos", name: "Todos", icon: "apps" as CategoryIcon },
-    ];
-    
-    if (categories) {
-      categories.forEach((cat) => {
-        const metadata = getCategoryMetadata(cat.name);
-        allFilters.push({
-          id: cat.name,
-          name: cat.name,
-          icon: metadata.icon,
-        });
-      });
+    if (params.categoryId && typeof params.categoryId === "string") {
+      const categoryId = params.categoryId as CategoryId;
+      setSelectedCategoryId(categoryId);
+      if (!params.familyId) {
+        const matchedFamily = families.find((family) =>
+          family.categories.some((category) => category.id === categoryId),
+        );
+        if (matchedFamily) {
+          setSelectedFamilyId(matchedFamily.id);
+        }
+      }
     }
-    
-    return allFilters;
-  }, [categories]);
+  }, [params.familyId, params.categoryId, families]);
 
   // Load recent searches on mount
   useEffect(() => {
@@ -140,16 +152,13 @@ export default function SearchScreen() {
     );
   };
 
-  const getSelectedCategory = (): string | undefined => {
-    return selectedFilter === "Todos" || selectedFilter === null ? undefined : selectedFilter;
-  };
-
   const results = useQuery(
     api.search.querySearch,
     debouncedQuery.length >= 3 
       ? { 
           query: debouncedQuery, 
-          category: getSelectedCategory(),
+          familyId: selectedFamily?.id,
+          categoryId: selectedCategory?.id,
           limit: 20 
         } 
       : "skip"
@@ -179,38 +188,129 @@ export default function SearchScreen() {
       </View>
 
       <ScrollView>
-        {/* Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContainer}
-        >
-          {filters.map((filter) => (
+        {/* Family Filters */}
+        <View style={styles.filtersWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContainer}
+          >
             <TouchableOpacity
-              key={filter.id}
+              key="all"
               style={[
                 styles.filterChip,
-                selectedFilter === filter.id && styles.filterChipActive,
+                selectedFamilyId === "all" && styles.filterChipActive,
               ]}
-              onPress={() => setSelectedFilter(filter.id)}
+              onPress={() => handleSelectFamily("all")}
             >
               <Ionicons
-                name={filter.icon as any}
+                name="apps"
                 size={18}
-                color={selectedFilter === filter.id ? "#FFFFFF" : "#2E7D32"}
+                color={selectedFamilyId === "all" ? "#FFFFFF" : "#2E7D32"}
                 style={styles.filterIcon}
               />
               <Text
                 style={[
                   styles.filterText,
-                  selectedFilter === filter.id && styles.filterTextActive,
+                  selectedFamilyId === "all" && styles.filterTextActive,
                 ]}
               >
-                {filter.name}
+                Todos
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+            {families.map((family) => {
+              const isSelected = selectedFamilyId === family.id;
+              return (
+                <TouchableOpacity
+                  key={family.id}
+                  style={[
+                    styles.filterChip,
+                    isSelected && styles.filterChipActive,
+                  ]}
+                  onPress={() => handleSelectFamily(family.id)}
+                >
+                  <Ionicons
+                    name={family.icon as any}
+                    size={18}
+                    color={isSelected ? "#FFFFFF" : family.color}
+                    style={styles.filterIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.filterText,
+                      isSelected && styles.filterTextActive,
+                    ]}
+                  >
+                    {family.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Category Filters */}
+        {selectedFamily && (
+          <View style={styles.filtersWrapper}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersContainer}
+            >
+              <TouchableOpacity
+                key="all-categories"
+                style={[
+                  styles.filterChip,
+                  !selectedCategory && styles.filterChipActive,
+                ]}
+                onPress={() => handleSelectCategory(null)}
+              >
+                <Ionicons
+                  name="grid"
+                  size={18}
+                  color={!selectedCategory ? "#FFFFFF" : "#2E7D32"}
+                  style={styles.filterIcon}
+                />
+                <Text
+                  style={[
+                    styles.filterText,
+                    !selectedCategory && styles.filterTextActive,
+                  ]}
+                >
+                  Todas
+                </Text>
+              </TouchableOpacity>
+              {availableCategories.map((category) => {
+                const isSelected = selectedCategory?.id === category.id;
+                return (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[
+                      styles.filterChip,
+                      isSelected && styles.filterChipActive,
+                    ]}
+                    onPress={() => handleSelectCategory(category.id)}
+                  >
+                    <Ionicons
+                      name={category.icon as any}
+                      size={18}
+                      color={isSelected ? "#FFFFFF" : category.color}
+                      style={styles.filterIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.filterText,
+                        isSelected && styles.filterTextActive,
+                      ]}
+                    >
+                      {category.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Search Results */}
         {debouncedQuery.length >= 3 && (
@@ -224,19 +324,11 @@ export default function SearchScreen() {
                 {results.products.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Productos</Text>
-                    {results.products.map((product) => (
-                      <TouchableOpacity
-                        key={product._id}
-                        style={styles.recentItem}
-                        onPress={() => router.push(`/product/${product._id}`)}
-                      >
-                        <Ionicons name="document-text-outline" size={20} color="#757575" />
-                        <Text style={styles.recentText} numberOfLines={2}>
-                          {product.name}
-                        </Text>
-                        <Ionicons name="arrow-forward" size={18} color="#9E9E9E" />
-                      </TouchableOpacity>
-                    ))}
+                    <View style={styles.productsContainer}>
+                      {results.products.map((product) => (
+                        <ListingCard key={product._id} product={product} />
+                      ))}
+                    </View>
                   </>
                 )}
                 {results.profiles.length > 0 && (
@@ -301,45 +393,6 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* Popular Categories */}
-        {categories && categories.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Categorías populares</Text>
-            <View style={styles.popularGrid}>
-              {categories.slice(0, 4).map((cat) => {
-                const metadata = getCategoryMetadata(cat.name);
-                return (
-                  <TouchableOpacity
-                    key={cat.name}
-                    style={styles.popularCard}
-                    onPress={() => {
-                      setSelectedFilter(cat.name);
-                      // Trigger search with category filter by setting a search query
-                      // This will show products in that category
-                      if (!searchQuery.trim()) {
-                        // If no search query, set a generic one to trigger search
-                        setSearchQuery(cat.name);
-                      }
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.popularIcon,
-                        { backgroundColor: metadata.color + "20" },
-                      ]}
-                    >
-                      <Ionicons name={metadata.icon as any} size={32} color={metadata.color} />
-                    </View>
-                    <Text style={styles.popularText}>{cat.name}</Text>
-                    <Text style={styles.popularCount}>
-                      {cat.count} {cat.count === 1 ? "producto" : "productos"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -386,6 +439,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: "#212121",
+  },
+  filtersWrapper: {
+    marginBottom: 8,
   },
   filtersContainer: {
     paddingHorizontal: 12,
@@ -467,42 +523,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#212121",
   },
-  popularGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  popularCard: {
-    width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  popularIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  popularText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#212121",
-    marginBottom: 4,
-  },
-  popularCount: {
-    fontSize: 12,
-    color: "#757575",
-  },
   loadingContainer: {
     padding: 40,
     alignItems: "center",
@@ -517,6 +537,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#212121",
     marginTop: 16,
+  },
+  productsContainer: {
+    marginTop: 12,
   },
 });
 

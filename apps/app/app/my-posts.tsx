@@ -13,8 +13,7 @@ import { useRouter, Redirect } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
-import { ConvexImage } from "@/components/ConvexImage";
-import { formatPrice } from "../utils/currency";
+import { ListingCard } from "@/components/ListingCard";
 
 export default function MyPostsScreen() {
   const router = useRouter();
@@ -70,45 +69,7 @@ export default function MyPostsScreen() {
         ) : (
           <View style={styles.productsContainer}>
             {userProducts.map((product) => (
-              <TouchableOpacity
-                key={product._id}
-                style={styles.productCard}
-                onPress={() => router.push(`/product/${product._id}`)}
-              >
-                <View style={styles.productImageContainer}>
-                  {product.mediaIds && product.mediaIds.length > 0 ? (
-                    <ConvexImage
-                      storageId={product.mediaIds[0]}
-                      style={styles.productImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.productImagePlaceholder}>
-                      <Ionicons name="image-outline" size={32} color="#9E9E9E" />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.name}
-                  </Text>
-                  {product.price && (
-                    <Text style={styles.productPrice}>
-                      {formatPrice(product.price, product.currency)}
-                    </Text>
-                  )}
-                  <View style={styles.productFooter}>
-                    <Text style={styles.productDate}>
-                      {new Date(product.createdAt).toLocaleDateString()}
-                    </Text>
-                    <View style={styles.typeBadge}>
-                      <Text style={styles.typeBadgeText}>
-                        {product.type === "rent" ? "Servicios" : "Venta"}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
+              <ListingCard key={product._id} product={product} />
             ))}
           </View>
         )}

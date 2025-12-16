@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,16 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
 import { Id } from "../convex/_generated/dataModel";
 import * as Location from "expo-location";
-import { CATEGORY_METADATA, getCategoriesForType, SELL_CATEGORIES, RENT_CATEGORIES } from "../constants/categories";
+import {
+  AttributeDefinition,
+  AttributeValueMap,
+  CategoryDefinition,
+  CategoryId,
+  DEFAULT_FAMILY_ID,
+  FamilyId,
+  getCategoriesForFamily,
+  getFamilies,
+} from "./config/taxonomy";
 
 export default function CreatePostScreen() {
   const router = useRouter();
@@ -29,7 +38,10 @@ export default function CreatePostScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"rent" | "sell">("sell");
-  const [category, setCategory] = useState<string>("");
+  const families = useMemo(() => getFamilies(), []);
+  const [familyId, setFamilyId] = useState<FamilyId>(DEFAULT_FAMILY_ID);
+  const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
+  const [attributeValues, setAttributeValues] = useState<Record<string, any>>({});
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState<string>("USD");
   const [loading, setLoading] = useState(false);
@@ -46,8 +58,324 @@ export default function CreatePostScreen() {
     useState<Location.PermissionStatus | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
 
-  // Get categories based on selected type
-  const categoryNames = getCategoriesForType(type);
+  const handleSelectFamily = (nextFamilyId: FamilyId) => {
+    setFamilyId(nextFamilyId);
+    setCategoryId(null);
+    setAttributeValues({});
+  };
+
+  const handleSelectCategory = (nextCategoryId: CategoryId) => {
+    setCategoryId(nextCategoryId);
+    setAttributeValues({});
+  };
+
+  const handleAttributeValueChange = (attributeId: string, value: any) => {
+    setAttributeValues((prev) => ({
+      ...prev,
+      [attributeId]: value,
+    }));
+  };
+
+  const handleToggleAttributeOption = (attributeId: string, optionId: string) => {
+    setAttributeValues((prev) => {
+      const current: string[] = Array.isArray(prev[attributeId]) ? prev[attributeId] : [];
+      const exists = current.includes(optionId);
+      const next = exists ? current.filter((val) => val !== optionId) : [...current, optionId];
+      return {
+        ...prev,
+        [attributeId]: next,
+      };
+    });
+  };
+
+  const handleRangeChange = (attributeId: string, field: "min" | "max", value: string) => {
+    setAttributeValues((prev) => {
+      const current = (prev[attributeId] as { min?: string; max?: string }) || {};
+      return {
+        ...prev,
+        [attributeId]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const buildAttributesPayload = (): AttributeValueMap | undefined => {
+    if (!selectedCategory) {
+      return undefined;
+    }
+
+    const payload: AttributeValueMap = {};
+
+    selectedCategory.attributes.forEach((attribute) => {
+      // Skip condition attribute for services (type === "rent")
+      if (attribute.id === "condition" && type === "rent") {
+        return;
+      }
+
+      const rawValue = attributeValues[attribute.id];
+      if (rawValue === undefined || rawValue === null) {
+        return;
+      }
+
+      switch (attribute.type) {
+        case "select":
+        case "text": {
+          if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+            payload[attribute.id] = rawValue.trim();
+          }
+          break;
+        }
+        case "multiselect": {
+          if (Array.isArray(rawValue) && rawValue.length > 0) {
+            payload[attribute.id] = rawValue;
+          }
+          break;
+        }
+        case "number": {
+          const numericValue =
+            typeof rawValue === "number" ? rawValue : parseFloat(rawValue);
+          if (!Number.isNaN(numericValue)) {
+            payload[attribute.id] = numericValue;
+          }
+          break;
+        }
+        case "numberRange": {
+          const rangeValue = rawValue as { min?: string; max?: string };
+          const parsedMin =
+            rangeValue?.min && rangeValue.min !== "" ? parseFloat(rangeValue.min) : undefined;
+          const parsedMax =
+            rangeValue?.max && rangeValue.max !== "" ? parseFloat(rangeValue.max) : undefined;
+          if (
+            (parsedMin !== undefined && !Number.isNaN(parsedMin)) ||
+            (parsedMax !== undefined && !Number.isNaN(parsedMax))
+          ) {
+            payload[attribute.id] = {
+              ...(parsedMin !== undefined && !Number.isNaN(parsedMin) ? { min: parsedMin } : {}),
+              ...(parsedMax !== undefined && !Number.isNaN(parsedMax) ? { max: parsedMax } : {}),
+            };
+          }
+          break;
+        }
+        case "boolean": {
+          if (typeof rawValue === "boolean") {
+            payload[attribute.id] = rawValue;
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    });
+
+    return Object.keys(payload).length > 0 ? payload : undefined;
+  };
+
+  const renderAttributeField = (attribute: AttributeDefinition) => {
+    // Hide condition field for services (type === "rent")
+    if (attribute.id === "condition" && type === "rent") {
+      return null;
+    }
+
+    const labelContent = (
+      <Text style={styles.label}>
+        {attribute.label}
+        {attribute.required && type === "sell" && <Text style={styles.required}>*</Text>}
+      </Text>
+    );
+
+    const helperContent =
+      attribute.helperText ? (
+        <Text style={styles.helperText}>{attribute.helperText}</Text>
+      ) : null;
+
+    const value = attributeValues[attribute.id];
+
+    switch (attribute.type) {
+      case "select":
+        return (
+          <View key={attribute.id} style={styles.attributeGroup}>
+            {labelContent}
+            <View style={styles.attributeOptionsWrap}>
+              {(attribute.options || []).map((option) => {
+                const isSelected = value === option.id;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.attributeChip,
+                      isSelected && styles.attributeChipSelected,
+                    ]}
+                    onPress={() => handleAttributeValueChange(attribute.id, option.id)}
+                    disabled={loading}
+                  >
+                    <Text
+                      style={[
+                        styles.attributeChipText,
+                        isSelected && styles.attributeChipTextSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {helperContent}
+          </View>
+        );
+      case "multiselect":
+        return (
+          <View key={attribute.id} style={styles.attributeGroup}>
+            {labelContent}
+            <View style={styles.attributeOptionsWrap}>
+              {(attribute.options || []).map((option) => {
+                const selectedValues: string[] = Array.isArray(value) ? value : [];
+                const isSelected = selectedValues.includes(option.id);
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.attributeChip,
+                      isSelected && styles.attributeChipSelected,
+                    ]}
+                    onPress={() => handleToggleAttributeOption(attribute.id, option.id)}
+                    disabled={loading}
+                  >
+                    <Text
+                      style={[
+                        styles.attributeChipText,
+                        isSelected && styles.attributeChipTextSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {helperContent}
+          </View>
+        );
+      case "number":
+      case "text":
+        return (
+          <View key={attribute.id} style={styles.attributeGroup}>
+            {labelContent}
+            <TextInput
+              style={styles.input}
+              placeholder={attribute.placeholder || attribute.label}
+              value={value ?? ""}
+              onChangeText={(text) => handleAttributeValueChange(attribute.id, text)}
+              placeholderTextColor="#9E9E9E"
+              editable={!loading}
+              keyboardType={attribute.type === "number" ? "numeric" : "default"}
+            />
+            {helperContent}
+          </View>
+        );
+      case "numberRange":
+        return (
+          <View key={attribute.id} style={styles.attributeGroup}>
+            {labelContent}
+            <View style={styles.rangeInputRow}>
+              <View style={styles.rangeInputWrapper}>
+                <Text style={styles.rangeLabel}>Mín.</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0"
+                  value={value?.min ?? ""}
+                  onChangeText={(text) => handleRangeChange(attribute.id, "min", text)}
+                  placeholderTextColor="#9E9E9E"
+                  editable={!loading}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={[styles.rangeInputWrapper, styles.rangeInputWrapperLast]}>
+                <Text style={styles.rangeLabel}>Máx.</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0"
+                  value={value?.max ?? ""}
+                  onChangeText={(text) => handleRangeChange(attribute.id, "max", text)}
+                  placeholderTextColor="#9E9E9E"
+                  editable={!loading}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+            {helperContent}
+          </View>
+        );
+      case "boolean":
+        return (
+          <View key={attribute.id} style={styles.attributeGroup}>
+            {labelContent}
+            <View style={styles.booleanRow}>
+              <TouchableOpacity
+                style={[
+                  styles.attributeChip,
+                  value === true && styles.attributeChipSelected,
+                ]}
+                onPress={() => handleAttributeValueChange(attribute.id, true)}
+                disabled={loading}
+              >
+                <Text
+                  style={[
+                    styles.attributeChipText,
+                    value === true && styles.attributeChipTextSelected,
+                  ]}
+                >
+                  Sí
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.attributeChip,
+                  value === false && styles.attributeChipSelected,
+                ]}
+                onPress={() => handleAttributeValueChange(attribute.id, false)}
+                disabled={loading}
+              >
+                <Text
+                  style={[
+                    styles.attributeChipText,
+                    value === false && styles.attributeChipTextSelected,
+                  ]}
+                >
+                  No
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {helperContent}
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const selectedFamily = useMemo(() => {
+    return families.find((family) => family.id === familyId) ?? families[0];
+  }, [families, familyId]);
+
+  const availableCategories = useMemo(() => {
+    return selectedFamily ? getCategoriesForFamily(selectedFamily.id as FamilyId) : [];
+  }, [selectedFamily]);
+
+  const selectedCategory: CategoryDefinition | null = useMemo(() => {
+    if (!categoryId) {
+      return availableCategories[0] ?? null;
+    }
+    return availableCategories.find((category) => category.id === categoryId) ?? null;
+  }, [availableCategories, categoryId]);
+
+  useEffect(() => {
+    if (!categoryId && availableCategories.length > 0) {
+      setCategoryId(availableCategories[0].id);
+    }
+  }, [availableCategories, categoryId]);
 
   // Currency options with symbols
   const currencies = [
@@ -153,13 +481,23 @@ export default function CreatePostScreen() {
       return;
     }
 
+    if (!selectedFamily || !selectedCategory) {
+      Alert.alert("Error", "Selecciona una familia y una categoría para publicar");
+      return;
+    }
+
+    const attributesPayload = buildAttributesPayload();
+
     setLoading(true);
     try {
       await createProduct({ 
         name: name.trim(),
         description: description.trim() || undefined,
         type: type,
-        category: category || undefined,
+        category: selectedCategory.label,
+        familyId: selectedFamily.id,
+        categoryId: selectedCategory.id,
+        attributes: attributesPayload,
         price: price ? parseFloat(price) : undefined,
         currency: price ? currency : undefined,
         mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
@@ -287,10 +625,6 @@ export default function CreatePostScreen() {
               ]}
               onPress={() => {
                 setType("sell");
-                // Clear category if it's not valid for sell type
-                if (category && !SELL_CATEGORIES.includes(category)) {
-                  setCategory("");
-                }
               }}
               disabled={loading}
             >
@@ -315,9 +649,13 @@ export default function CreatePostScreen() {
               ]}
               onPress={() => {
                 setType("rent");
-                // Clear category if it's not valid for rent type
-                if (category && !RENT_CATEGORIES.includes(category)) {
-                  setCategory("");
+                // Clear condition value when switching to services
+                if (attributeValues.condition !== undefined) {
+                  setAttributeValues((prev) => {
+                    const updated = { ...prev };
+                    delete updated.condition;
+                    return updated;
+                  });
                 }
               }}
               disabled={loading}
@@ -339,45 +677,98 @@ export default function CreatePostScreen() {
           </View>
         </View>
 
-        {/* Category Selection */}
+        {/* Family Selection */}
         <View style={styles.section}>
-          <Text style={styles.label}>Categoría</Text>
+          <Text style={styles.label}>Familia</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {categoryNames.map((cat) => {
-              const metadata = CATEGORY_METADATA[cat];
+            {families.map((family) => {
+              const isSelected = selectedFamily?.id === family.id;
               return (
                 <TouchableOpacity
-                  key={cat}
+                  key={family.id}
                   style={[
                     styles.categoryChip,
-                    category === cat && styles.categoryChipSelected,
+                    isSelected && styles.categoryChipSelected,
                   ]}
-                  onPress={() => setCategory(category === cat ? "" : cat)}
+                  onPress={() => handleSelectFamily(family.id as FamilyId)}
                   disabled={loading}
                 >
                   <Ionicons
-                    name={metadata.icon as any}
+                    name={family.icon as any}
                     size={16}
-                    color={category === cat ? "#FFFFFF" : metadata.color}
+                    color={isSelected ? "#FFFFFF" : family.color}
                     style={styles.categoryIcon}
                   />
                   <Text
                     style={[
                       styles.categoryText,
-                      category === cat && styles.categoryTextSelected,
+                      isSelected && styles.categoryTextSelected,
                     ]}
                   >
-                    {cat}
+                    {family.label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
         </View>
+
+        {/* Category Selection */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Categoría</Text>
+          {availableCategories.length === 0 ? (
+            <Text style={styles.helperText}>
+              No hay categorías disponibles para esta familia
+            </Text>
+          ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesContainer}
+          >
+              {availableCategories.map((category) => {
+                const isSelected = selectedCategory?.id === category.id;
+              return (
+                <TouchableOpacity
+                    key={category.id}
+                  style={[
+                    styles.categoryChip,
+                      isSelected && styles.categoryChipSelected,
+                  ]}
+                    onPress={() => handleSelectCategory(category.id)}
+                  disabled={loading}
+                >
+                  <Ionicons
+                      name={category.icon as any}
+                    size={16}
+                      color={isSelected ? "#FFFFFF" : category.color}
+                    style={styles.categoryIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryText,
+                        isSelected && styles.categoryTextSelected,
+                    ]}
+                  >
+                      {category.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          )}
+        </View>
+
+        {selectedCategory && selectedCategory.attributes.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Características específicas</Text>
+            {selectedCategory.attributes.map((attribute) => renderAttributeField(attribute))}
+          </View>
+        )}
 
         {/* Price */}
         <View style={styles.section}>
@@ -652,6 +1043,55 @@ const styles = StyleSheet.create({
   },
   categoryTextSelected: {
     color: "#FFFFFF",
+  },
+  attributeGroup: {
+    marginBottom: 16,
+  },
+  attributeOptionsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  attributeChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    backgroundColor: "#FFFFFF",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  attributeChipSelected: {
+    backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
+  },
+  attributeChipText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#212121",
+  },
+  attributeChipTextSelected: {
+    color: "#FFFFFF",
+  },
+  rangeInputRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  rangeInputWrapper: {
+    flex: 1,
+    marginRight: 12,
+  },
+  rangeInputWrapperLast: {
+    marginRight: 0,
+  },
+  rangeLabel: {
+    fontSize: 13,
+    color: "#757575",
+    marginBottom: 6,
+  },
+  booleanRow: {
+    flexDirection: "row",
   },
   typeContainer: {
     flexDirection: "row",

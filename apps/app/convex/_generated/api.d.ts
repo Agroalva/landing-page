@@ -25,6 +25,7 @@ import type * as schema_profiles from "../schema/profiles.js";
 import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as storage from "../storage.js";
+import type * as taxonomy from "../taxonomy.js";
 import type * as users from "../users.js";
 
 import type {
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   search: typeof search;
   seed: typeof seed;
   storage: typeof storage;
+  taxonomy: typeof taxonomy;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

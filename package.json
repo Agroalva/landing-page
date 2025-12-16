@@ -12,6 +12,7 @@
     "type-check": "turbo run type-check"
   },
   "devDependencies": {
+    "@typescript-eslint/parser": "^8.49.0",
     "turbo": "^2.3.0"
   }
 }
