@@ -458,6 +458,10 @@ export default function ProductDetailScreen() {
                 if (key === "condition" && product.type === "sell") {
                   return null;
                 }
+                // Skip year for services
+                if (key === "year" && product.type === "rent") {
+                  return null;
+                }
 
                 const category = product.categoryId ? getCategoryById(product.categoryId) : null;
                 const attributeDef = category?.attributes.find((attr) => attr.id === key);

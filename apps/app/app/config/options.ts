@@ -221,6 +221,19 @@ export const TOLVA_TYPES: OptionItem[] = toOptions([
   "Silera",
 ]);
 
+export const BODY_TYPES: OptionItem[] = toOptions([
+  "Todo puerta",
+  "Puerta libro",
+  "Volcador",
+  "Cerealero",
+]);
+
+export const ARRIME_CONDITIONS: OptionItem[] = toOptions([
+  "Corta distancia",
+  "Larga distancia",
+  "Mixto",
+]);
+
 export const PICKUP_TRACTION: OptionItem[] = toOptions(["4x2", "4x4"]);
 
 export const PLOW_TYPES: OptionItem[] = toOptions([

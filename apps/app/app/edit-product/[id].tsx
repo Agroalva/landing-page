@@ -164,6 +164,10 @@ export default function EditProductScreen() {
       if (attribute.id === "condition" && type === "rent") {
         return;
       }
+      // Skip year attribute for services (type === "rent")
+      if (attribute.id === "year" && type === "rent") {
+        return;
+      }
 
       const rawValue = attributeValues[attribute.id];
       if (rawValue === undefined || rawValue === null) {
@@ -226,6 +230,10 @@ export default function EditProductScreen() {
   const renderAttributeField = (attribute: AttributeDefinition) => {
     // Hide condition field for services (type === "rent")
     if (attribute.id === "condition" && type === "rent") {
+      return null;
+    }
+    // Hide year field for services (type === "rent")
+    if (attribute.id === "year" && type === "rent") {
       return null;
     }
 
