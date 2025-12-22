@@ -55,20 +55,24 @@ export const listForUser = query({
         })
     ),
     handler: async (ctx, args) => {
-        const user = await authComponent.getAuthUser(ctx);
-        if (!user) {
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            if (!user) {
+                return [];
+            }
+
+            const limit = args.limit || 50;
+
+            return await ctx.db
+                .query("notifications")
+                .withIndex("by_userId_createdAt", (q) =>
+                    q.eq("userId", user._id as string)
+                )
+                .order("desc")
+                .take(limit);
+        } catch {
             return [];
         }
-
-        const limit = args.limit || 50;
-
-        return await ctx.db
-            .query("notifications")
-            .withIndex("by_userId_createdAt", (q) =>
-                q.eq("userId", user._id as string)
-            )
-            .order("desc")
-            .take(limit);
     },
 });
 
@@ -77,19 +81,25 @@ export const getUnreadCount = query({
     args: {},
     returns: v.number(),
     handler: async (ctx) => {
-        const user = await authComponent.getAuthUser(ctx);
-        if (!user) {
+
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            if (!user) {
+                return 0;
+            }
+
+            const unreadNotifications = await ctx.db
+                .query("notifications")
+                .withIndex("by_userId_read", (q) =>
+                    q.eq("userId", user._id as string).eq("read", false)
+                )
+                .collect();
+
+            return unreadNotifications.length;
+        } catch (error) {
+            console.error("Error getting unread count:", error);
             return 0;
         }
-
-        const unreadNotifications = await ctx.db
-            .query("notifications")
-            .withIndex("by_userId_read", (q) =>
-                q.eq("userId", user._id as string).eq("read", false)
-            )
-            .collect();
-
-        return unreadNotifications.length;
     },
 });
 

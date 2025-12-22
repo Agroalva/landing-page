@@ -134,7 +134,10 @@ function ConversationItem({
 export default function MessagesScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
-  const conversations = useQuery(api.conversations.listForUser);
+  const conversations = useQuery(
+    api.conversations.listForUser,
+    isAuthenticated ? {} : "skip"
+  );
 
   if (isLoading) {
     return (

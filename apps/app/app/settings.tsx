@@ -7,17 +7,22 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Redirect, type Href } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
+import { ActivityIndicator } from "react-native";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [password, setPassword] = React.useState("");
 
   if (isLoading) {
     return (
@@ -56,6 +61,53 @@ export default function SettingsScreen() {
         },
       ]
     );
+  };
+
+  const handleDeleteAccount = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    try {
+      setIsDeleting(true);
+      
+      // Use Better Auth's deleteUser method
+      // This will automatically call the beforeDelete callback to clean up Convex data
+      const result = await authClient.deleteUser({
+        password: password || undefined, // If user has password auth, use it
+      });
+
+      if (result.error) {
+        Alert.alert(
+          "Error",
+          result.error.message || "No se pudo eliminar la cuenta. Verifica tu contraseña."
+        );
+        return;
+      }
+
+      // Account deleted successfully, Better Auth will handle sign out
+      // Don't manually navigate - let auth state changes handle navigation automatically
+      Alert.alert(
+        "Cuenta eliminada",
+        "Tu cuenta ha sido eliminada permanentemente.",
+        [
+          {
+            text: "OK",
+            // Navigation will be handled automatically by auth state change
+          },
+        ]
+      );
+    } catch (error) {
+      console.error(error);
+      Alert.alert(
+        "Error",
+        "No se pudo eliminar la cuenta. Intenta cerrar sesión e iniciar sesión nuevamente antes de eliminar."
+      );
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setPassword("");
+    }
   };
 
   return (
@@ -141,6 +193,73 @@ export default function SettingsScreen() {
             </View>
             <Text style={styles.menuValue}>1.0.0</Text>
           </View>
+        </View>
+
+        {/* Delete Account Section */}
+        <View style={styles.section}>
+          {showDeleteConfirm && (
+            <View style={styles.deleteBanner}>
+              <View style={styles.deleteBannerHeader}>
+                <Ionicons name="warning-outline" size={22} color="#F44336" />
+                <Text style={styles.deleteBannerTitle}>Eliminar cuenta</Text>
+              </View>
+              <Text style={styles.deleteBannerDescription}>
+                Esta acción es permanente. Se eliminarán tu perfil, publicaciones, favoritos y datos asociados.
+              </Text>
+              
+              {/* Password input for authentication */}
+              <View style={styles.passwordContainer}>
+                <Text style={styles.passwordLabel}>
+                  Ingresa tu contraseña para confirmar (opcional si iniciaste sesión recientemente):
+                </Text>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Contraseña"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isDeleting}
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.deleteBannerActions}>
+                <TouchableOpacity
+                  style={styles.deleteCancelButton}
+                  onPress={() => {
+                    setShowDeleteConfirm(false);
+                    setPassword("");
+                  }}
+                  disabled={isDeleting}
+                >
+                  <Text style={styles.deleteCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteConfirmButton}
+                  onPress={handleConfirmDeleteAccount}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.deleteConfirmText}>Eliminar definitivamente</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+            disabled={isDeleting}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="trash-outline" size={22} color="#F44336" />
+              <Text style={styles.deleteAccountText}>Eliminar cuenta</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#F44336" />
+          </TouchableOpacity>
         </View>
 
         {/* Sign Out */}
@@ -250,6 +369,96 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#F44336",
+  },
+  deleteAccountButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  deleteAccountText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#F44336",
+  },
+  deleteBanner: {
+    backgroundColor: "#FFEBEE",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#FFCDD2",
+  },
+  deleteBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  deleteBannerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#C62828",
+  },
+  deleteBannerDescription: {
+    fontSize: 14,
+    color: "#B71C1C",
+    marginBottom: 12,
+  },
+  deleteBannerActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  deleteCancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#BDBDBD",
+  },
+  deleteCancelText: {
+    fontSize: 14,
+    color: "#424242",
+    fontWeight: "500",
+  },
+  deleteConfirmButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#F44336",
+  },
+  deleteConfirmText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  passwordContainer: {
+    marginBottom: 12,
+  },
+  passwordLabel: {
+    fontSize: 13,
+    color: "#B71C1C",
+    marginBottom: 8,
+    fontWeight: "500",
+  },
+  passwordInput: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#FFCDD2",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: "#212121",
   },
 });
 

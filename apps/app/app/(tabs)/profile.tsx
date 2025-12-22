@@ -22,7 +22,10 @@ import { ConvexImage } from "@/components/ConvexImage";
 export default function ProfileScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
-  const profile = useQuery(api.users.getMe);
+  const profile = useQuery(
+    api.users.getMe,
+    isAuthenticated ? {} : "skip"
+  );
   const ensureProfile = useMutation(api.users.ensureProfile);
   const updateProfile = useMutation(api.users.updateProfile);
   const { pickImage, uploading: uploadingAvatar } = useFileUpload();
@@ -33,17 +36,34 @@ export default function ProfileScreen() {
   
   const userProducts = useQuery(
     api.products.byUser,
-    userId ? { userId, limit: 10 } : "skip"
+    isAuthenticated && userId ? { userId, limit: 10 } : "skip"
   );
 
   // Ensure profile exists if user is authenticated but profile is missing
+  // Using a ref to track if component is still mounted and user is still authenticated
   useEffect(() => {
-    if (isAuthenticated && user && profile === null) {
-      ensureProfile().catch((error) => {
-        console.error("Failed to ensure profile:", error);
-      });
+    let isMounted = true;
+    
+    if (isAuthenticated && user && profile === null && !isLoading) {
+      ensureProfile()
+        .then((result) => {
+          // Only log if the mutation returned null (user was logged out during execution)
+          if (isMounted && result === null) {
+            console.log("Profile not ensured - user logged out");
+          }
+        })
+        .catch((error) => {
+          // Only log real errors, not auth errors
+          if (isMounted && !error?.message?.includes("Unauthenticated")) {
+            console.error("Failed to ensure profile:", error);
+          }
+        });
     }
-  }, [isAuthenticated, user, profile, ensureProfile]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, user, profile, ensureProfile, isLoading]);
 
   const handleChangeAvatar = async () => {
     try {

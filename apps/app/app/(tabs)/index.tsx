@@ -46,16 +46,21 @@ export default function HomeScreen() {
   // Query with pagination
   const feedResult = useQuery(
     api.products.feed,
-    { 
-      paginationOpts: { 
-        numItems: 20, 
-        cursor: cursor 
-      },
-      familyId: selectedFamily?.id,
-      categoryId: selectedCategory?.id,
-    }
+    isAuthenticated
+      ? { 
+          paginationOpts: { 
+            numItems: 20, 
+            cursor: cursor 
+          },
+          familyId: selectedFamily?.id,
+          categoryId: selectedCategory?.id,
+        }
+      : "skip"
   );
-  const unreadNotificationCount = useQuery(api.notifications.getUnreadCount);
+  const unreadNotificationCount = useQuery(
+    api.notifications.getUnreadCount,
+    isAuthenticated ? {} : "skip"
+  );
   const toggleFavorite = useMutation(api.favorites.toggleFavorite);
 
   const resetFeedState = useCallback(() => {
@@ -109,11 +114,11 @@ export default function HomeScreen() {
     }
   }, [feedResult, cursor]);
 
-  // Get favorite status for all products
+  // Get favorite status for all products (only when authenticated)
   const productIds = useMemo(() => allProducts.map(p => p._id) || [], [allProducts]);
   const favoritesMap = useQuery(
     api.favorites.getFavoritesMap,
-    productIds.length > 0 ? { productIds } : "skip"
+    isAuthenticated && productIds.length > 0 ? { productIds } : "skip"
   );
 
   // Create a map for quick lookup

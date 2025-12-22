@@ -18,12 +18,15 @@ import { ListingCard } from "@/components/ListingCard";
 export default function MyPostsScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
-  const profile = useQuery(api.users.getMe);
+  const profile = useQuery(
+    api.users.getMe,
+    isAuthenticated ? {} : "skip"
+  );
   const userId = profile?.userId;
   
   const userProducts = useQuery(
     api.products.byUser,
-    userId ? { userId, limit: 100 } : "skip"
+    isAuthenticated && userId ? { userId, limit: 100 } : "skip"
   );
 
   if (isLoading) {

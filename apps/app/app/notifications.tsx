@@ -18,8 +18,14 @@ import { Id } from "../convex/_generated/dataModel";
 export default function NotificationsScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
-  const notifications = useQuery(api.notifications.listForUser, { limit: 50 });
-  const unreadCount = useQuery(api.notifications.getUnreadCount);
+  const notifications = useQuery(
+    api.notifications.listForUser,
+    isAuthenticated ? { limit: 50 } : "skip"
+  );
+  const unreadCount = useQuery(
+    api.notifications.getUnreadCount,
+    isAuthenticated ? {} : "skip"
+  );
   const markAllAsRead = useMutation(api.notifications.markAllAsRead);
   const markAsRead = useMutation(api.notifications.markAsRead);
 

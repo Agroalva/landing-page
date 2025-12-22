@@ -16,16 +16,13 @@ export const generateUploadUrl = mutation({
 });
 
 // Get download URL for a stored file
+// Made public so images can be viewed without authentication (e.g., product images)
 export const getDownloadUrl = query({
     args: {
         storageId: v.id("_storage"),
     },
     handler: async (ctx, args) => {
-        const user = await authComponent.getAuthUser(ctx);
-        if (!user) {
-            throw new Error("Not authenticated");
-        }
-
+        // No authentication required - images should be publicly accessible
         return await ctx.storage.getUrl(args.storageId);
     },
 });

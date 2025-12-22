@@ -42,6 +42,18 @@ export const createAuth = (
                 console.log(`Password for user ${user.email} has been reset.`);
             },
         },
+        user: {
+            deleteUser: {
+                enabled: true,
+                beforeDelete: async (user) => {
+                    // Clean up all Convex data before Better Auth deletes the user
+                    const actionCtx = ctx as any;
+                    await actionCtx.runMutation(internal.users.cleanupUserData, {
+                        userId: user.id,
+                    });
+                },
+            },
+        },
         trustedOrigins: ["app://"], // Scheme from app.json for deep linking
         plugins: [
             convex(),

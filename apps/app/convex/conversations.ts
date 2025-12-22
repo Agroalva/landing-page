@@ -54,26 +54,30 @@ export const listForUser = query({
         })
     ),
     handler: async (ctx) => {
-        const user = await authComponent.getAuthUser(ctx);
-        if (!user) {
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            if (!user) {
+                return [];
+            }
+
+            // Get all conversations where user is a member
+            const conversations = await ctx.db
+                .query("conversations")
+                .collect();
+
+            const userConversations = conversations.filter(c => 
+                c.memberIds.includes(user._id as string)
+            );
+
+            // Sort by lastMessageAt descending (most recent first)
+            return userConversations.sort((a, b) => {
+                const aTime = a.lastMessageAt || a.createdAt;
+                const bTime = b.lastMessageAt || b.createdAt;
+                return bTime - aTime;
+            });
+        } catch {
             return [];
         }
-
-        // Get all conversations where user is a member
-        const conversations = await ctx.db
-            .query("conversations")
-            .collect();
-
-        const userConversations = conversations.filter(c => 
-            c.memberIds.includes(user._id as string)
-        );
-
-        // Sort by lastMessageAt descending (most recent first)
-        return userConversations.sort((a, b) => {
-            const aTime = a.lastMessageAt || a.createdAt;
-            const bTime = b.lastMessageAt || b.createdAt;
-            return bTime - aTime;
-        });
     },
 });
 
@@ -141,25 +145,29 @@ export const listMessages = query({
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const user = await authComponent.getAuthUser(ctx);
-        if (!user) {
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            if (!user) {
+                return [];
+            }
+
+            const conversation = await ctx.db.get(args.conversationId);
+            if (!conversation || !conversation.memberIds.includes(user._id as string)) {
+                return [];
+            }
+
+            const limit = args.limit || 50;
+
+            return await ctx.db
+                .query("messages")
+                .withIndex("by_conversationId_createdAt", (q) =>
+                    q.eq("conversationId", args.conversationId)
+                )
+                .order("asc")
+                .take(limit);
+        } catch {
             return [];
         }
-
-        const conversation = await ctx.db.get(args.conversationId);
-        if (!conversation || !conversation.memberIds.includes(user._id as string)) {
-            return [];
-        }
-
-        const limit = args.limit || 50;
-
-        return await ctx.db
-            .query("messages")
-            .withIndex("by_conversationId_createdAt", (q) =>
-                q.eq("conversationId", args.conversationId)
-            )
-            .order("asc")
-            .take(limit);
     },
 });
 
@@ -211,34 +219,38 @@ export const getUnreadCount = query({
     },
     returns: v.number(),
     handler: async (ctx, args) => {
-        const user = await authComponent.getAuthUser(ctx);
-        if (!user) {
-            return 0;
-        }
-
-        const conversation = await ctx.db.get(args.conversationId);
-        if (!conversation || !conversation.memberIds.includes(user._id as string)) {
-            return 0;
-        }
-
-        const messages = await ctx.db
-            .query("messages")
-            .withIndex("by_conversationId", (q) =>
-                q.eq("conversationId", args.conversationId)
-            )
-            .collect();
-
-        const userId = user._id as string;
-        let unreadCount = 0;
-
-        for (const message of messages) {
-            const readBy = message.readBy || [];
-            if (!readBy.includes(userId) && message.senderId !== userId) {
-                unreadCount++;
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            if (!user) {
+                return 0;
             }
-        }
 
-        return unreadCount;
+            const conversation = await ctx.db.get(args.conversationId);
+            if (!conversation || !conversation.memberIds.includes(user._id as string)) {
+                return 0;
+            }
+
+            const messages = await ctx.db
+                .query("messages")
+                .withIndex("by_conversationId", (q) =>
+                    q.eq("conversationId", args.conversationId)
+                )
+                .collect();
+
+            const userId = user._id as string;
+            let unreadCount = 0;
+
+            for (const message of messages) {
+                const readBy = message.readBy || [];
+                if (!readBy.includes(userId) && message.senderId !== userId) {
+                    unreadCount++;
+                }
+            }
+
+            return unreadCount;
+        } catch {
+            return 0;
+        }
     },
 });
 
