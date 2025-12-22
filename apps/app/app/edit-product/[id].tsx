@@ -71,7 +71,7 @@ export default function EditProductScreen() {
   }, [families, familyId]);
 
   const availableCategories = useMemo(() => {
-    return selectedFamily ? getCategoriesForFamily(selectedFamily.id) : [];
+    return selectedFamily ? getCategoriesForFamily(selectedFamily.id as FamilyId) : [];
   }, [selectedFamily]);
 
   const selectedCategory: CategoryDefinition | null = useMemo(() => {
@@ -436,9 +436,10 @@ export default function EditProductScreen() {
         setProductLocation(product.location);
       }
       let resolvedCategoryId = product.categoryId as CategoryId | undefined;
+      const inferredFamily = resolvedCategoryId ? getFamilyForCategory(resolvedCategoryId) : undefined;
       let resolvedFamily: FamilyId | undefined =
         (product.familyId as FamilyId | undefined) ||
-        (resolvedCategoryId ? getFamilyForCategory(resolvedCategoryId)?.id : undefined);
+        (inferredFamily?.id as FamilyId | undefined);
 
       if (!resolvedCategoryId && product.category) {
         const normalizedLegacy = product.category.toLowerCase();
@@ -448,7 +449,7 @@ export default function EditProductScreen() {
           );
           if (match) {
             resolvedCategoryId = match.id;
-            resolvedFamily = family.id;
+            resolvedFamily = family.id as FamilyId;
             break;
           }
         }
@@ -809,35 +810,43 @@ export default function EditProductScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {families.map((family) => {
-              const isSelected = selectedFamily?.id === family.id;
-              return (
-                <TouchableOpacity
-                  key={family.id}
-                  style={[
-                    styles.categoryChip,
-                    isSelected && styles.categoryChipSelected,
-                  ]}
-                  onPress={() => handleSelectFamily(family.id)}
-                  disabled={loading}
-                >
-                  <Ionicons
-                    name={family.icon as any}
-                    size={16}
-                    color={isSelected ? "#FFFFFF" : family.color}
-                    style={styles.categoryIcon}
-                  />
-                  <Text
+            {families
+              .filter((family) => {
+                // Hide "Personal" family for sell posts (only show for services/rent)
+                if (family.id === "personal" && type === "sell") {
+                  return false;
+                }
+                return true;
+              })
+              .map((family) => {
+                const isSelected = selectedFamily?.id === family.id;
+                return (
+                  <TouchableOpacity
+                    key={family.id}
                     style={[
-                      styles.categoryText,
-                      isSelected && styles.categoryTextSelected,
+                      styles.categoryChip,
+                      isSelected && styles.categoryChipSelected,
                     ]}
+                    onPress={() => handleSelectFamily(family.id as FamilyId)}
+                    disabled={loading}
                   >
-                    {family.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Ionicons
+                      name={family.icon as any}
+                      size={16}
+                      color={isSelected ? "#FFFFFF" : family.color}
+                      style={styles.categoryIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        isSelected && styles.categoryTextSelected,
+                      ]}
+                    >
+                      {family.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
           </ScrollView>
         </View>
 

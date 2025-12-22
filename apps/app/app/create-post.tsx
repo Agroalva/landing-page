@@ -693,35 +693,43 @@ export default function CreatePostScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {families.map((family) => {
-              const isSelected = selectedFamily?.id === family.id;
-              return (
-                <TouchableOpacity
-                  key={family.id}
-                  style={[
-                    styles.categoryChip,
-                    isSelected && styles.categoryChipSelected,
-                  ]}
-                  onPress={() => handleSelectFamily(family.id as FamilyId)}
-                  disabled={loading}
-                >
-                  <Ionicons
-                    name={family.icon as any}
-                    size={16}
-                    color={isSelected ? "#FFFFFF" : family.color}
-                    style={styles.categoryIcon}
-                  />
-                  <Text
+            {families
+              .filter((family) => {
+                // Hide "Personal" family for sell posts (only show for services/rent)
+                if (family.id === "personal" && type === "sell") {
+                  return false;
+                }
+                return true;
+              })
+              .map((family) => {
+                const isSelected = selectedFamily?.id === family.id;
+                return (
+                  <TouchableOpacity
+                    key={family.id}
                     style={[
-                      styles.categoryText,
-                      isSelected && styles.categoryTextSelected,
+                      styles.categoryChip,
+                      isSelected && styles.categoryChipSelected,
                     ]}
+                    onPress={() => handleSelectFamily(family.id as FamilyId)}
+                    disabled={loading}
                   >
-                    {family.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Ionicons
+                      name={family.icon as any}
+                      size={16}
+                      color={isSelected ? "#FFFFFF" : family.color}
+                      style={styles.categoryIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        isSelected && styles.categoryTextSelected,
+                      ]}
+                    >
+                      {family.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
           </ScrollView>
         </View>
 

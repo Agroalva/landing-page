@@ -37,17 +37,19 @@ export const TRACTION_TYPES: OptionItem[] = toOptions([
   "Doble",
   "Simple",
   "Asistida",
+  "Otra",
 ]);
 
-export const TRACTION_VARIANTS: OptionItem[] = toOptions(["Rígido", "Articulado"]);
+export const TRACTION_VARIANTS: OptionItem[] = toOptions(["Rígido", "Articulado", "Otra"]);
 
-export const RODADO_TYPES: OptionItem[] = toOptions(["Neumático", "Oruga"]);
+export const RODADO_TYPES: OptionItem[] = toOptions(["Neumático", "Oruga", "Otro"]);
 
 export const SOWING_SYSTEMS: OptionItem[] = toOptions([
   "A chorrillo",
   "Mecánica",
   "Neumática",
   "Al voleo",
+  "Otro",
 ]);
 
 export const CULTIVATION_TYPES: OptionItem[] = toOptions([
@@ -67,12 +69,14 @@ export const FERTILIZER_DISTRIBUTION: OptionItem[] = toOptions([
   "Al voleo",
   "Incorporadora",
   "Neumática",
+  "Otra",
 ]);
 
 export const SPRAYER_TYPES: OptionItem[] = toOptions([
   "Autopropulsada",
   "De arrastre",
   "De acople",
+  "Otra",
 ]);
 
 export const HEADER_TYPES: OptionItem[] = toOptions([
@@ -91,11 +95,11 @@ export const HARROW_TYPES: OptionItem[] = toOptions([
   "Otra",
 ]);
 
-export const ROLLER_SYSTEMS: OptionItem[] = toOptions(["Plegable", "Fijo", "Tandem"]);
+export const ROLLER_SYSTEMS: OptionItem[] = toOptions(["Plegable", "Fijo", "Tandem", "Otro"]);
 
 export const PROPERTY_TYPES: OptionItem[] = toOptions(["Campo", "Casa", "Terreno"]);
 
-export const FIELD_TYPES: OptionItem[] = toOptions(["Mixto", "Agrícola", "Ganadero"]);
+export const FIELD_TYPES: OptionItem[] = toOptions(["Mixto", "Agrícola", "Ganadero", "Otro"]);
 
 export const ROAD_WORK_TYPES: OptionItem[] = toOptions([
   "Movimiento de tierra",
@@ -110,24 +114,28 @@ export const VEHICLE_DRIVE_TYPES: OptionItem[] = toOptions([
   "6x4",
   "8x2",
   "8x4",
+  "Otro",
 ]);
 
 export const VEHICLE_TRANSMISSIONS: OptionItem[] = toOptions([
   "Manual",
   "Automática",
   "Continua variable",
+  "Otra",
 ]);
 
 export const VEHICLE_FUELS: OptionItem[] = toOptions([
   "Diésel",
   "Nafta",
   "Nafta/GNC",
+  "Otro",
 ]);
 
 export const CABIN_TYPES: OptionItem[] = toOptions([
   "Cabina simple",
   "Cabina doble",
   "Cabina extendida",
+  "Otra",
 ]);
 
 export const PICKUP_BRANDS: OptionItem[] = toOptions([
@@ -141,6 +149,7 @@ export const PICKUP_BRANDS: OptionItem[] = toOptions([
   "Jeep",
   "BMW",
   "Mercedes Benz",
+  "Otras marcas",
 ]);
 
 export const PICKUP_MODELS: OptionItem[] = toOptions([
@@ -181,6 +190,7 @@ export const TRUCK_TYPES: OptionItem[] = toOptions([
   "Con hidrogrúa",
   "Rígido",
   "Compactador",
+  "Otro",
 ]);
 
 export const STEERING_TYPES: OptionItem[] = toOptions([
@@ -188,6 +198,7 @@ export const STEERING_TYPES: OptionItem[] = toOptions([
   "Asistida",
   "Mecánica",
   "Eléctrica",
+  "Otra",
 ]);
 
 export const CAR_BRANDS: OptionItem[] = toOptions([
@@ -213,12 +224,14 @@ export const TOWED_AXLES: OptionItem[] = toOptions([
   "2 ejes más 1 flotante",
   "2 ejes más 2 flotantes",
   "1 eje más 1 flotante",
+  "Otro",
 ]);
 
 export const TOLVA_TYPES: OptionItem[] = toOptions([
   "Autodescargable",
   "Semillas y fertilizantes",
   "Silera",
+  "Otra",
 ]);
 
 export const BODY_TYPES: OptionItem[] = toOptions([
@@ -226,15 +239,17 @@ export const BODY_TYPES: OptionItem[] = toOptions([
   "Puerta libro",
   "Volcador",
   "Cerealero",
+  "Otras",
 ]);
 
 export const ARRIME_CONDITIONS: OptionItem[] = toOptions([
   "Corta distancia",
   "Larga distancia",
   "Mixto",
+  "Otro",
 ]);
 
-export const PICKUP_TRACTION: OptionItem[] = toOptions(["4x2", "4x4"]);
+export const PICKUP_TRACTION: OptionItem[] = toOptions(["4x2", "4x4", "Otro"]);
 
 export const PLOW_TYPES: OptionItem[] = toOptions([
   "Cinceles",
@@ -248,6 +263,7 @@ export const ROLLER_TYPES: OptionItem[] = toOptions([
   "Desterronador",
   "Triturador",
   "Pisa rastrojos",
+  "Otro",
 ]);
 
 export const SPRAYER_POWER_OPTIONS = POWER_RANGE_OPTIONS;
@@ -256,9 +272,10 @@ export const BAILER_TYPES: OptionItem[] = toOptions([
   "Enfardadora",
   "Rotoenfardadora",
   "Rastrillo",
+  "Otro",
 ]);
 
-export const MIXER_POSITIONS: OptionItem[] = toOptions(["Horizontal", "Vertical"]);
+export const MIXER_POSITIONS: OptionItem[] = toOptions(["Horizontal", "Vertical", "Otra"]);
 
 export const MIXER_BRANDS: OptionItem[] = toOptions([
   "Montecor",
@@ -271,6 +288,7 @@ export const MIXER_BRANDS: OptionItem[] = toOptions([
   "Comofra",
   "OMBU",
   "Agroar",
+  "Otras marcas",
 ]);
 
 export const FORAGE_CROP_TYPES: OptionItem[] = toOptions([
@@ -319,6 +337,7 @@ export const HEADER_BRANDS: OptionItem[] = toOptions([
   "CLAAS",
   "Rossmet",
   "Case IH",
+  "Otras marcas",
 ]);
 
 export const FERTILIZER_BRANDS: OptionItem[] = toOptions([
@@ -332,6 +351,7 @@ export const FERTILIZER_BRANDS: OptionItem[] = toOptions([
   "Grosspal",
   "POZZI",
   "Tanzi",
+  "Otras marcas",
 ]);
 
 export const SEEDER_BRANDS: OptionItem[] = toOptions([
@@ -358,6 +378,7 @@ export const TILLAGE_BRANDS: OptionItem[] = toOptions([
   "TBeH",
   "Amazone",
   "ERCA",
+  "Otras marcas",
 ]);
 
 export const TRACTOR_BRANDS: OptionItem[] = toOptions([
@@ -370,6 +391,7 @@ export const TRACTOR_BRANDS: OptionItem[] = toOptions([
   "Case IH",
   "Deutz-Fahr",
   "Fiat",
+  "Otras marcas",
 ]);
 
 export const ROAD_BRANDS: OptionItem[] = toOptions([
@@ -400,6 +422,7 @@ export const ROAD_MACHINE_TYPES: OptionItem[] = toOptions([
   "Plataformas de elevación",
   "Grúas",
   "Martillos hidráulicos",
+  "Otro",
 ]);
 
 export const ACCESSORY_TYPES: OptionItem[] = toOptions([
@@ -428,6 +451,7 @@ export const ACCESSORY_TYPES: OptionItem[] = toOptions([
   "Repuestos para retroexcavadoras",
   "Repuestos para minicargadoras",
   "Repuestos para grúas",
+  "Otro",
 ]);
 
 export const FORAGE_EQUIPMENT_TYPES: OptionItem[] = toOptions([
@@ -437,6 +461,7 @@ export const FORAGE_EQUIPMENT_TYPES: OptionItem[] = toOptions([
   "Rotoenfardadoras",
   "Rastrillos",
   "Equipamiento forrajero general",
+  "Otro",
 ]);
 
 
