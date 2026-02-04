@@ -15,6 +15,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuthSession } from "@/hooks/use-session";
 import {
   CategoryId,
   FamilyId,
@@ -28,6 +29,7 @@ const MAX_RECENT_SEARCHES = 10;
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ familyId?: string; categoryId?: string }>();
+  const { isAuthenticated } = useAuthSession();
   const families = useMemo(() => getFamilies(), []);
   const [selectedFamilyId, setSelectedFamilyId] = useState<FamilyId | "all">("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(null);
@@ -326,12 +328,16 @@ export default function SearchScreen() {
                     <Text style={styles.sectionTitle}>Productos</Text>
                     <View style={styles.productsContainer}>
                       {results.products.map((product) => (
-                        <ListingCard key={product._id} product={product} />
+                        <ListingCard
+                          key={product._id}
+                          product={product}
+                          variant={isAuthenticated ? "full" : "public"}
+                        />
                       ))}
                     </View>
                   </>
                 )}
-                {results.profiles.length > 0 && (
+                {isAuthenticated && results.profiles.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Perfiles</Text>
                     {results.profiles.map((profile) => (
@@ -542,4 +548,3 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
-

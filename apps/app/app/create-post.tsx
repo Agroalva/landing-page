@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Redirect } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
@@ -33,6 +33,7 @@ import {
 export default function CreatePostScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
+  const profile = useQuery(api.users.getMe);
   const createProduct = useMutation(api.products.create);
   const { pickImage, uploading: uploadingImage } = useFileUpload();
   const [name, setName] = useState("");
@@ -57,6 +58,7 @@ export default function CreatePostScreen() {
   const [locationStatus, setLocationStatus] =
     useState<Location.PermissionStatus | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
+  const hasWhatsappNumber = !!profile?.phoneNumber?.trim();
 
   const handleSelectFamily = (nextFamilyId: FamilyId) => {
     setFamilyId(nextFamilyId);
@@ -484,6 +486,20 @@ export default function CreatePostScreen() {
   };
 
   const handlePublish = async () => {
+    if (!hasWhatsappNumber) {
+      Alert.alert(
+        "Número de WhatsApp requerido",
+        "Completa tu perfil con un número de WhatsApp antes de publicar.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Completar perfil",
+            onPress: () => router.push("/edit-profile"),
+          },
+        ]
+      );
+      return;
+    }
     if (!name.trim() || !isAuthenticated) {
       Alert.alert("Error", "Por favor completa el nombre del producto");
       return;
@@ -525,7 +541,7 @@ export default function CreatePostScreen() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || profile === undefined) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
@@ -537,6 +553,26 @@ export default function CreatePostScreen() {
 
   if (!isAuthenticated) {
     return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (!hasWhatsappNumber) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.gateContainer}>
+          <Ionicons name="logo-whatsapp" size={48} color="#25D366" />
+          <Text style={styles.gateTitle}>Número de WhatsApp requerido</Text>
+          <Text style={styles.gateText}>
+            Para publicar productos necesitas agregar un número de WhatsApp en tu perfil.
+          </Text>
+          <TouchableOpacity
+            style={styles.gateButton}
+            onPress={() => router.push("/edit-profile")}
+          >
+            <Text style={styles.gateButtonText}>Completar perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -1288,5 +1324,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  gateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    gap: 12,
+  },
+  gateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#212121",
+    textAlign: "center",
+  },
+  gateText: {
+    fontSize: 15,
+    color: "#616161",
+    textAlign: "center",
+  },
+  gateButton: {
+    marginTop: 12,
+    backgroundColor: "#2E7D32",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  gateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });
-

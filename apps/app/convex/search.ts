@@ -1,6 +1,18 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
+import { authComponent } from "./auth";
 import { resolveTaxonomyFilter } from "./taxonomy";
+
+const toPublicProfile = (profile: any) => ({
+    _id: profile._id,
+    _creationTime: profile._creationTime,
+    userId: profile.userId,
+    displayName: profile.displayName,
+    avatarId: profile.avatarId,
+    bio: profile.bio,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+});
 
 // Search across products and profiles with category filtering and pagination
 export const querySearch = query({
@@ -15,6 +27,7 @@ export const querySearch = query({
     handler: async (ctx, args) => {
         const limit = args.limit || 20;
         const searchTerm = args.query.toLowerCase().trim();
+        const user = await authComponent.getAuthUser(ctx);
 
         // Require minimum 3 characters to avoid expensive queries
         if (!searchTerm || searchTerm.length < 3) {
@@ -89,10 +102,9 @@ export const querySearch = query({
 
         return {
             products: matchingProducts,
-            profiles: matchingProfiles,
+            profiles: user ? matchingProfiles : matchingProfiles.map(toPublicProfile),
             nextCursor,
             hasMore,
         };
     },
 });
-

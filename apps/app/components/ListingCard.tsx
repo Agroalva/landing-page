@@ -12,6 +12,7 @@ interface ListingCardProps {
   product: {
     _id: Id<"products">;
     name: string;
+    description?: string;
     price?: number;
     currency?: string;
     type: "rent" | "sell";
@@ -28,10 +29,12 @@ interface ListingCardProps {
     createdAt: number;
   };
   onPress?: () => void;
+  variant?: "full" | "public";
 }
 
-export function ListingCard({ product, onPress }: ListingCardProps) {
+export function ListingCard({ product, onPress, variant = "full" }: ListingCardProps) {
   const router = useRouter();
+  const showFullDetails = variant === "full";
 
   const handlePress = () => {
     if (onPress) {
@@ -67,12 +70,13 @@ export function ListingCard({ product, onPress }: ListingCardProps) {
             <Ionicons name="image-outline" size={32} color="#9E9E9E" />
           </View>
         )}
-        {/* Type Badge */}
-        <View style={styles.typeBadge}>
-          <Text style={styles.typeBadgeText}>
-            {product.type === "rent" ? "Servicio" : "Venta"}
-          </Text>
-        </View>
+        {showFullDetails && (
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>
+              {product.type === "rent" ? "Servicio" : "Venta"}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Content */}
@@ -81,37 +85,44 @@ export function ListingCard({ product, onPress }: ListingCardProps) {
           {product.name}
         </Text>
 
-        {/* Price */}
-        {product.price && (
-          <Text style={styles.price}>
-            {formatPrice(product.price, product.currency)}
-          </Text>
-        )}
+        {showFullDetails ? (
+          <>
+            {product.price && (
+              <Text style={styles.price}>
+                {formatPrice(product.price, product.currency)}
+              </Text>
+            )}
 
-        {/* Tags */}
-        <View style={styles.tagsContainer}>
-          {categoryLabel && (
-            <View style={styles.tag}>
-              <Ionicons name="pricetag-outline" size={12} color="#757575" />
-              <Text style={styles.tagText}>{categoryLabel}</Text>
+            <View style={styles.tagsContainer}>
+              {categoryLabel && (
+                <View style={styles.tag}>
+                  <Ionicons name="pricetag-outline" size={12} color="#757575" />
+                  <Text style={styles.tagText}>{categoryLabel}</Text>
+                </View>
+              )}
+              {conditionValue && (
+                <View style={styles.tag}>
+                  <Ionicons name="checkmark-circle-outline" size={12} color="#757575" />
+                  <Text style={styles.tagText}>{conditionValue}</Text>
+                </View>
+              )}
             </View>
-          )}
-          {conditionValue && (
-            <View style={styles.tag}>
-              <Ionicons name="checkmark-circle-outline" size={12} color="#757575" />
-              <Text style={styles.tagText}>{conditionValue}</Text>
-            </View>
-          )}
-        </View>
 
-        {/* Location */}
-        {locationLabel && (
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={14} color="#757575" />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {locationLabel}
+            {locationLabel && (
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={14} color="#757575" />
+                <Text style={styles.locationText} numberOfLines={1}>
+                  {locationLabel}
+                </Text>
+              </View>
+            )}
+          </>
+        ) : (
+          product.description && (
+            <Text style={styles.description} numberOfLines={3}>
+              {product.description}
             </Text>
-          </View>
+          )
         )}
       </View>
     </TouchableOpacity>
@@ -176,6 +187,12 @@ const styles = StyleSheet.create({
     color: "#2E7D32",
     marginBottom: 12,
   },
+  description: {
+    fontSize: 14,
+    color: "#616161",
+    lineHeight: 20,
+    marginTop: 4,
+  },
   tagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -208,4 +225,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

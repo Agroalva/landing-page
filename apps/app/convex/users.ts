@@ -2,9 +2,34 @@ import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
 
+const profileValidator = v.object({
+    _id: v.id("profiles"),
+    _creationTime: v.number(),
+    userId: v.string(),
+    displayName: v.string(),
+    avatarId: v.optional(v.id("_storage")),
+    bio: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    pushToken: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+});
+
+const toPublicProfile = (profile: any) => ({
+    _id: profile._id,
+    _creationTime: profile._creationTime,
+    userId: profile.userId,
+    displayName: profile.displayName,
+    avatarId: profile.avatarId,
+    bio: profile.bio,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+});
+
 // Get current user's profile
 export const getMe = query({
     args: {},
+    returns: v.union(profileValidator, v.null()),
     handler: async (ctx) => {
         try {
             const user = await authComponent.getAuthUser(ctx);
@@ -23,16 +48,28 @@ export const getMe = query({
     },
 });
 
-// Get a user's profile by userId (public, for displaying other users' profiles)
+// Get a user's profile by userId (public view omits contact fields when unauthenticated)
 export const getByUserId = query({
     args: {
         userId: v.string(),
     },
+    returns: v.union(profileValidator, v.null()),
     handler: async (ctx, args) => {
-        return await ctx.db
+        const profile = await ctx.db
             .query("profiles")
             .withIndex("by_userId", (q) => q.eq("userId", args.userId))
             .first();
+
+        if (!profile) {
+            return null;
+        }
+
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            return toPublicProfile(profile);
+        }
+
+        return profile;
     },
 });
 
@@ -209,4 +246,3 @@ export const cleanupUserData = internalMutation({
         return null;
     },
 });
-

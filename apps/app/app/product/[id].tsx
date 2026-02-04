@@ -20,8 +20,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
-import { getCategoryById, getFamilyForCategory, getFamilyById } from "../config/taxonomy";
-import type { AttributeValueMap } from "../config/taxonomy";
+import { getCategoryById, getFamilyById } from "../config/taxonomy";
 import { CONDITION_OPTIONS } from "../config/options";
 
 const { width } = Dimensions.get("window");
@@ -31,7 +30,7 @@ export default function ProductDetailScreen() {
   const params = useLocalSearchParams();
   const productId = params.id as Id<"products">;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const { user } = useAuthSession();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuthSession();
 
   const product = useQuery(
     api.products.getById,
@@ -40,12 +39,12 @@ export default function ProductDetailScreen() {
 
   const authorProfile = useQuery(
     api.users.getByUserId,
-    product?.authorId ? { userId: product.authorId } : "skip"
+    product?.authorId && isAuthenticated ? { userId: product.authorId } : "skip"
   );
 
   const isFavorite = useQuery(
     api.favorites.isFavorite,
-    productId ? { productId } : "skip"
+    isAuthenticated && productId ? { productId } : "skip"
   );
 
   const toggleFavorite = useMutation(api.favorites.toggleFavorite);
@@ -56,6 +55,8 @@ export default function ProductDetailScreen() {
   // Check if current user is the author
   const currentUserId = user?.id || user?.userId;
   const isAuthor = currentUserId && product?.authorId === currentUserId;
+  const showFullDetails = isAuthenticated;
+  const showGuestCta = !isAuthenticated && !isAuthLoading;
 
   const images = product?.mediaIds || [];
 
@@ -251,17 +252,19 @@ export default function ProductDetailScreen() {
           >
             <Ionicons name="share-outline" size={22} color="#212121" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.favoriteButton}
-            onPress={handleToggleFavorite}
-            disabled={isFavorite === undefined}
-          >
-            <Ionicons
-              name={isFavorite ? "heart" : "heart-outline"}
-              size={24}
-              color={isFavorite ? "#F44336" : "#212121"}
-            />
-          </TouchableOpacity>
+          {showFullDetails && (
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={handleToggleFavorite}
+              disabled={isFavorite === undefined}
+            >
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={24}
+                color={isFavorite ? "#F44336" : "#212121"}
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -322,7 +325,7 @@ export default function ProductDetailScreen() {
                   year: "numeric",
                 })}
               </Text>
-              {product.viewCount !== undefined && product.viewCount > 0 && (
+              {showFullDetails && product.viewCount !== undefined && product.viewCount > 0 && (
                 <View style={styles.statsContainer}>
                   <View style={styles.stat}>
                     <Ionicons name="eye-outline" size={16} color="#757575" />
@@ -336,17 +339,19 @@ export default function ProductDetailScreen() {
           </View>
 
           <Text style={styles.title}>{product.name}</Text>
-          {product.price && (
+          {showFullDetails && product.price && (
             <Text style={styles.price}>{formatPrice(product.price, product.currency)}</Text>
           )}
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>
-              {product.type === "rent" ? "Servicios" : "Venta"}
-            </Text>
-          </View>
+          {showFullDetails && (
+            <View style={styles.typeBadge}>
+              <Text style={styles.typeBadgeText}>
+                {product.type === "rent" ? "Servicios" : "Venta"}
+              </Text>
+            </View>
+          )}
 
           {/* Seller Card */}
-          {authorProfile && (
+          {showFullDetails && authorProfile && (
             <View style={styles.sellerCard}>
               <View style={styles.sellerInfo}>
                 {authorProfile.avatarId ? (
@@ -384,131 +389,133 @@ export default function ProductDetailScreen() {
           )}
 
           {/* Details Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Detalles</Text>
-            <View style={styles.detailsContainer}>
-              {/* Tipo de publicación */}
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Tipo</Text>
-                <Text style={styles.detailValue}>
-                  {product.type === "rent" ? "Servicio" : "Producto"}
-                </Text>
-              </View>
-
-              {/* Categoría */}
-              {product.categoryId && (
+          {showFullDetails && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Detalles</Text>
+              <View style={styles.detailsContainer}>
+                {/* Tipo de publicación */}
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Categoría</Text>
+                  <Text style={styles.detailLabel}>Tipo</Text>
                   <Text style={styles.detailValue}>
-                    {getCategoryById(product.categoryId)?.label || product.category || "N/A"}
+                    {product.type === "rent" ? "Servicio" : "Producto"}
                   </Text>
                 </View>
-              )}
 
-              {/* Familia */}
-              {product.familyId && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Familia</Text>
-                  <Text style={styles.detailValue}>
-                    {getFamilyById(product.familyId)?.label || "N/A"}
-                  </Text>
-                </View>
-              )}
+                {/* Categoría */}
+                {product.categoryId && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Categoría</Text>
+                    <Text style={styles.detailValue}>
+                      {getCategoryById(product.categoryId)?.label || product.category || "N/A"}
+                    </Text>
+                  </View>
+                )}
 
-              {/* Condición - Solo para productos */}
-              {product.type === "sell" && product.attributes?.condition && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Condición</Text>
-                  <Text style={styles.detailValue}>
-                    {CONDITION_OPTIONS.find(
-                      (opt) => opt.id === product.attributes?.condition
-                    )?.label || String(product.attributes.condition)}
-                  </Text>
-                </View>
-              )}
+                {/* Familia */}
+                {product.familyId && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Familia</Text>
+                    <Text style={styles.detailValue}>
+                      {getFamilyById(product.familyId)?.label || "N/A"}
+                    </Text>
+                  </View>
+                )}
 
-              {/* Precio */}
-              {product.price && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Precio</Text>
-                  <Text style={styles.detailValue}>
-                    {formatPrice(product.price, product.currency)}
-                  </Text>
-                </View>
-              )}
+                {/* Condición - Solo para productos */}
+                {product.type === "sell" && product.attributes?.condition && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Condición</Text>
+                    <Text style={styles.detailValue}>
+                      {CONDITION_OPTIONS.find(
+                        (opt) => opt.id === product.attributes?.condition
+                      )?.label || String(product.attributes.condition)}
+                    </Text>
+                  </View>
+                )}
 
-              {/* Ubicación */}
-              {product.location && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Ubicación</Text>
-                  <Text style={styles.detailValue}>
-                    {product.location.label || product.location.address || 
-                     `${product.location.latitude.toFixed(3)}, ${product.location.longitude.toFixed(3)}`}
-                  </Text>
-                </View>
-              )}
+                {/* Precio */}
+                {product.price && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Precio</Text>
+                    <Text style={styles.detailValue}>
+                      {formatPrice(product.price, product.currency)}
+                    </Text>
+                  </View>
+                )}
 
-              {/* Otros atributos */}
-              {product.attributes && Object.entries(product.attributes).map(([key, value]) => {
-                // Skip condition for services (already handled above for products)
-                if (key === "condition" && product.type === "rent") {
-                  return null;
-                }
-                // Skip condition if already shown above
-                if (key === "condition" && product.type === "sell") {
-                  return null;
-                }
-                // Skip year for services
-                if (key === "year" && product.type === "rent") {
-                  return null;
-                }
+                {/* Ubicación */}
+                {product.location && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Ubicación</Text>
+                    <Text style={styles.detailValue}>
+                      {product.location.label || product.location.address || 
+                       `${product.location.latitude.toFixed(3)}, ${product.location.longitude.toFixed(3)}`}
+                    </Text>
+                  </View>
+                )}
 
-                const category = product.categoryId ? getCategoryById(product.categoryId) : null;
-                const attributeDef = category?.attributes.find((attr) => attr.id === key);
-                const label = attributeDef?.label || key;
-
-                let displayValue: string;
-                if (typeof value === "string") {
-                  // Try to find option label if it's a select attribute
-                  if (attributeDef?.options) {
-                    const option = attributeDef.options.find((opt) => opt.id === value);
-                    displayValue = option?.label || value;
-                  } else {
-                    displayValue = value;
+                {/* Otros atributos */}
+                {product.attributes && Object.entries(product.attributes).map(([key, value]) => {
+                  // Skip condition for services (already handled above for products)
+                  if (key === "condition" && product.type === "rent") {
+                    return null;
                   }
-                } else if (typeof value === "number") {
-                  displayValue = value.toString();
-                } else if (typeof value === "boolean") {
-                  displayValue = value ? "Sí" : "No";
-                } else if (Array.isArray(value)) {
-                  displayValue = value.join(", ");
-                } else if (typeof value === "object" && value !== null) {
-                  const range = value as { min?: number; max?: number };
-                  if (range.min !== undefined && range.max !== undefined) {
-                    displayValue = `${range.min} - ${range.max}`;
-                  } else if (range.min !== undefined) {
-                    displayValue = `Mín: ${range.min}`;
-                  } else if (range.max !== undefined) {
-                    displayValue = `Máx: ${range.max}`;
+                  // Skip condition if already shown above
+                  if (key === "condition" && product.type === "sell") {
+                    return null;
+                  }
+                  // Skip year for services
+                  if (key === "year" && product.type === "rent") {
+                    return null;
+                  }
+
+                  const category = product.categoryId ? getCategoryById(product.categoryId) : null;
+                  const attributeDef = category?.attributes.find((attr) => attr.id === key);
+                  const label = attributeDef?.label || key;
+
+                  let displayValue: string;
+                  if (typeof value === "string") {
+                    // Try to find option label if it's a select attribute
+                    if (attributeDef?.options) {
+                      const option = attributeDef.options.find((opt) => opt.id === value);
+                      displayValue = option?.label || value;
+                    } else {
+                      displayValue = value;
+                    }
+                  } else if (typeof value === "number") {
+                    displayValue = value.toString();
+                  } else if (typeof value === "boolean") {
+                    displayValue = value ? "Sí" : "No";
+                  } else if (Array.isArray(value)) {
+                    displayValue = value.join(", ");
+                  } else if (typeof value === "object" && value !== null) {
+                    const range = value as { min?: number; max?: number };
+                    if (range.min !== undefined && range.max !== undefined) {
+                      displayValue = `${range.min} - ${range.max}`;
+                    } else if (range.min !== undefined) {
+                      displayValue = `Mín: ${range.min}`;
+                    } else if (range.max !== undefined) {
+                      displayValue = `Máx: ${range.max}`;
+                    } else {
+                      displayValue = "N/A";
+                    }
                   } else {
                     displayValue = "N/A";
                   }
-                } else {
-                  displayValue = "N/A";
-                }
 
-                return (
-                  <View key={key} style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{label}</Text>
-                    <Text style={styles.detailValue}>{displayValue}</Text>
-                  </View>
-                );
-              })}
+                  return (
+                    <View key={key} style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>{label}</Text>
+                      <Text style={styles.detailValue}>{displayValue}</Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Location */}
-          {product.location && (
+          {showFullDetails && product.location && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Ubicación</Text>
               <View style={styles.locationContainer}>
@@ -531,29 +538,45 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
+      {showGuestCta && (
+        <View style={styles.guestCta}>
+          <Text style={styles.guestCtaText}>
+            Inicia sesión para contactar al vendedor
+          </Text>
+          <TouchableOpacity
+            style={styles.guestCtaButton}
+            onPress={() => router.push("/(auth)/sign-in")}
+          >
+            <Text style={styles.guestCtaButtonText}>Iniciar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Bottom Contact Bar */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.contactButton} onPress={handleCall}>
-          <Ionicons name="call" size={20} color="#FFFFFF" />
-          <Text style={styles.contactButtonText}>Llamar</Text>
-        </TouchableOpacity>
+      {showFullDetails && (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.contactButton} onPress={handleCall}>
+            <Ionicons name="call" size={20} color="#FFFFFF" />
+            <Text style={styles.contactButtonText}>Llamar</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.contactButton, styles.whatsappButton]}
-          onPress={handleWhatsApp}
-        >
-          <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-          <Text style={styles.contactButtonText}>WhatsApp</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.contactButton, styles.whatsappButton]}
+            onPress={handleWhatsApp}
+          >
+            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+            <Text style={styles.contactButtonText}>WhatsApp</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.contactButton, styles.messageButton]}
-          onPress={handleMessage}
-        >
-          <Ionicons name="chatbubble" size={20} color="#FFFFFF" />
-          <Text style={styles.contactButtonText}>Mensaje</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.contactButton, styles.messageButton]}
+            onPress={handleMessage}
+          >
+            <Ionicons name="chatbubble" size={20} color="#FFFFFF" />
+            <Text style={styles.contactButtonText}>Mensaje</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -901,6 +924,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
+  guestCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
+    gap: 12,
+  },
+  guestCtaText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#424242",
+    fontWeight: "500",
+  },
+  guestCtaButton: {
+    backgroundColor: "#2E7D32",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  guestCtaButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   detailsContainer: {
     backgroundColor: "#F5F5F5",
     borderRadius: 16,
@@ -928,4 +983,3 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 });
-
