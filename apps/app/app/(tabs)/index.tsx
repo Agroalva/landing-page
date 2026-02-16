@@ -10,12 +10,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, Redirect } from "expo-router";
+import { useRouter } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
+import { ListingCard } from "@/components/ListingCard";
 import {
   CategoryId,
   FamilyId,
@@ -46,16 +47,14 @@ export default function HomeScreen() {
   // Query with pagination
   const feedResult = useQuery(
     api.products.feed,
-    isAuthenticated
-      ? { 
-          paginationOpts: { 
-            numItems: 20, 
-            cursor: cursor 
-          },
-          familyId: selectedFamily?.id,
-          categoryId: selectedCategory?.id,
-        }
-      : "skip"
+    { 
+      paginationOpts: { 
+        numItems: 20, 
+        cursor: cursor,
+      },
+      familyId: selectedFamily?.id,
+      categoryId: selectedCategory?.id,
+    }
   );
   const unreadNotificationCount = useQuery(
     api.notifications.getUnreadCount,
@@ -149,82 +148,89 @@ export default function HomeScreen() {
     );
   }
 
-  // Redirect to sign-in if not authenticated
-  if (!isAuthenticated) {
-    return <Redirect href="/(auth)/sign-in" />;
-  }
-
   // Render product item
-  const renderProductItem = ({ item: product }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.productCard}
-      onPress={() => router.push(`/product/${product._id}`)}
-    >
-      {product.mediaIds && product.mediaIds.length > 0 ? (
-        <ConvexImage
-          storageId={product.mediaIds[0]}
-          style={styles.productImage}
-          resizeMode="cover"
+  const renderProductItem = ({ item: product }: { item: any }) => {
+    if (!isAuthenticated) {
+      return (
+        <ListingCard
+          product={product}
+          variant="public"
+          onPress={() => router.push(`/product/${product._id}`)}
         />
-      ) : (
-        <View style={styles.productImagePlaceholder}>
-          <Ionicons name="image-outline" size={48} color="#9E9E9E" />
-        </View>
-      )}
-      <View style={styles.productInfo}>
-        <View style={styles.productHeader}>
-          <Text style={styles.productTitle} numberOfLines={2}>
-            {product.name}
-          </Text>
-          <TouchableOpacity
-            onPress={async (e) => {
-              e.stopPropagation();
-              try {
-                await toggleFavorite({ productId: product._id });
-              } catch (error) {
-                console.error("Failed to toggle favorite:", error);
-              }
-            }}
-            style={styles.favoriteButton}
-          >
-            <Ionicons
-              name={
-                isFavoriteMap.get(product._id)
-                  ? "heart"
-                  : "heart-outline"
-              }
-              size={22}
-              color={
-                isFavoriteMap.get(product._id) ? "#F44336" : "#2E7D32"
-              }
-            />
-          </TouchableOpacity>
-        </View>
-        {product.price && (
-          <Text style={styles.productPrice}>
-            {formatPrice(product.price, product.currency)}
-          </Text>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => router.push(`/product/${product._id}`)}
+      >
+        {product.mediaIds && product.mediaIds.length > 0 ? (
+          <ConvexImage
+            storageId={product.mediaIds[0]}
+            style={styles.productImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.productImagePlaceholder}>
+            <Ionicons name="image-outline" size={48} color="#9E9E9E" />
+          </View>
         )}
-        <View style={styles.productFooter}>
-          <View style={styles.locationContainer}>
-            <Ionicons
-              name="time-outline"
-              size={16}
-              color="#757575"
-            />
-            <Text style={styles.locationText}>
-              {new Date(product.createdAt).toLocaleDateString()}
+        <View style={styles.productInfo}>
+          <View style={styles.productHeader}>
+            <Text style={styles.productTitle} numberOfLines={2}>
+              {product.name}
             </Text>
+            <TouchableOpacity
+              onPress={async (e) => {
+                e.stopPropagation();
+                try {
+                  await toggleFavorite({ productId: product._id });
+                } catch (error) {
+                  console.error("Failed to toggle favorite:", error);
+                }
+              }}
+              style={styles.favoriteButton}
+            >
+              <Ionicons
+                name={
+                  isFavoriteMap.get(product._id)
+                    ? "heart"
+                    : "heart-outline"
+                }
+                size={22}
+                color={
+                  isFavoriteMap.get(product._id) ? "#F44336" : "#2E7D32"
+                }
+              />
+            </TouchableOpacity>
           </View>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryBadgeText}>
-              {product.type === "rent" ? "Servicios" : "Venta"}
+          {product.price && (
+            <Text style={styles.productPrice}>
+              {formatPrice(product.price, product.currency)}
             </Text>
+          )}
+          <View style={styles.productFooter}>
+            <View style={styles.locationContainer}>
+              <Ionicons
+                name="time-outline"
+                size={16}
+                color="#757575"
+              />
+              <Text style={styles.locationText}>
+                {new Date(product.createdAt).toLocaleDateString()}
+              </Text>
+            </View>
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryBadgeText}>
+                {product.type === "rent" ? "Servicios" : "Venta"}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   // List header component
   const renderHeader = () => (
@@ -470,19 +476,28 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.logo}>Agroalva</Text>
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => router.push("/notifications")}
-        >
-          <Ionicons name="notifications-outline" size={24} color="#2E7D32" />
-          {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>
-                {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {isAuthenticated ? (
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => router.push("/notifications")}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#2E7D32" />
+            {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.signInButton}
+            onPress={() => router.push("/(auth)/sign-in")}
+          >
+            <Text style={styles.signInText}>Iniciar sesión</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FlatList
@@ -502,7 +517,7 @@ export default function HomeScreen() {
       {/* Floating Action Button */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => router.push("/create-post")}
+        onPress={() => router.push(isAuthenticated ? "/create-post" : "/(auth)/sign-in")}
       >
         <Ionicons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
@@ -536,6 +551,17 @@ const styles = StyleSheet.create({
   notificationButton: {
     padding: 4,
     position: "relative",
+  },
+  signInButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#2E7D32",
+  },
+  signInText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   notificationBadge: {
     position: "absolute",
@@ -799,4 +825,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-
