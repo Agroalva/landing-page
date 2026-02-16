@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+
+## Backend compatibility for mobile clients
+
+Our iOS, Android, and web clients all share the same backend. Publishing new mobile versions requires app-store review and may take days or weeks. Because of this, we operate with **zero tolerance for breaking backend changes**:
+
+- **No breaking API or data-shape changes**: Never remove, rename, or change the type/meaning of fields or endpoints that existing released clients depend on.
+- **Prefer additive, backwards-compatible changes**: New functionality must be implemented by _adding_ fields/endpoints/behavior that old clients can safely ignore.
+- **Graceful handling of legacy clients**: Backend logic must continue to accept and correctly process requests from older client versions (including missing new fields).
+- **Version & feature-flag when behavior diverges**: If behavior must change in a non-compatible way, introduce explicit versioning or feature flags and keep the old behavior available until all relevant clients are safely migrated.
+- **Test against existing client contracts**: Any backend change that can affect login/auth flows, core navigation, or data loading must be validated (locally or in staging) against at least one representative build of each mobile client.
+
+If a proposed backend change cannot be implemented in a backwards-compatible way for currently shipped clients, **do not merge it** without a clear rollout/migration plan that avoids breaking any existing app in the wild.

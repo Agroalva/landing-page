@@ -73,16 +73,18 @@ export default function EditProfileScreen() {
       newErrors.bio = "La biografía no puede exceder 200 caracteres";
     }
 
-    // Validate phone number (optional but if provided, should be valid)
+    // Validate phone number (required)
     const trimmedPhoneNumber = phoneNumber.trim();
-    if (trimmedPhoneNumber) {
+    if (!trimmedPhoneNumber) {
+      newErrors.phoneNumber = "El número de WhatsApp es requerido";
+    } else {
       // Remove spaces, dashes, and parentheses for validation
       const digitsOnly = trimmedPhoneNumber.replace(/[\s\-()]/g, "");
       // Check if it starts with + and has at least 10 digits, or has at least 10 digits without +
-      const isValidFormat = 
+      const isValidFormat =
         (digitsOnly.startsWith("+") && digitsOnly.length >= 11) ||
         (!digitsOnly.startsWith("+") && digitsOnly.length >= 10 && /^\d+$/.test(digitsOnly));
-      
+
       if (!isValidFormat) {
         newErrors.phoneNumber = "Ingresa un número de teléfono válido (ej: +1234567890 o 1234567890)";
       }
@@ -113,7 +115,7 @@ export default function EditProfileScreen() {
       await updateProfile({
         displayName: displayName.trim(),
         bio: bio.trim() || undefined,
-        phoneNumber: phoneNumber.trim() || undefined,
+        phoneNumber: phoneNumber.trim(),
         avatarId: avatarId || undefined,
       });
 
@@ -317,7 +319,7 @@ export default function EditProfileScreen() {
               fieldLayouts.current.phoneNumber = event.nativeEvent.layout.y;
             }}
           >
-            <Text style={styles.label}>Número de WhatsApp (opcional)</Text>
+            <Text style={styles.label}>Número de WhatsApp</Text>
             <TextInput
               ref={phoneNumberInputRef}
               style={[styles.input, errors.phoneNumber && styles.inputError]}
@@ -349,7 +351,7 @@ export default function EditProfileScreen() {
               <Text style={styles.errorText}>{errors.phoneNumber}</Text>
             )}
             <Text style={styles.fieldHint}>
-              Este número se usará para contactarte por WhatsApp
+              Este número se usará para contactarte por WhatsApp (obligatorio)
             </Text>
           </View>
         </View>
@@ -518,4 +520,3 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
-

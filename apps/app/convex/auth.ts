@@ -23,6 +23,14 @@ export const createAuth = (
         },
         baseURL: siteUrl,
         database: authComponent.adapter(ctx),
+        session: {
+            expiresIn: 60 * 60 * 24 * 365, // 365 days - sessions effectively never expire
+            updateAge: 60 * 60 * 24, // Refresh session expiration daily when used
+            cookieCache: {
+                enabled: true,
+                maxAge: 5 * 60, // 5 minute cache for performance
+            },
+        },
         emailAndPassword: {
             enabled: true,
             requireEmailVerification: false,
