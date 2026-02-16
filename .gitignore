@@ -123,3 +123,6 @@ web-build/
 
 # Convex
 .convex/
+
+# Local credentials
+apps/app/agroalva-d779668fe3ff.json
