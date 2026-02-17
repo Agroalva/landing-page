@@ -12,8 +12,8 @@ if (!convexUrl) {
 
 const convex = convexUrl
     ? new ConvexReactClient(convexUrl, {
-          // Optionally pause queries until the user is authenticated
-          expectAuth: true,
+          // Allow unauthenticated users to execute public queries
+          expectAuth: false,
           unsavedChangesWarning: false,
       })
     : null;
