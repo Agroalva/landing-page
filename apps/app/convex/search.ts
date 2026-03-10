@@ -20,6 +20,7 @@ export const querySearch = query({
         query: v.string(),
         familyId: v.optional(v.string()),
         categoryId: v.optional(v.string()),
+        listingType: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
         legacyCategory: v.optional(v.string()),
         limit: v.optional(v.number()),
         cursor: v.optional(v.string()),
@@ -79,8 +80,11 @@ export const querySearch = query({
         
         matchingProducts = recentProducts
             .filter(product => 
-                product.name.toLowerCase().includes(searchTerm) ||
-                product.description?.toLowerCase().includes(searchTerm)
+                (args.listingType ? product.type === args.listingType : true) &&
+                (
+                    product.name.toLowerCase().includes(searchTerm) ||
+                    product.description?.toLowerCase().includes(searchTerm)
+                )
             )
             .slice(0, limit);
 

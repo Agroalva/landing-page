@@ -59,6 +59,9 @@ export default function ProductDetailScreen() {
   const showGuestCta = !isAuthenticated && !isAuthLoading;
 
   const images = product?.mediaIds || [];
+  const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_URL || "https://www.agroalva.com.ar").replace(/\/+$/, "");
+  const authorPhoneNumber =
+    authorProfile && "phoneNumber" in authorProfile ? authorProfile.phoneNumber : undefined;
 
   // Increment view count when screen loads
   useEffect(() => {
@@ -79,7 +82,7 @@ export default function ProductDetailScreen() {
   };
 
   const handleWhatsApp = () => {
-    const phoneNumber = authorProfile?.phoneNumber;
+    const phoneNumber = authorPhoneNumber;
     if (!phoneNumber) {
       Alert.alert(
         "WhatsApp",
@@ -98,7 +101,7 @@ export default function ProductDetailScreen() {
   };
 
   const handleCall = () => {
-    const phoneNumber = authorProfile?.phoneNumber;
+    const phoneNumber = authorPhoneNumber;
     if (!phoneNumber) {
       Alert.alert(
         "Llamar",
@@ -148,12 +151,13 @@ export default function ProductDetailScreen() {
     if (!product) return;
     
     try {
-      const productUrl = `agroalva://product/${product._id}`;
-      const shareMessage = `Mira este producto: ${product.name}${product.price ? ` - $${product.price.toLocaleString()}` : ""}\n\n${productUrl}`;
+      const productUrl = `${webBaseUrl}/product/${product._id}`;
+      const shareMessage = `Mira esta publicación: ${product.name}${product.price ? ` - $${product.price.toLocaleString()}` : ""}\n\n${productUrl}`;
       
       await Share.share({
         message: shareMessage,
         title: product.name,
+        url: productUrl,
       });
     } catch (error: any) {
       if (error.message !== "User did not share") {

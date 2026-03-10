@@ -25,6 +25,7 @@ import { ListingCard } from "../../components/ListingCard";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
 const MAX_RECENT_SEARCHES = 10;
+type ListingTypeFilter = "all" | "rent" | "sell";
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function SearchScreen() {
   const families = useMemo(() => getFamilies(), []);
   const [selectedFamilyId, setSelectedFamilyId] = useState<FamilyId | "all">("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(null);
+  const [selectedListingType, setSelectedListingType] = useState<ListingTypeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -54,6 +56,10 @@ export default function SearchScreen() {
     setSelectedCategoryId(categoryId);
   };
 
+  const handleSelectListingType = (listingType: ListingTypeFilter) => {
+    setSelectedListingType(listingType);
+  };
+
   // Set initial filters from route params
   useEffect(() => {
     if (params.familyId && typeof params.familyId === "string") {
@@ -67,7 +73,7 @@ export default function SearchScreen() {
           family.categories.some((category) => category.id === categoryId),
         );
         if (matchedFamily) {
-          setSelectedFamilyId(matchedFamily.id);
+          setSelectedFamilyId(matchedFamily.id as FamilyId);
         }
       }
     }
@@ -161,9 +167,19 @@ export default function SearchScreen() {
           query: debouncedQuery, 
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
+          listingType: selectedListingType === "all" ? undefined : selectedListingType,
           limit: 20 
         } 
       : "skip"
+  );
+
+  const rentProducts = useMemo(
+    () => results?.products.filter((product) => product.type === "rent") ?? [],
+    [results],
+  );
+  const sellProducts = useMemo(
+    () => results?.products.filter((product) => product.type === "sell") ?? [],
+    [results],
   );
 
   return (
@@ -229,7 +245,7 @@ export default function SearchScreen() {
                     styles.filterChip,
                     isSelected && styles.filterChipActive,
                   ]}
-                  onPress={() => handleSelectFamily(family.id)}
+                  onPress={() => handleSelectFamily(family.id as FamilyId)}
                 >
                   <Ionicons
                     name={family.icon as any}
@@ -314,6 +330,82 @@ export default function SearchScreen() {
           </View>
         )}
 
+        {/* Listing Type Filters */}
+        <View style={styles.filtersWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContainer}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedListingType === "all" && styles.filterChipActive,
+              ]}
+              onPress={() => handleSelectListingType("all")}
+            >
+              <Ionicons
+                name="layers-outline"
+                size={18}
+                color={selectedListingType === "all" ? "#FFFFFF" : "#2E7D32"}
+                style={styles.filterIcon}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  selectedListingType === "all" && styles.filterTextActive,
+                ]}
+              >
+                Todas
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedListingType === "rent" && styles.filterChipActive,
+              ]}
+              onPress={() => handleSelectListingType("rent")}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={selectedListingType === "rent" ? "#FFFFFF" : "#2E7D32"}
+                style={styles.filterIcon}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  selectedListingType === "rent" && styles.filterTextActive,
+                ]}
+              >
+                Servicios
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                selectedListingType === "sell" && styles.filterChipActive,
+              ]}
+              onPress={() => handleSelectListingType("sell")}
+            >
+              <Ionicons
+                name="cash-outline"
+                size={18}
+                color={selectedListingType === "sell" ? "#FFFFFF" : "#2E7D32"}
+                style={styles.filterIcon}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  selectedListingType === "sell" && styles.filterTextActive,
+                ]}
+              >
+                Compra/Venta
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
         {/* Search Results */}
         {debouncedQuery.length >= 3 && (
           <View style={styles.section}>
@@ -323,9 +415,39 @@ export default function SearchScreen() {
               </View>
             ) : (
               <>
-                {results.products.length > 0 && (
+                {selectedListingType === "all" && rentProducts.length > 0 && (
                   <>
-                    <Text style={styles.sectionTitle}>Productos</Text>
+                    <Text style={styles.sectionTitle}>Servicios</Text>
+                    <View style={styles.productsContainer}>
+                      {rentProducts.map((product) => (
+                        <ListingCard
+                          key={product._id}
+                          product={product}
+                          variant={isAuthenticated ? "full" : "public"}
+                        />
+                      ))}
+                    </View>
+                  </>
+                )}
+                {selectedListingType === "all" && sellProducts.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>Compra/Venta</Text>
+                    <View style={styles.productsContainer}>
+                      {sellProducts.map((product) => (
+                        <ListingCard
+                          key={product._id}
+                          product={product}
+                          variant={isAuthenticated ? "full" : "public"}
+                        />
+                      ))}
+                    </View>
+                  </>
+                )}
+                {selectedListingType !== "all" && results.products.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>
+                      {selectedListingType === "rent" ? "Servicios" : "Compra/Venta"}
+                    </Text>
                     <View style={styles.productsContainer}>
                       {results.products.map((product) => (
                         <ListingCard

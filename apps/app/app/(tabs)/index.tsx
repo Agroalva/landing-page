@@ -305,7 +305,7 @@ export default function HomeScreen() {
                   styles.categoryPill,
                   isSelected ? styles.categoryPillActive : styles.categoryPillInactive,
                 ]}
-                onPress={() => handleSelectFamily(family.id)}
+                onPress={() => handleSelectFamily(family.id as FamilyId)}
                 activeOpacity={0.8}
               >
                 <Ionicons
@@ -369,7 +369,7 @@ export default function HomeScreen() {
                     styles.categoryPill,
                     isSelected ? styles.categoryPillActive : styles.categoryPillInactive,
                   ]}
-                  onPress={() => handleSelectCategory(category.id)}
+                  onPress={() => handleSelectCategory(category.id as CategoryId)}
                   activeOpacity={0.8}
                 >
                   <Ionicons

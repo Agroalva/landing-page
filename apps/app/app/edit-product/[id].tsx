@@ -578,6 +578,11 @@ export default function EditProductScreen() {
       return;
     }
 
+    if (mediaIds.length === 0) {
+      Alert.alert("Foto de portada requerida", "Debes mantener al menos una foto en la publicación.");
+      return;
+    }
+
     const attributesPayload = buildAttributesPayload();
 
     setLoading(true);
@@ -593,7 +598,7 @@ export default function EditProductScreen() {
         attributes: attributesPayload,
         price: price ? parseFloat(price) : undefined,
         currency: price ? currency : undefined,
-        mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
+        mediaIds,
         location: productLocation ? {
           latitude: productLocation.latitude,
           longitude: productLocation.longitude,
@@ -718,7 +723,7 @@ export default function EditProductScreen() {
             ))}
           </ScrollView>
           <Text style={styles.helperText}>
-            Agrega hasta 5 fotos de tu producto o servicio
+            Agrega entre 1 y 5 fotos. La primera será la portada.
           </Text>
         </View>
 
@@ -1384,4 +1389,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
