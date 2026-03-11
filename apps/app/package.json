@@ -6,6 +6,8 @@
     "start": "expo start",
     "dev": "expo start",
     "build": "expo export",
+    "build:production": "node ./scripts/bump-build-and-build.js",
+    "submit:ios": "node ./scripts/bump-build-and-build.js --platform ios --auto-submit",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

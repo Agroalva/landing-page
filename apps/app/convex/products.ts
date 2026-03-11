@@ -111,6 +111,10 @@ export const create = mutation({
             throw new Error("Product name cannot be empty");
         }
 
+        if (!args.mediaIds || args.mediaIds.length === 0) {
+            throw new Error("Debes agregar al menos una foto de portada");
+        }
+
         const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
         const normalizedAttributes = normalizeAttributes(args.attributes);
         const legacyCategory = getLegacyCategoryLabel(resolvedCategory, args.category);
@@ -334,6 +338,11 @@ export const update = mutation({
             updates.mediaIds = args.mediaIds;
         }
 
+        const resultingMediaIds = args.mediaIds ?? product.mediaIds ?? [];
+        if (resultingMediaIds.length === 0) {
+            throw new Error("Debes mantener al menos una foto de portada");
+        }
+
         if (args.location !== undefined) {
             updates.location = args.location;
         }
@@ -341,4 +350,3 @@ export const update = mutation({
         await ctx.db.patch(args.productId, updates);
     },
 });
-

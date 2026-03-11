@@ -10,6 +10,29 @@ export const metadata: Metadata = {
   title: "agroAlva - Marketplace del Agro Argentino",
   description:
     "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.agroalva.com.ar"),
+  openGraph: {
+    title: "agroAlva - Marketplace del Agro Argentino",
+    description:
+      "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
+    type: "website",
+    url: "/",
+    images: [
+      {
+        url: "/favicon-512.png",
+        width: 512,
+        height: 512,
+        alt: "agroAlva",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "agroAlva - Marketplace del Agro Argentino",
+    description:
+      "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
+    images: ["/favicon-512.png"],
+  },
   icons: {
     icon: "/favicon.svg",
   },

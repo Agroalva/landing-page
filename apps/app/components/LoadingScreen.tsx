@@ -1,20 +1,16 @@
 import { View, StyleSheet, ActivityIndicator, Image } from "react-native";
 import { Text } from "react-native";
-import { useColorScheme } from "react-native";
 
 export default function LoadingScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-
   return (
-    <View style={[styles.container, isDark && styles.containerDark]}>
+    <View style={styles.container}>
       <Image
         source={require("../assets/images/icon.png")}
         style={styles.icon}
         resizeMode="contain"
       />
       <ActivityIndicator size="large" color="#2E7D32" style={styles.spinner} />
-      <Text style={[styles.text, isDark && styles.textDark]}>Cargando...</Text>
+      <Text style={styles.text}>Cargando...</Text>
     </View>
   );
 }
@@ -25,9 +21,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#ffffff",
-  },
-  containerDark: {
-    backgroundColor: "#000000",
   },
   icon: {
     width: 120,
@@ -43,8 +36,4 @@ const styles = StyleSheet.create({
     color: "#666666",
     fontWeight: "500",
   },
-  textDark: {
-    color: "#999999",
-  },
 });
-
