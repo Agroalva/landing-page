@@ -5,6 +5,8 @@
   "packageManager": "pnpm@10.29.3",
   "scripts": {
     "build": "turbo run build",
+    "build:app:production": "pnpm --filter app build:production",
+    "submit:app:ios": "pnpm --filter app submit:ios",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "start": "turbo run start",
