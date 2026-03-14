@@ -20,6 +20,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
+import { buildPublicProductUrl } from "../../utils/public-url";
 import { getCategoryById, getFamilyById } from "../config/taxonomy";
 import { CONDITION_OPTIONS } from "../config/options";
 
@@ -59,9 +60,17 @@ export default function ProductDetailScreen() {
   const showGuestCta = !isAuthenticated && !isAuthLoading;
 
   const images = product?.mediaIds || [];
-  const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_URL || "https://www.agroalva.com.ar").replace(/\/+$/, "");
   const authorPhoneNumber =
     authorProfile && "phoneNumber" in authorProfile ? authorProfile.phoneNumber : undefined;
+
+  const handleBackPress = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/(tabs)");
+  };
 
   // Increment view count when screen loads
   useEffect(() => {
@@ -82,6 +91,10 @@ export default function ProductDetailScreen() {
   };
 
   const handleWhatsApp = () => {
+    if (!product) {
+      return;
+    }
+
     const phoneNumber = authorPhoneNumber;
     if (!phoneNumber) {
       Alert.alert(
@@ -91,9 +104,12 @@ export default function ProductDetailScreen() {
       return;
     }
 
-    // Format phone number for WhatsApp (remove any non-digit characters except +)
-    const formattedNumber = phoneNumber.replace(/[^\d+]/g, "");
-    const whatsappUrl = `https://wa.me/${formattedNumber}`;
+    const formattedNumber = phoneNumber.replace(/\D/g, "");
+    const productUrl = buildPublicProductUrl(product._id);
+    const defaultMessage = encodeURIComponent(
+      `Hola, te escribo por la publicación ${product.name} en agroAlva. ¿Sigue disponible?\n\n${productUrl}`
+    );
+    const whatsappUrl = `https://wa.me/${formattedNumber}?text=${defaultMessage}`;
 
     Linking.openURL(whatsappUrl).catch(() => {
       Alert.alert("Error", "No se pudo abrir WhatsApp");
@@ -151,7 +167,7 @@ export default function ProductDetailScreen() {
     if (!product) return;
     
     try {
-      const productUrl = `${webBaseUrl}/product/${product._id}`;
+      const productUrl = buildPublicProductUrl(product._id);
       const shareMessage = `Mira esta publicación: ${product.name}${product.price ? ` - $${product.price.toLocaleString()}` : ""}\n\n${productUrl}`;
       
       await Share.share({
@@ -183,7 +199,7 @@ export default function ProductDetailScreen() {
           onPress: async () => {
             try {
               await deleteProduct({ productId });
-              router.back();
+              handleBackPress();
             } catch (error: any) {
               Alert.alert("Error", error?.message || "No se pudo eliminar la publicación");
             }
@@ -210,7 +226,7 @@ export default function ProductDetailScreen() {
           <Text style={styles.errorText}>Producto no encontrado</Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={handleBackPress}
           >
             <Ionicons name="arrow-back" size={24} color="#212121" />
           </TouchableOpacity>
@@ -224,7 +240,7 @@ export default function ProductDetailScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={handleBackPress}
         >
           <Ionicons name="arrow-back" size={24} color="#212121" />
         </TouchableOpacity>

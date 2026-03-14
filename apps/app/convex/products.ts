@@ -80,6 +80,27 @@ const getLegacyCategoryLabel = (
     return fallback ?? undefined;
 };
 
+const publicLocationValidator = v.optional(v.object({
+    address: v.optional(v.string()),
+    label: v.optional(v.string()),
+}));
+
+const shareProductValidator = v.object({
+    _id: v.id("products"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    price: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    type: v.union(v.literal("rent"), v.literal("sell")),
+    category: v.optional(v.string()),
+    familyId: v.optional(v.string()),
+    categoryId: v.optional(v.string()),
+    location: publicLocationValidator,
+    createdAt: v.number(),
+    primaryImageUrl: v.optional(v.string()),
+    authorDisplayName: v.optional(v.string()),
+});
+
 // Create a new product
 export const create = mutation({
     args: {
@@ -193,6 +214,48 @@ export const getById = query({
     },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.productId);
+    },
+});
+
+export const getShareById = query({
+    args: {
+        productId: v.id("products"),
+    },
+    returns: v.union(shareProductValidator, v.null()),
+    handler: async (ctx, args) => {
+        const product = await ctx.db.get(args.productId);
+        if (!product) {
+            return null;
+        }
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q) => q.eq("userId", product.authorId))
+            .first();
+
+        const primaryImageId = product.mediaIds?.[0];
+        const primaryImageUrl = primaryImageId ? await ctx.storage.getUrl(primaryImageId) ?? undefined : undefined;
+
+        return {
+            _id: product._id,
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            currency: product.currency,
+            type: product.type,
+            category: product.category,
+            familyId: product.familyId,
+            categoryId: product.categoryId,
+            location: product.location
+                ? {
+                    address: product.location.address,
+                    label: product.location.label,
+                }
+                : undefined,
+            createdAt: product.createdAt,
+            primaryImageUrl,
+            authorDisplayName: profile?.displayName,
+        };
     },
 });
 
