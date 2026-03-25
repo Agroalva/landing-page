@@ -1,8 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
-import { useConvexAuth } from "convex/react";
 import ConvexClientProvider from "../components/ConvexClientProvider";
 import { useNotifications } from "../hooks/use-notifications";
 import { useAuthSession } from "../hooks/use-session";
@@ -18,34 +17,56 @@ function NotificationInitializer() {
 
 function AppContent() {
   const { isLoading: isAuthLoading } = useAuthSession();
-  const { isLoading: isConvexLoading } = useConvexAuth();
   const [appIsReady, setAppIsReady] = useState(false);
+  const hasHiddenSplashRef = useRef(false);
 
-  const isLoading = isAuthLoading || isConvexLoading;
+  const isLoading = isAuthLoading;
+
+  const markAppReady = useCallback(async () => {
+    if (hasHiddenSplashRef.current) {
+      return;
+    }
+
+    hasHiddenSplashRef.current = true;
+    setAppIsReady(true);
+    await SplashScreen.hideAsync();
+  }, []);
 
   useEffect(() => {
-    async function prepare() {
+    let cancelled = false;
+
+    const prepare = async () => {
       try {
-        // Wait for auth and Convex to be ready
         if (!isLoading) {
-          // Small delay to ensure everything is fully initialized
           await new Promise((resolve) => setTimeout(resolve, 300));
-          setAppIsReady(true);
-          // Hide the splash screen once everything is ready
-          await SplashScreen.hideAsync();
+          if (!cancelled) {
+            await markAppReady();
+          }
         }
       } catch (e) {
         console.warn(e);
-        // Even if there's an error, hide the splash screen
-        setAppIsReady(true);
-        await SplashScreen.hideAsync();
+        if (!cancelled) {
+          await markAppReady();
+        }
       }
-    }
+    };
 
-    if (isLoading === false) {
-      prepare();
-    }
-  }, [isLoading]);
+    prepare();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, markAppReady]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      markAppReady().catch((error) => {
+        console.warn("Failed to hide splash screen after timeout:", error);
+      });
+    }, 2500);
+
+    return () => clearTimeout(timeoutId);
+  }, [markAppReady]);
 
   // Show loading screen only after splash screen is hidden (if still loading)
   // While splash screen is visible, we don't render anything (splash screen handles it)

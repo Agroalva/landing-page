@@ -1,8 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { ConvexReactClient, ConvexProvider } from "convex/react";
 import { authClient } from "@/lib/auth-client";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { View, Text, StyleSheet } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
 
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
 
@@ -31,6 +32,14 @@ function ErrorScreen({ message }: { message: string }) {
 }
 
 export default function ConvexClientProvider({ children }: { children: ReactNode }) {
+    useEffect(() => {
+        if (!convex) {
+            SplashScreen.hideAsync().catch(() => {
+                // Ignore hide errors; the provider is already rendering a visible error state.
+            });
+        }
+    }, []);
+
     if (!convex) {
         return (
             <ErrorScreen

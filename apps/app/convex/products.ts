@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
 import { getCategoryById } from "../app/config/taxonomy";
-import type { AttributeValueMap, CategoryId, FamilyId } from "../app/config/taxonomy";
+import type { AttributeValueMap, CategoryId } from "../app/config/taxonomy";
 import { resolveTaxonomyFilter } from "./taxonomy";
 
 const attributeValueValidator = v.union(
@@ -101,6 +101,14 @@ const shareProductValidator = v.object({
     authorDisplayName: v.optional(v.string()),
 });
 
+const applyListingTypeFilter = (query: any, listingType?: "rent" | "sell") => {
+    if (!listingType) {
+        return query;
+    }
+
+    return query.filter((q: any) => q.eq(q.field("type"), listingType));
+};
+
 // Create a new product
 export const create = mutation({
     args: {
@@ -167,41 +175,62 @@ export const feed = query({
         familyId: v.optional(v.string()),
         categoryId: v.optional(v.string()),
         legacyCategory: v.optional(v.string()),
+        listingType: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
     },
     handler: async (ctx, args) => {
         const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
 
         if (resolvedCategory) {
-            return await ctx.db
-                .query("products")
-                .withIndex("by_family_category", (q) =>
+            const query = applyListingTypeFilter(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_family_category", (q) =>
                     q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
-                )
+                    ),
+                args.listingType,
+            );
+
+            return await query
                 .order("desc")
                 .paginate(args.paginationOpts);
         }
 
         if (resolvedFamily) {
-            return await ctx.db
-                .query("products")
-                .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string))
+            const query = applyListingTypeFilter(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string)),
+                args.listingType,
+            );
+
+            return await query
                 .order("desc")
                 .paginate(args.paginationOpts);
         }
 
         if (args.legacyCategory && args.legacyCategory !== "Todos") {
-            return await ctx.db
-                .query("products")
-                .withIndex("by_category_createdAt", (q) =>
+            const query = applyListingTypeFilter(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_category_createdAt", (q) =>
                     q.eq("category", args.legacyCategory),
-                )
+                    ),
+                args.listingType,
+            );
+
+            return await query
                 .order("desc")
                 .paginate(args.paginationOpts);
         }
 
-        return await ctx.db
-            .query("products")
-            .withIndex("by_createdAt")
+        const query = applyListingTypeFilter(
+            ctx.db
+                .query("products")
+                .withIndex("by_createdAt"),
+            args.listingType,
+        );
+
+        return await query
             .order("desc")
             .paginate(args.paginationOpts);
     },

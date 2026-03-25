@@ -4,14 +4,13 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    Alert,
     StyleSheet,
     ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authClient } from "@/lib/auth-client";
-import { router, Redirect } from "expo-router";
+import { router } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 
 export default function SignInScreen() {
@@ -128,6 +127,16 @@ export default function SignInScreen() {
     return (
         <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
             <View style={styles.content}>
+                <TouchableOpacity
+                    style={styles.browseButton}
+                    onPress={() => router.replace("/(tabs)")}
+                    accessibilityRole="button"
+                    accessibilityLabel="Seguir explorando sin iniciar sesión"
+                >
+                    <Ionicons name="arrow-back" size={18} color="#1B5E20" />
+                    <Text style={styles.browseButtonText}>Seguir explorando</Text>
+                </TouchableOpacity>
+
                 <View style={styles.header}>
                     <Text style={styles.title}>Bienvenido de nuevo</Text>
                     <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
@@ -253,6 +262,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         justifyContent: "center",
     },
+    browseButton: {
+        alignSelf: "flex-start",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 28,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 999,
+        backgroundColor: "#EEF7EF",
+        borderWidth: 1,
+        borderColor: "#D7E8D8",
+    },
+    browseButtonText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#1B5E20",
+    },
     header: {
         marginBottom: 40,
     },
@@ -362,4 +389,3 @@ const styles = StyleSheet.create({
         fontWeight: "500",
     },
 });
-
