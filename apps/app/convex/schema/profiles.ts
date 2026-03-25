@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export const profilesTable = defineTable({
     userId: v.string(), // References Better Auth user ID
     displayName: v.string(),
+    role: v.optional(v.union(v.literal("user"), v.literal("admin"))),
     avatarId: v.optional(v.id("_storage")), // Reference to Convex file storage
     bio: v.optional(v.string()),
     phoneNumber: v.optional(v.string()), // Phone number for contact
@@ -13,4 +14,3 @@ export const profilesTable = defineTable({
 })
     .index("by_userId", ["userId"])
     .index("by_displayName", ["displayName"]);
-

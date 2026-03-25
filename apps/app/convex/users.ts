@@ -7,6 +7,7 @@ const profileValidator = v.object({
     _creationTime: v.number(),
     userId: v.string(),
     displayName: v.string(),
+    role: v.optional(v.union(v.literal("user"), v.literal("admin"))),
     avatarId: v.optional(v.id("_storage")),
     bio: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
@@ -20,6 +21,7 @@ const toPublicProfile = (profile: any) => ({
     _creationTime: profile._creationTime,
     userId: profile.userId,
     displayName: profile.displayName,
+    role: profile.role,
     avatarId: profile.avatarId,
     bio: profile.bio,
     createdAt: profile.createdAt,
@@ -94,6 +96,7 @@ export const ensureProfile = mutation({
                 return await ctx.db.insert("profiles", {
                     userId: user._id as string,
                     displayName: user.name || user.email || "User",
+                    role: "user",
                     bio: undefined,
                     avatarId: undefined,
                     createdAt: Date.now(),
@@ -134,6 +137,7 @@ export const updateProfile = mutation({
             return await ctx.db.insert("profiles", {
                 userId: user._id as string,
                 displayName: args.displayName || user.email || "User",
+                role: "user",
                 bio: args.bio,
                 avatarId: args.avatarId,
                 createdAt: Date.now(),
@@ -241,6 +245,37 @@ export const cleanupUserData = internalMutation({
                     });
                 }
             }
+        }
+
+        return null;
+    },
+});
+
+export const setProfileRoles = internalMutation({
+    args: {
+        updates: v.array(
+            v.object({
+                userId: v.string(),
+                role: v.union(v.literal("user"), v.literal("admin")),
+            })
+        ),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        for (const update of args.updates) {
+            const profile = await ctx.db
+                .query("profiles")
+                .withIndex("by_userId", (q) => q.eq("userId", update.userId))
+                .first();
+
+            if (!profile) {
+                continue;
+            }
+
+            await ctx.db.patch(profile._id, {
+                role: update.role,
+                updatedAt: Date.now(),
+            });
         }
 
         return null;

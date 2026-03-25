@@ -8,14 +8,18 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as banners from "../banners.js";
 import type * as conversations from "../conversations.js";
 import type * as emails from "../emails.js";
 import type * as favorites from "../favorites.js";
 import type * as http from "../http.js";
+import type * as lib_admin from "../lib/admin.js";
 import type * as notifications from "../notifications.js";
 import type * as presence from "../presence.js";
 import type * as products from "../products.js";
+import type * as schema_banners from "../schema/banners.js";
 import type * as schema_conversations from "../schema/conversations.js";
 import type * as schema_favorites from "../schema/favorites.js";
 import type * as schema_messages from "../schema/messages.js";
@@ -43,14 +47,18 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   auth: typeof auth;
+  banners: typeof banners;
   conversations: typeof conversations;
   emails: typeof emails;
   favorites: typeof favorites;
   http: typeof http;
+  "lib/admin": typeof lib_admin;
   notifications: typeof notifications;
   presence: typeof presence;
   products: typeof products;
+  "schema/banners": typeof schema_banners;
   "schema/conversations": typeof schema_conversations;
   "schema/favorites": typeof schema_favorites;
   "schema/messages": typeof schema_messages;

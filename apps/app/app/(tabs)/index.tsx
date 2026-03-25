@@ -1,4 +1,3 @@
-import React from "react";
 import {
   View,
   Text,
@@ -6,6 +5,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  ImageBackground,
+  Linking,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +17,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
+import { useEffect, useMemo, useState } from "react";
 
 type TopLevelIntent = "products" | "services";
 
@@ -24,14 +29,6 @@ type DiscoveryCardDefinition = {
   icon: keyof typeof Ionicons.glyphMap;
   accent: string;
   surface: string;
-};
-
-type HomePromo = {
-  eyebrow: string;
-  title: string;
-  body: string;
-  cta: string;
-  topLevel: TopLevelIntent;
 };
 
 const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
@@ -55,20 +52,59 @@ const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
   },
 ];
 
-const HOME_PROMO: HomePromo | null = null;
-
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthSession();
+  const { width } = useWindowDimensions();
+  const bannerWidth = Math.max(width - 40, 1);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const unreadNotificationCount = useQuery(
     api.notifications.getUnreadCount,
     isAuthenticated ? {} : "skip",
   );
+  const homeBanners = useQuery(api.banners.listActive);
+  const visibleBanners = useMemo(() => homeBanners ?? [], [homeBanners]);
+
+  useEffect(() => {
+    if (visibleBanners.length === 0) {
+      setActiveBannerIndex(0);
+      return;
+    }
+
+    setActiveBannerIndex((currentIndex) => Math.min(currentIndex, visibleBanners.length - 1));
+  }, [visibleBanners.length]);
+
   const navigateToBrowse = (topLevel: TopLevelIntent) => {
     router.push({
       pathname: "/(tabs)/search",
       params: { topLevel },
     });
+  };
+
+  const openBannerUrl = async (targetUrl?: string) => {
+    if (!targetUrl) {
+      return;
+    }
+
+    try {
+      const canOpen = await Linking.canOpenURL(targetUrl);
+      if (!canOpen) {
+        return;
+      }
+
+      await Linking.openURL(targetUrl);
+    } catch (error) {
+      console.warn("Failed to open banner URL:", error);
+    }
+  };
+
+  const handleBannerScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!bannerWidth) {
+      return;
+    }
+
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / bannerWidth);
+    setActiveBannerIndex(nextIndex);
   };
 
   if (isLoading) {
@@ -154,20 +190,69 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ))}
 
-        {HOME_PROMO ? (
-          <TouchableOpacity
-            style={styles.promoCard}
-            onPress={() => navigateToBrowse(HOME_PROMO.topLevel)}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.promoEyebrow}>{HOME_PROMO.eyebrow}</Text>
-            <Text style={styles.promoTitle}>{HOME_PROMO.title}</Text>
-            <Text style={styles.promoBody}>{HOME_PROMO.body}</Text>
-            <View style={styles.promoCta}>
-              <Text style={styles.promoCtaText}>{HOME_PROMO.cta}</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+        {visibleBanners.length > 0 ? (
+          <View style={styles.bannerSection}>
+            <View style={styles.bannerHeader}>
+              <Text style={styles.bannerEyebrow}>Destacados</Text>
+              <Text style={styles.bannerCounter}>
+                {activeBannerIndex + 1}/{visibleBanners.length}
+              </Text>
             </View>
-          </TouchableOpacity>
+
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={bannerWidth}
+              snapToAlignment="start"
+              onMomentumScrollEnd={handleBannerScrollEnd}
+              contentContainerStyle={styles.bannerTrack}
+            >
+              {visibleBanners.map((banner: (typeof visibleBanners)[number]) => (
+                <TouchableOpacity
+                  key={banner._id}
+                  style={[styles.bannerCard, { width: bannerWidth }]}
+                  onPress={() => openBannerUrl(banner.targetUrl)}
+                  activeOpacity={banner.targetUrl ? 0.9 : 1}
+                  disabled={!banner.targetUrl}
+                >
+                  <View style={styles.bannerFrame}>
+                    <ImageBackground
+                      source={{ uri: banner.imageUrl }}
+                      style={styles.bannerImageWrap}
+                      imageStyle={styles.bannerImage}
+                    >
+                      <View style={styles.bannerOverlay} />
+                      <View style={styles.bannerBadge}>
+                        <Text style={styles.bannerBadgeText}>Agroalva</Text>
+                      </View>
+                      <View style={styles.bannerCtaWrap}>
+                        <Text style={styles.bannerCtaText}>
+                          {banner.targetUrl ? "Abrir enlace" : "Banner informativo"}
+                        </Text>
+                        {banner.targetUrl ? (
+                          <Ionicons name="open-outline" size={16} color="#FFFFFF" />
+                        ) : null}
+                      </View>
+                    </ImageBackground>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.bannerDots}>
+              {visibleBanners.map((banner: (typeof visibleBanners)[number], index: number) => (
+                <View
+                  key={banner._id}
+                  style={[
+                    styles.bannerDot,
+                    index === activeBannerIndex && styles.bannerDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
         ) : null}
       </ScrollView>
 
@@ -340,6 +425,99 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: "rgba(255, 255, 255, 0.55)",
+  },
+  bannerSection: {
+    gap: 12,
+  },
+  bannerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  bannerEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+    color: "#1B5E20",
+  },
+  bannerCounter: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6A5F50",
+  },
+  bannerTrack: {
+    gap: 0,
+  },
+  bannerCard: {
+    paddingRight: 0,
+  },
+  bannerFrame: {
+    borderRadius: 28,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(31, 26, 20, 0.08)",
+    backgroundColor: "#DCE6D3",
+  },
+  bannerImageWrap: {
+    aspectRatio: 16 / 7,
+    justifyContent: "space-between",
+    padding: 18,
+    backgroundColor: "#1F3A2C",
+  },
+  bannerImage: {
+    borderRadius: 28,
+  },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(8, 24, 16, 0.18)",
+  },
+  bannerBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255, 253, 248, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  bannerBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  bannerCtaWrap: {
+    marginTop: "auto",
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "rgba(8, 24, 16, 0.55)",
+  },
+  bannerCtaText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  bannerDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  bannerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(27, 94, 32, 0.18)",
+  },
+  bannerDotActive: {
+    width: 22,
+    backgroundColor: "#1B5E20",
   },
   promoCard: {
     borderRadius: 28,
