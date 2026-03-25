@@ -3,13 +3,19 @@
 import { createAuthClient } from "better-auth/react"
 import { convexClient } from "@convex-dev/better-auth/client/plugins"
 
-const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL
+function getAuthBaseUrl() {
+  if (typeof window !== "undefined") {
+    return new URL("/api/auth", window.location.origin).toString()
+  }
 
-if (!convexSiteUrl) {
-  console.error("NEXT_PUBLIC_CONVEX_SITE_URL is not set. Web auth will not work without it.")
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+
+  return new URL("/api/auth", siteUrl).toString()
 }
 
 export const authClient = createAuthClient({
-  baseURL: convexSiteUrl || "https://placeholder.convex.site",
+  baseURL: getAuthBaseUrl(),
   plugins: [convexClient()],
 })

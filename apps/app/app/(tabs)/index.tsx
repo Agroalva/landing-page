@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  ImageBackground,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -13,10 +12,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
+import { buildPublicStorageImageUrl } from "@/utils/public-url";
 import { useEffect, useMemo, useState } from "react";
 
 type TopLevelIntent = "products" | "services";
@@ -149,6 +150,62 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {visibleBanners.length > 0 ? (
+          <View style={styles.bannerSection}>
+            <View style={styles.bannerHeader}>
+              <Text style={styles.bannerEyebrow}>Destacados</Text>
+              <Text style={styles.bannerCounter}>
+                {activeBannerIndex + 1}/{visibleBanners.length}
+              </Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={bannerWidth}
+              snapToAlignment="start"
+              onMomentumScrollEnd={handleBannerScrollEnd}
+              contentContainerStyle={styles.bannerTrack}
+            >
+              {visibleBanners.map((banner: (typeof visibleBanners)[number]) => (
+                <TouchableOpacity
+                  key={banner._id}
+                  style={[styles.bannerCard, { width: bannerWidth }]}
+                  onPress={() => openBannerUrl(banner.targetUrl)}
+                  activeOpacity={banner.targetUrl ? 0.9 : 1}
+                  disabled={!banner.targetUrl}
+                >
+                  <View style={styles.bannerFrame}>
+                    <View style={styles.bannerImageWrap}>
+                      <BannerImage imageUrl={buildPublicStorageImageUrl(banner.imageStorageId)} />
+                      {banner.targetUrl ? (
+                        <View style={styles.bannerCtaWrap}>
+                          <Text style={styles.bannerCtaText}>Abrir enlace</Text>
+                          <Ionicons name="open-outline" size={14} color="#FFFFFF" />
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.bannerDots}>
+              {visibleBanners.map((banner: (typeof visibleBanners)[number], index: number) => (
+                <View
+                  key={banner._id}
+                  style={[
+                    styles.bannerDot,
+                    index === activeBannerIndex && styles.bannerDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Explora por tipo</Text>
@@ -190,70 +247,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ))}
 
-        {visibleBanners.length > 0 ? (
-          <View style={styles.bannerSection}>
-            <View style={styles.bannerHeader}>
-              <Text style={styles.bannerEyebrow}>Destacados</Text>
-              <Text style={styles.bannerCounter}>
-                {activeBannerIndex + 1}/{visibleBanners.length}
-              </Text>
-            </View>
-
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={bannerWidth}
-              snapToAlignment="start"
-              onMomentumScrollEnd={handleBannerScrollEnd}
-              contentContainerStyle={styles.bannerTrack}
-            >
-              {visibleBanners.map((banner: (typeof visibleBanners)[number]) => (
-                <TouchableOpacity
-                  key={banner._id}
-                  style={[styles.bannerCard, { width: bannerWidth }]}
-                  onPress={() => openBannerUrl(banner.targetUrl)}
-                  activeOpacity={banner.targetUrl ? 0.9 : 1}
-                  disabled={!banner.targetUrl}
-                >
-                  <View style={styles.bannerFrame}>
-                    <ImageBackground
-                      source={{ uri: banner.imageUrl }}
-                      style={styles.bannerImageWrap}
-                      imageStyle={styles.bannerImage}
-                    >
-                      <View style={styles.bannerOverlay} />
-                      <View style={styles.bannerBadge}>
-                        <Text style={styles.bannerBadgeText}>Agroalva</Text>
-                      </View>
-                      <View style={styles.bannerCtaWrap}>
-                        <Text style={styles.bannerCtaText}>
-                          {banner.targetUrl ? "Abrir enlace" : "Banner informativo"}
-                        </Text>
-                        {banner.targetUrl ? (
-                          <Ionicons name="open-outline" size={16} color="#FFFFFF" />
-                        ) : null}
-                      </View>
-                    </ImageBackground>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <View style={styles.bannerDots}>
-              {visibleBanners.map((banner: (typeof visibleBanners)[number], index: number) => (
-                <View
-                  key={banner._id}
-                  style={[
-                    styles.bannerDot,
-                    index === activeBannerIndex && styles.bannerDotActive,
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
       </ScrollView>
 
       <TouchableOpacity
@@ -263,6 +256,17 @@ export default function HomeScreen() {
         <Ionicons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
     </SafeAreaView>
+  );
+}
+
+function BannerImage({ imageUrl }: { imageUrl: string }) {
+  return (
+    <ExpoImage
+      source={imageUrl}
+      style={styles.bannerImage}
+      contentFit="contain"
+      cachePolicy="none"
+    />
   );
 }
 
@@ -427,7 +431,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.55)",
   },
   bannerSection: {
-    gap: 12,
+    gap: 8,
   },
   bannerHeader: {
     flexDirection: "row",
@@ -460,48 +464,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#DCE6D3",
   },
   bannerImageWrap: {
-    aspectRatio: 16 / 7,
-    justifyContent: "space-between",
-    padding: 18,
-    backgroundColor: "#1F3A2C",
+    aspectRatio: 16 / 4,
+    justifyContent: "flex-end",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    backgroundColor: "#EEF2EA",
+    position: "relative",
   },
   bannerImage: {
-    borderRadius: 28,
-  },
-  bannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(8, 24, 16, 0.18)",
-  },
-  bannerBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255, 253, 248, 0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-  bannerBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    zIndex: 3,
   },
   bannerCtaWrap: {
-    marginTop: "auto",
-    alignSelf: "flex-start",
+    position: "absolute",
+    left: 14,
+    bottom: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    zIndex: 2,
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "rgba(8, 24, 16, 0.55)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(8, 24, 16, 0.72)",
   },
   bannerCtaText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
   },
   bannerDots: {

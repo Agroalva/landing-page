@@ -9,5 +9,10 @@ const normalizeBaseUrl = (baseUrl?: string) => {
 
 export const getPublicWebBaseUrl = () => normalizeBaseUrl(process.env.EXPO_PUBLIC_WEB_URL);
 
+export const getPublicConvexSiteUrl = () => normalizeBaseUrl(process.env.EXPO_PUBLIC_CONVEX_SITE_URL);
+
 export const buildPublicProductUrl = (productId: Id<"products"> | string) =>
     `${getPublicWebBaseUrl()}/product/${productId}`;
+
+export const buildPublicStorageImageUrl = (storageId: Id<"_storage"> | string) =>
+    `${getPublicConvexSiteUrl()}/public/storage-image?storageId=${storageId}`;

@@ -50,4 +50,58 @@ http.route({
     }),
 });
 
+http.route({
+    path: "/public/storage-image",
+    method: "GET",
+    handler: httpAction(async (ctx, request) => {
+        const { searchParams } = new URL(request.url);
+        const storageId = searchParams.get("storageId")?.trim();
+
+        console.log("[storage-image] request", {
+            url: request.url,
+            storageId: storageId ?? null,
+        });
+
+        if (!storageId) {
+            console.warn("[storage-image] missing storage id");
+            return Response.json(
+                { error: "Missing storage id" },
+                { status: 400 },
+            );
+        }
+
+        try {
+            const blob = await ctx.storage.get(storageId as Id<"_storage">);
+
+            if (!blob) {
+                console.warn("[storage-image] image not found", { storageId });
+                return Response.json(
+                    { error: "Image not found" },
+                    { status: 404 },
+                );
+            }
+
+            console.log("[storage-image] serving blob", {
+                storageId,
+                contentType: blob.type || "application/octet-stream",
+                size: blob.size,
+            });
+
+            return new Response(blob, {
+                status: 200,
+                headers: {
+                    "Cache-Control": "public, max-age=3600",
+                    "Content-Type": blob.type || "application/octet-stream",
+                },
+            });
+        } catch {
+            console.error("[storage-image] invalid storage id", { storageId });
+            return Response.json(
+                { error: "Invalid storage id" },
+                { status: 400 },
+            );
+        }
+    }),
+});
+
 export default http;

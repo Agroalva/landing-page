@@ -8,6 +8,40 @@ import { betterAuth } from "better-auth";
 
 const siteUrl = process.env.SITE_URL!;
 
+function normalizeOrigin(value: string) {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+        return null;
+    }
+
+    if (trimmed.includes("://") && !trimmed.startsWith("app://")) {
+        try {
+            return new URL(trimmed).origin;
+        } catch {
+            return trimmed.replace(/\/$/, "");
+        }
+    }
+
+    return trimmed.replace(/\/$/, "");
+}
+
+function getTrustedOrigins() {
+    const configuredOrigins = [
+        "app://",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        process.env.SITE_URL,
+        process.env.WEB_SITE_URL,
+        process.env.NEXT_PUBLIC_SITE_URL,
+        ...(process.env.TRUSTED_ORIGINS?.split(",") ?? []),
+    ]
+        .map((value) => (value ? normalizeOrigin(value) : null))
+        .filter((value): value is string => Boolean(value));
+
+    return [...new Set(configuredOrigins)];
+}
+
 // The component client has methods needed for integrating Convex with Better Auth
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
@@ -62,7 +96,7 @@ export const createAuth = (
                 },
             },
         },
-        trustedOrigins: ["app://"], // Scheme from app.json for deep linking
+        trustedOrigins: getTrustedOrigins(),
         plugins: [
             convex(),
             expo(),
@@ -77,4 +111,3 @@ export const getCurrentUser = query({
         return authComponent.getAuthUser(ctx);
     },
 });
-

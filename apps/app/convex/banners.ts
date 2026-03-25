@@ -19,6 +19,7 @@ const bannerDocumentValidator = v.object({
 
 const publicBannerValidator = v.object({
     _id: v.id("banners"),
+    imageStorageId: v.id("_storage"),
     imageUrl: v.string(),
     targetUrl: v.optional(v.string()),
     sortOrder: v.number(),
@@ -51,6 +52,7 @@ export const listActive = query({
             .filter((banner) => banner.imageUrl)
             .map((banner) => ({
                 _id: banner._id,
+                imageStorageId: banner.imageStorageId,
                 imageUrl: banner.imageUrl as string,
                 targetUrl: banner.targetUrl,
                 sortOrder: banner.sortOrder,
