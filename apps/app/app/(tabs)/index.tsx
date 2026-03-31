@@ -230,7 +230,12 @@ export default function HomeScreen() {
             onPress={() => navigateToBrowse(card.id)}
             activeOpacity={0.88}
           >
-            <View style={[styles.discoveryOrb, { backgroundColor: card.accent }]} />
+            <ExpoImage 
+              source={require("../../assets/images/android-icon-monochrome.png")}
+              style={[styles.discoveryOrb]} 
+              contentFit="contain"
+              tintColor={card.accent}
+            />
             <View style={styles.discoveryContent}>
               <View style={styles.discoveryIconRow}>
                 <View style={[styles.discoveryIconWrap, { backgroundColor: card.accent }]}>
@@ -380,7 +385,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 160,
     height: 160,
-    borderRadius: 999,
     top: -54,
     right: -28,
     opacity: 0.14,
