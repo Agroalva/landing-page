@@ -25,7 +25,7 @@ type TopLevelIntent = "products" | "services";
 type DiscoveryCardDefinition = {
   id: TopLevelIntent;
   title: string;
-  subtitle: string;
+  subtitle: React.ReactNode;
   caption: string;
   icon: keyof typeof Ionicons.glyphMap;
   accent: string;
@@ -36,7 +36,12 @@ const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
   {
     id: "products",
     title: "Productos",
-    subtitle: "Compra y venta de maquinaria, vehículos, repuestos y más.",
+    subtitle: (
+      <span>
+        <strong>Compra y venta</strong> de maquinaria, vehículos, repuestos y
+        más.
+      </span>
+    ),
     caption: "Explorar artículos disponibles",
     icon: "cube-outline",
     accent: "#1B5E20",
@@ -45,7 +50,7 @@ const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
   {
     id: "services",
     title: "Servicios",
-    subtitle: "Contrata alquileres y servicios publicados por categoría.",
+    subtitle: "Contrata maquinaria, personal, transporte y campo.",
     caption: "Buscar prestadores activos",
     icon: "construct-outline",
     accent: "#0D47A1",
@@ -72,7 +77,9 @@ export default function HomeScreen() {
       return;
     }
 
-    setActiveBannerIndex((currentIndex) => Math.min(currentIndex, visibleBanners.length - 1));
+    setActiveBannerIndex((currentIndex) =>
+      Math.min(currentIndex, visibleBanners.length - 1),
+    );
   }, [visibleBanners.length]);
 
   const navigateToBrowse = (topLevel: TopLevelIntent) => {
@@ -99,12 +106,16 @@ export default function HomeScreen() {
     }
   };
 
-  const handleBannerScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleBannerScrollEnd = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
     if (!bannerWidth) {
       return;
     }
 
-    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / bannerWidth);
+    const nextIndex = Math.round(
+      event.nativeEvent.contentOffset.x / bannerWidth,
+    );
     setActiveBannerIndex(nextIndex);
   };
 
@@ -121,20 +132,31 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.logo}>Agroalva</Text>
+        <View style={styles.logoContainer}>
+          <ExpoImage
+            source={require("../../assets/images/android-icon-monochrome.png")}
+            style={styles.headerLogo}
+            contentFit="contain"
+            tintColor="#1B5E20"
+          />
+          {/*<Text style={styles.logo}>Agroalva</Text>*/}
+        </View>
         {isAuthenticated ? (
           <TouchableOpacity
             style={styles.notificationButton}
             onPress={() => router.push("/notifications")}
           >
             <Ionicons name="notifications-outline" size={24} color="#1B5E20" />
-            {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>
-                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
-                </Text>
-              </View>
-            )}
+            {unreadNotificationCount !== undefined &&
+              unreadNotificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -179,11 +201,19 @@ export default function HomeScreen() {
                 >
                   <View style={styles.bannerFrame}>
                     <View style={styles.bannerImageWrap}>
-                      <BannerImage imageUrl={buildPublicStorageImageUrl(banner.imageStorageId)} />
+                      <BannerImage
+                        imageUrl={buildPublicStorageImageUrl(
+                          banner.imageStorageId,
+                        )}
+                      />
                       {banner.targetUrl ? (
                         <View style={styles.bannerCtaWrap}>
                           <Text style={styles.bannerCtaText}>Abrir enlace</Text>
-                          <Ionicons name="open-outline" size={14} color="#FFFFFF" />
+                          <Ionicons
+                            name="open-outline"
+                            size={14}
+                            color="#FFFFFF"
+                          />
                         </View>
                       ) : null}
                     </View>
@@ -193,15 +223,17 @@ export default function HomeScreen() {
             </ScrollView>
 
             <View style={styles.bannerDots}>
-              {visibleBanners.map((banner: (typeof visibleBanners)[number], index: number) => (
-                <View
-                  key={banner._id}
-                  style={[
-                    styles.bannerDot,
-                    index === activeBannerIndex && styles.bannerDotActive,
-                  ]}
-                />
-              ))}
+              {visibleBanners.map(
+                (banner: (typeof visibleBanners)[number], index: number) => (
+                  <View
+                    key={banner._id}
+                    style={[
+                      styles.bannerDot,
+                      index === activeBannerIndex && styles.bannerDotActive,
+                    ]}
+                  />
+                ),
+              )}
             </View>
           </View>
         ) : null}
@@ -230,33 +262,43 @@ export default function HomeScreen() {
             onPress={() => navigateToBrowse(card.id)}
             activeOpacity={0.88}
           >
-            <ExpoImage 
+            <ExpoImage
               source={require("../../assets/images/android-icon-monochrome.png")}
-              style={[styles.discoveryOrb]} 
+              style={[styles.discoveryOrb]}
               contentFit="contain"
               tintColor={card.accent}
             />
             <View style={styles.discoveryContent}>
               <View style={styles.discoveryIconRow}>
-                <View style={[styles.discoveryIconWrap, { backgroundColor: card.accent }]}>
+                <View
+                  style={[
+                    styles.discoveryIconWrap,
+                    { backgroundColor: card.accent },
+                  ]}
+                >
                   <Ionicons name={card.icon} size={24} color="#FFFFFF" />
                 </View>
-                <Text style={[styles.discoveryCaption, { color: card.accent }]}>{card.caption}</Text>
+                <Text style={[styles.discoveryCaption, { color: card.accent }]}>
+                  {card.caption}
+                </Text>
               </View>
               <Text style={styles.discoveryTitle}>{card.title}</Text>
               <Text style={styles.discoverySubtitle}>{card.subtitle}</Text>
             </View>
-            <View style={[styles.discoveryArrowWrap, { borderColor: card.accent }]}>
+            <View
+              style={[styles.discoveryArrowWrap, { borderColor: card.accent }]}
+            >
               <Ionicons name="arrow-forward" size={20} color={card.accent} />
             </View>
           </TouchableOpacity>
         ))}
-
       </ScrollView>
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => router.push(isAuthenticated ? "/create-post" : "/(auth)/sign-in")}
+        onPress={() =>
+          router.push(isAuthenticated ? "/create-post" : "/(auth)/sign-in")
+        }
       >
         <Ionicons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
@@ -294,6 +336,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFDF8",
     borderBottomWidth: 1,
     borderBottomColor: "#E8E0D0",
+  },
+  logoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerLogo: {
+    width: 64,
+    height: 64,
   },
   logo: {
     fontSize: 28,
