@@ -5,8 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { ConvexImage } from "./ConvexImage";
 import { formatPrice } from "../utils/currency";
 import { Id } from "../convex/_generated/dataModel";
-import { getCategoryById } from "../app/config/taxonomy";
-import { CONDITION_OPTIONS } from "../app/config/options";
+import { getCategoryById } from "../config/taxonomy";
+import { CONDITION_OPTIONS } from "../config/options";
 
 interface ListingCardProps {
   product: {

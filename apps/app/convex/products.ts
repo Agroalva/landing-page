@@ -2,8 +2,8 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
-import { getCategoryById } from "../app/config/taxonomy";
-import type { AttributeValueMap, CategoryId } from "../app/config/taxonomy";
+import { getCategoryById } from "../config/taxonomy";
+import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
 import { resolveTaxonomyFilter } from "./taxonomy";
 
 const attributeValueValidator = v.union(

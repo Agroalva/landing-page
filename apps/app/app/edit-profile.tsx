@@ -57,6 +57,11 @@ export default function EditProfileScreen() {
 
   const validateForm = (): boolean => {
     const newErrors: { displayName?: string; bio?: string; phoneNumber?: string } = {};
+    const normalizeWhatsAppNumber = (value: string) => {
+      const digits = value.replace(/\D/g, "");
+      const withoutCountryCode = digits.startsWith("54") ? digits.slice(2) : digits;
+      return `+54${withoutCountryCode}`;
+    };
 
     // Validate display name
     const trimmedDisplayName = displayName.trim();
@@ -78,15 +83,12 @@ export default function EditProfileScreen() {
     if (!trimmedPhoneNumber) {
       newErrors.phoneNumber = "El número de WhatsApp es requerido";
     } else {
-      // Remove spaces, dashes, and parentheses for validation
-      const digitsOnly = trimmedPhoneNumber.replace(/[\s\-()]/g, "");
-      // Check if it starts with + and has at least 10 digits, or has at least 10 digits without +
-      const isValidFormat =
-        (digitsOnly.startsWith("+") && digitsOnly.length >= 11) ||
-        (!digitsOnly.startsWith("+") && digitsOnly.length >= 10 && /^\d+$/.test(digitsOnly));
+      const normalized = normalizeWhatsAppNumber(trimmedPhoneNumber);
+      const nationalDigits = normalized.replace(/\D/g, "").slice(2);
+      const isValidFormat = /^\+54\d+$/.test(normalized) && nationalDigits.length >= 10 && nationalDigits.length <= 11;
 
       if (!isValidFormat) {
-        newErrors.phoneNumber = "Ingresa un número de teléfono válido (ej: +1234567890 o 1234567890)";
+        newErrors.phoneNumber = "Ingresa un número argentino válido con +54";
       }
     }
 
@@ -115,7 +117,7 @@ export default function EditProfileScreen() {
       await updateProfile({
         displayName: displayName.trim(),
         bio: bio.trim() || undefined,
-        phoneNumber: phoneNumber.trim(),
+        phoneNumber: `+54${phoneNumber.trim().replace(/\D/g, "").replace(/^54/, "")}`,
         avatarId: avatarId || undefined,
       });
 

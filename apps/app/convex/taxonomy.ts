@@ -1,5 +1,5 @@
-import { CATEGORY_IDS, FAMILY_IDS, getFamilyForCategory } from "../app/config/taxonomy";
-import type { CategoryId, FamilyId } from "../app/config/taxonomy";
+import { CATEGORY_IDS, FAMILY_IDS, getFamilyForCategory } from "../config/taxonomy";
+import type { CategoryId, FamilyId } from "../config/taxonomy";
 
 const FAMILY_ID_SET = new Set<FamilyId>(FAMILY_IDS);
 const CATEGORY_ID_SET = new Set<CategoryId>(CATEGORY_IDS as CategoryId[]);
@@ -31,4 +31,3 @@ export const resolveTaxonomyFilter = (familyId?: string | null, categoryId?: str
 
     return { resolvedFamily, resolvedCategory };
 };
-

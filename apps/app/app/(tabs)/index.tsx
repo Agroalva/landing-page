@@ -3,7 +3,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
   Linking,
   NativeScrollEvent,
@@ -23,9 +22,13 @@ import { useEffect, useMemo, useState } from "react";
 type TopLevelIntent = "products" | "services";
 
 type DiscoveryCardDefinition = {
-  id: TopLevelIntent;
+  id: string;
+  topLevel: TopLevelIntent;
   title: string;
-  subtitle: React.ReactNode;
+  subtitle: {
+    bold?: string;
+    text: string;
+  };
   caption: string;
   icon: keyof typeof Ionicons.glyphMap;
   accent: string;
@@ -35,13 +38,11 @@ type DiscoveryCardDefinition = {
 const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
   {
     id: "products",
-    title: "Productos",
-    subtitle: (
-      <span>
-        <strong>Compra y venta</strong> de maquinaria, vehículos, repuestos y
-        más.
-      </span>
-    ),
+    topLevel: "products",
+    title: "Compra y Venta",
+    subtitle: {
+      text: "Maquinaria, vehículos, repuestos y más.",
+    },
     caption: "Explorar artículos disponibles",
     icon: "cube-outline",
     accent: "#1B5E20",
@@ -49,18 +50,33 @@ const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
   },
   {
     id: "services",
+    topLevel: "services",
     title: "Servicios",
-    subtitle: "Contrata maquinaria, personal, transporte y campo.",
+    subtitle: {
+      text: "Contrata maquinaria, transporte y campo.",
+    },
     caption: "Buscar prestadores activos",
     icon: "construct-outline",
     accent: "#0D47A1",
     surface: "#E3F2FD",
   },
+  {
+    id: "personal",
+    topLevel: "services",
+    title: "Personal",
+    subtitle: {
+      text: "Empleo, oficios y búsqueda de personal.",
+    },
+    caption: "Explorar empleo y oficios",
+    icon: "people-outline",
+    accent: "#8E24AA",
+    surface: "#F3E5F5",
+  },
 ];
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuthSession();
+  const { isAuthenticated } = useAuthSession();
   const { width } = useWindowDimensions();
   const bannerWidth = Math.max(width - 40, 1);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
@@ -82,10 +98,22 @@ export default function HomeScreen() {
     );
   }, [visibleBanners.length]);
 
-  const navigateToBrowse = (topLevel: TopLevelIntent) => {
+  const navigateToBrowse = (card: DiscoveryCardDefinition) => {
+    if (card.id === "personal") {
+      router.push({
+        pathname: "/(tabs)/search",
+        params: {
+          topLevel: "services",
+          familyId: "personal",
+          categoryId: "personal_services",
+        },
+      });
+      return;
+    }
+
     router.push({
       pathname: "/(tabs)/search",
-      params: { topLevel },
+      params: { topLevel: card.topLevel },
     });
   };
 
@@ -119,18 +147,17 @@ export default function HomeScreen() {
     setActiveBannerIndex(nextIndex);
   };
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <ExpoImage
+          source={require("../../assets/images/android-icon-monochrome.png")}
+          style={styles.backgroundWatermark}
+          contentFit="contain"
+          tintColor="rgba(27, 94, 32, 0.15)"
+        />
+      </View>
+
       <View style={styles.header}>
         <View style={styles.logoContainer}>
           <ExpoImage
@@ -259,7 +286,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             key={card.id}
             style={[styles.discoveryCard, { backgroundColor: card.surface }]}
-            onPress={() => navigateToBrowse(card.id)}
+            onPress={() => navigateToBrowse(card)}
             activeOpacity={0.88}
           >
             <ExpoImage
@@ -283,7 +310,14 @@ export default function HomeScreen() {
                 </Text>
               </View>
               <Text style={styles.discoveryTitle}>{card.title}</Text>
-              <Text style={styles.discoverySubtitle}>{card.subtitle}</Text>
+              <Text style={styles.discoverySubtitle}>
+                {card.subtitle.bold ? (
+                  <Text style={styles.discoverySubtitleBold}>
+                    {card.subtitle.bold}
+                  </Text>
+                ) : null}
+                {card.subtitle.text}
+              </Text>
             </View>
             <View
               style={[styles.discoveryArrowWrap, { borderColor: card.accent }]}
@@ -321,6 +355,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F4F1EA",
+  },
+  backgroundWatermark: {
+    position: "absolute",
+    width: "150%",
+    height: "150%",
+    top: "-20%",
+    left: "-25%",
+    opacity: 0.8,
+    transform: [{ rotate: "-15deg" }],
   },
   loadingContainer: {
     flex: 1,
@@ -425,8 +468,8 @@ const styles = StyleSheet.create({
   },
   discoveryCard: {
     borderRadius: 28,
-    padding: 20,
-    minHeight: 154,
+    padding: 14,
+    minHeight: 112,
     overflow: "hidden",
     position: "relative",
     borderWidth: 1,
@@ -442,7 +485,7 @@ const styles = StyleSheet.create({
   },
   discoveryContent: {
     flex: 1,
-    gap: 10,
+    gap: 6,
     justifyContent: "space-between",
   },
   discoveryIconRow: {
@@ -452,9 +495,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   discoveryIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -466,23 +509,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   discoveryTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
     color: "#1F1A14",
   },
   discoverySubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 16,
     color: "#4D4336",
     maxWidth: "84%",
   },
+  discoverySubtitleBold: {
+    fontWeight: "800",
+    color: "#1F1A14",
+  },
   discoveryArrowWrap: {
     alignSelf: "flex-start",
-    marginTop: 12,
+    marginTop: 6,
     borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     backgroundColor: "rgba(255, 255, 255, 0.55)",
   },
   bannerSection: {

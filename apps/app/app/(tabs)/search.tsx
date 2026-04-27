@@ -20,11 +20,13 @@ import {
   CategoryId,
   FamilyId,
   getFamilies,
-} from "../config/taxonomy";
+} from "../../config/taxonomy";
 import { ListingCard } from "../../components/ListingCard";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
 const MAX_RECENT_SEARCHES = 10;
+const PERSONAL_FAMILY_ID = "personal" as const satisfies FamilyId;
+const PERSONAL_CATEGORY_ID = "personal_services" as const satisfies CategoryId;
 
 type TopLevelIntent = "all" | "products" | "services";
 
@@ -42,7 +44,7 @@ const TOP_LEVEL_OPTIONS: {
   },
   {
     id: "products",
-    label: "Productos",
+    label: "Compra y Venta",
     icon: "cube-outline",
     accent: "#1B5E20",
   },
@@ -70,6 +72,14 @@ const parseTopLevelIntent = (value?: string): TopLevelIntent => {
   return "all";
 };
 
+const normalizeTopLevelIntent = (value?: string): TopLevelIntent => {
+  if (value === "personal") {
+    return "services";
+  }
+
+  return parseTopLevelIntent(value);
+};
+
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -86,7 +96,7 @@ export default function SearchScreen() {
   const { isAuthenticated } = useAuthSession();
   const families = useMemo(() => getFamilies(), []);
   const [selectedTopLevel, setSelectedTopLevel] = useState<TopLevelIntent>(
-    parseTopLevelIntent(paramTopLevel),
+    normalizeTopLevelIntent(paramTopLevel),
   );
   const [selectedFamilyId, setSelectedFamilyId] = useState<FamilyId | "all">(
     paramFamilyId ? (paramFamilyId as FamilyId) : "all",
@@ -106,6 +116,7 @@ export default function SearchScreen() {
   const selectedCategory = selectedCategoryId
     ? availableCategories.find((category) => category.id === selectedCategoryId) ?? null
     : null;
+  const isLegacyPersonalRoute = paramTopLevel === "personal";
 
   const derivedListingType = selectedTopLevel === "products"
     ? "sell"
@@ -116,16 +127,21 @@ export default function SearchScreen() {
   const isBrowseMode = !hasSearchTerm && selectedTopLevel !== "all";
 
   useEffect(() => {
-    const nextTopLevel = parseTopLevelIntent(paramTopLevel);
+    const nextTopLevel = normalizeTopLevelIntent(paramTopLevel);
     setSelectedTopLevel(nextTopLevel);
 
-    if (paramFamilyId) {
+    if (isLegacyPersonalRoute) {
+      setSelectedFamilyId(PERSONAL_FAMILY_ID);
+      setSelectedCategoryId(PERSONAL_CATEGORY_ID);
+    } else if (paramFamilyId) {
       setSelectedFamilyId(paramFamilyId as FamilyId);
     } else {
       setSelectedFamilyId("all");
     }
 
-    if (paramCategoryId) {
+    if (isLegacyPersonalRoute) {
+      setSelectedCategoryId(PERSONAL_CATEGORY_ID);
+    } else if (paramCategoryId) {
       const categoryId = paramCategoryId as CategoryId;
       setSelectedCategoryId(categoryId);
 
@@ -143,7 +159,14 @@ export default function SearchScreen() {
     }
 
     setSearchQuery(paramQuery ?? "");
-  }, [families, paramCategoryId, paramFamilyId, paramQuery, paramTopLevel]);
+  }, [
+    families,
+    isLegacyPersonalRoute,
+    paramCategoryId,
+    paramFamilyId,
+    paramQuery,
+    paramTopLevel,
+  ]);
 
   useEffect(() => {
     loadRecentSearches();
@@ -303,7 +326,7 @@ export default function SearchScreen() {
               : "Buscar productos, marcas o servicios"
           }
           placeholderTextColor="#9E9E9E"
-          autoFocus={parseTopLevelIntent(paramTopLevel) === "all" && !paramQuery}
+          autoFocus={normalizeTopLevelIntent(paramTopLevel) === "all" && !paramQuery}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />

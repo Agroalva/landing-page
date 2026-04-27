@@ -21,8 +21,8 @@ import { ConvexImage } from "@/components/ConvexImage";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
 import { buildPublicProductUrl } from "../../utils/public-url";
-import { getCategoryById, getFamilyById } from "../config/taxonomy";
-import { CONDITION_OPTIONS } from "../config/options";
+import { getCategoryById, getFamilyById } from "../../config/taxonomy";
+import { CONDITION_OPTIONS } from "../../config/options";
 
 const { width } = Dimensions.get("window");
 

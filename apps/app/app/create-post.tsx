@@ -28,7 +28,7 @@ import {
   FamilyId,
   getCategoriesForFamily,
   getFamilies,
-} from "./config/taxonomy";
+} from "../config/taxonomy";
 
 export default function CreatePostScreen() {
   const router = useRouter();

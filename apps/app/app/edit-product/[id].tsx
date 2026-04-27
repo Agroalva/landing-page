@@ -29,7 +29,7 @@ import {
   getFamilies,
   getCategoriesForFamily,
   getFamilyForCategory,
-} from "../config/taxonomy";
+} from "../../config/taxonomy";
 
 export default function EditProductScreen() {
   const router = useRouter();
