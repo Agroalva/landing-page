@@ -16,6 +16,7 @@ import { router, Redirect } from "expo-router";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
+import { trackCompleteRegistration } from "@/lib/meta-events";
 
 export default function SignUpScreen() {
     const [name, setName] = useState("");
@@ -189,6 +190,7 @@ export default function SignUpScreen() {
             }
 
             setSignUpSuccess(true);
+            trackCompleteRegistration();
             // Session will update reactively, and useEffect will handle profile creation
         } catch (error: any) {
             const errorMessage = getErrorMessage(error);
@@ -616,4 +618,3 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
 });
-

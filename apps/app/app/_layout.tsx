@@ -6,6 +6,7 @@ import ConvexClientProvider from "../components/ConvexClientProvider";
 import { useNotifications } from "../hooks/use-notifications";
 import { useAuthSession } from "../hooks/use-session";
 import LoadingScreen from "../components/LoadingScreen";
+import { initializeMetaEvents } from "@/lib/meta-events";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -16,11 +17,20 @@ function NotificationInitializer() {
 }
 
 function AppContent() {
-  const { isLoading: isAuthLoading } = useAuthSession();
+  const { user, isLoading: isAuthLoading } = useAuthSession();
   const [appIsReady, setAppIsReady] = useState(false);
   const hasHiddenSplashRef = useRef(false);
 
   const isLoading = isAuthLoading;
+  const userId = user?.id || user?.userId || null;
+
+  useEffect(() => {
+    if (isAuthLoading || !appIsReady) {
+      return;
+    }
+
+    initializeMetaEvents(userId);
+  }, [appIsReady, isAuthLoading, userId]);
 
   const markAppReady = useCallback(async () => {
     if (hasHiddenSplashRef.current) {

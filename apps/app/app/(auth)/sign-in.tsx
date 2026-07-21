@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { authClient } from "@/lib/auth-client";
 import { router } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
+import { trackLogin } from "@/lib/meta-events";
 
 export default function SignInScreen() {
     const [email, setEmail] = useState("");
@@ -115,6 +116,7 @@ export default function SignInScreen() {
                 setAuthError(errorMessage);
                 return;
             }
+            trackLogin();
             // Session will update reactively, and useEffect will handle the redirect
         } catch (error: any) {
             const errorMessage = getErrorMessage(error);

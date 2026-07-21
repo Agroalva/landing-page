@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -19,16 +19,20 @@ import { useAuthSession } from "@/hooks/use-session";
 import {
   CategoryId,
   FamilyId,
+  getCategoryById,
   getFamilies,
 } from "../../config/taxonomy";
 import { ListingCard } from "../../components/ListingCard";
+import { trackSearch } from "@/lib/meta-events";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
 const MAX_RECENT_SEARCHES = 10;
 const PERSONAL_FAMILY_ID = "personal" as const satisfies FamilyId;
-const PERSONAL_CATEGORY_ID = "personal_services" as const satisfies CategoryId;
+const LEGACY_PERSONAL_CATEGORY_ID = "personal_services" as const satisfies CategoryId;
+const VEHICLES_FAMILY_ID = "vehicles" as const satisfies FamilyId;
 
-type TopLevelIntent = "all" | "products" | "services";
+type TopLevelIntent = "all" | "products" | "services" | "personal";
+type PrimaryTopLevelIntent = Exclude<TopLevelIntent, "all">;
 
 const TOP_LEVEL_OPTIONS: {
   id: TopLevelIntent;
@@ -43,6 +47,12 @@ const TOP_LEVEL_OPTIONS: {
     accent: "#6D4C41",
   },
   {
+    id: "personal",
+    label: "Personal",
+    icon: "people-outline",
+    accent: "#8E24AA",
+  },
+  {
     id: "products",
     label: "Compra y Venta",
     icon: "cube-outline",
@@ -55,6 +65,26 @@ const TOP_LEVEL_OPTIONS: {
     accent: "#0D47A1",
   },
 ];
+const PRIMARY_TOP_LEVEL_ORDER: PrimaryTopLevelIntent[] = [
+  "personal",
+  "services",
+  "products",
+];
+const ROTATED_PRIMARY_TOP_LEVEL_ORDER: Record<
+  PrimaryTopLevelIntent,
+  PrimaryTopLevelIntent[]
+> = {
+  personal: ["personal", "services", "products"],
+  services: ["services", "personal", "products"],
+  products: ["products", "services", "personal"],
+};
+const TOP_LEVEL_OPTION_BY_ID = TOP_LEVEL_OPTIONS.reduce(
+  (optionsById, option) => ({
+    ...optionsById,
+    [option.id]: option,
+  }),
+  {} as Record<TopLevelIntent, (typeof TOP_LEVEL_OPTIONS)[number]>,
+);
 
 const getParamValue = (value?: string | string[]) => {
   if (Array.isArray(value)) {
@@ -65,19 +95,63 @@ const getParamValue = (value?: string | string[]) => {
 };
 
 const parseTopLevelIntent = (value?: string): TopLevelIntent => {
-  if (value === "products" || value === "services") {
+  if (value === "products" || value === "services" || value === "personal") {
     return value;
   }
 
   return "all";
 };
 
-const normalizeTopLevelIntent = (value?: string): TopLevelIntent => {
-  if (value === "personal") {
-    return "services";
+const resolveTopLevelIntent = (topLevel?: string, familyId?: string): TopLevelIntent => {
+  if (topLevel === "personal" || familyId === PERSONAL_FAMILY_ID) {
+    return "personal";
   }
 
-  return parseTopLevelIntent(value);
+  return parseTopLevelIntent(topLevel);
+};
+
+const getOrderedTopLevelOptions = (selectedTopLevel: TopLevelIntent) => {
+  if (selectedTopLevel === "all") {
+    return [
+      TOP_LEVEL_OPTION_BY_ID.all,
+      ...PRIMARY_TOP_LEVEL_ORDER.map((id) => TOP_LEVEL_OPTION_BY_ID[id]),
+    ];
+  }
+
+  return [
+    ...ROTATED_PRIMARY_TOP_LEVEL_ORDER[selectedTopLevel].map(
+      (id) => TOP_LEVEL_OPTION_BY_ID[id],
+    ),
+    TOP_LEVEL_OPTION_BY_ID.all,
+  ];
+};
+
+const isFamilyVisibleForTopLevel = (familyId: FamilyId, topLevel: TopLevelIntent) => {
+  if (topLevel === "products") {
+    return familyId !== PERSONAL_FAMILY_ID;
+  }
+
+  if (topLevel === "services") {
+    return familyId !== VEHICLES_FAMILY_ID && familyId !== PERSONAL_FAMILY_ID;
+  }
+
+  if (topLevel === "personal") {
+    return familyId === PERSONAL_FAMILY_ID;
+  }
+
+  return true;
+};
+
+const getTopLevelResultLabel = (topLevel: TopLevelIntent) => {
+  if (topLevel === "personal") {
+    return "Personal";
+  }
+
+  if (topLevel === "services") {
+    return "Servicios";
+  }
+
+  return "Productos";
 };
 
 export default function SearchScreen() {
@@ -92,60 +166,78 @@ export default function SearchScreen() {
   const paramFamilyId = getParamValue(params.familyId);
   const paramCategoryId = getParamValue(params.categoryId);
   const paramQuery = getParamValue(params.query);
+  const initialTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
+  const initialCategoryId =
+    initialTopLevel === "personal" && paramCategoryId === LEGACY_PERSONAL_CATEGORY_ID
+      ? null
+      : paramCategoryId;
 
   const { isAuthenticated } = useAuthSession();
   const families = useMemo(() => getFamilies(), []);
   const [selectedTopLevel, setSelectedTopLevel] = useState<TopLevelIntent>(
-    normalizeTopLevelIntent(paramTopLevel),
+    initialTopLevel,
   );
   const [selectedFamilyId, setSelectedFamilyId] = useState<FamilyId | "all">(
-    paramFamilyId ? (paramFamilyId as FamilyId) : "all",
+    initialTopLevel === "personal"
+      ? PERSONAL_FAMILY_ID
+      : paramFamilyId
+        ? (paramFamilyId as FamilyId)
+        : "all",
   );
   const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(
-    paramCategoryId ? (paramCategoryId as CategoryId) : null,
+    initialCategoryId ? (initialCategoryId as CategoryId) : null,
   );
   const [searchQuery, setSearchQuery] = useState(paramQuery ?? "");
   const [debouncedQuery, setDebouncedQuery] = useState((paramQuery ?? "").trim());
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const lastTrackedSearchKeyRef = useRef<string | null>(null);
+  const orderedTopLevelOptions = useMemo(
+    () => getOrderedTopLevelOptions(selectedTopLevel),
+    [selectedTopLevel],
+  );
+  const visibleFamilies = useMemo(
+    () => families.filter((family) => isFamilyVisibleForTopLevel(family.id as FamilyId, selectedTopLevel)),
+    [families, selectedTopLevel],
+  );
 
   const selectedFamily = selectedFamilyId === "all"
     ? null
-    : families.find((family) => family.id === selectedFamilyId) ?? null;
-  const availableCategories = selectedFamily?.categories ?? [];
+    : visibleFamilies.find((family) => family.id === selectedFamilyId) ?? null;
+  const availableCategories = selectedFamily?.categories.filter((category) => !category.hidden) ?? [];
   const selectedCategory = selectedCategoryId
-    ? availableCategories.find((category) => category.id === selectedCategoryId) ?? null
+    ? availableCategories.find((category) => category.id === selectedCategoryId) ??
+      getCategoryById(selectedCategoryId) ??
+      null
     : null;
-  const isLegacyPersonalRoute = paramTopLevel === "personal";
 
   const derivedListingType = selectedTopLevel === "products"
     ? "sell"
-    : selectedTopLevel === "services"
+    : selectedTopLevel === "services" || selectedTopLevel === "personal"
       ? "rent"
       : undefined;
   const hasSearchTerm = debouncedQuery.length >= 3;
   const isBrowseMode = !hasSearchTerm && selectedTopLevel !== "all";
 
   useEffect(() => {
-    const nextTopLevel = normalizeTopLevelIntent(paramTopLevel);
+    const nextTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
     setSelectedTopLevel(nextTopLevel);
 
-    if (isLegacyPersonalRoute) {
+    if (nextTopLevel === "personal") {
       setSelectedFamilyId(PERSONAL_FAMILY_ID);
-      setSelectedCategoryId(PERSONAL_CATEGORY_ID);
     } else if (paramFamilyId) {
       setSelectedFamilyId(paramFamilyId as FamilyId);
     } else {
       setSelectedFamilyId("all");
     }
 
-    if (isLegacyPersonalRoute) {
-      setSelectedCategoryId(PERSONAL_CATEGORY_ID);
+    if (nextTopLevel === "personal" && paramCategoryId === LEGACY_PERSONAL_CATEGORY_ID) {
+      setSelectedCategoryId(null);
     } else if (paramCategoryId) {
       const categoryId = paramCategoryId as CategoryId;
       setSelectedCategoryId(categoryId);
 
-      if (!paramFamilyId) {
+      if (!paramFamilyId && nextTopLevel !== "personal") {
         const matchedFamily = families.find((family) =>
           family.categories.some((category) => category.id === categoryId),
         );
@@ -161,12 +253,30 @@ export default function SearchScreen() {
     setSearchQuery(paramQuery ?? "");
   }, [
     families,
-    isLegacyPersonalRoute,
     paramCategoryId,
     paramFamilyId,
     paramQuery,
     paramTopLevel,
   ]);
+
+  useEffect(() => {
+    if (selectedTopLevel === "personal") {
+      if (selectedFamilyId !== PERSONAL_FAMILY_ID) {
+        setSelectedFamilyId(PERSONAL_FAMILY_ID);
+        setSelectedCategoryId(null);
+      }
+
+      return;
+    }
+
+    if (
+      selectedFamilyId !== "all" &&
+      !visibleFamilies.some((family) => family.id === selectedFamilyId)
+    ) {
+      setSelectedFamilyId("all");
+      setSelectedCategoryId(null);
+    }
+  }, [selectedFamilyId, selectedTopLevel, visibleFamilies]);
 
   useEffect(() => {
     loadRecentSearches();
@@ -185,6 +295,31 @@ export default function SearchScreen() {
       saveRecentSearch(debouncedQuery);
     }
   }, [debouncedQuery]);
+
+  useEffect(() => {
+    if (debouncedQuery.length < 3) {
+      return;
+    }
+
+    const trackingKey = [
+      debouncedQuery.toLowerCase(),
+      selectedTopLevel,
+      selectedFamily?.id ?? "all",
+      selectedCategory?.id ?? "all",
+    ].join(":");
+
+    if (lastTrackedSearchKeyRef.current === trackingKey) {
+      return;
+    }
+
+    lastTrackedSearchKeyRef.current = trackingKey;
+    trackSearch({
+      query: debouncedQuery,
+      topLevel: selectedTopLevel,
+      familyId: selectedFamily?.id,
+      categoryId: selectedCategory?.id,
+    });
+  }, [debouncedQuery, selectedCategory?.id, selectedFamily?.id, selectedTopLevel]);
 
   const loadRecentSearches = async () => {
     try {
@@ -245,6 +380,8 @@ export default function SearchScreen() {
 
   const handleSelectTopLevel = (topLevel: TopLevelIntent) => {
     setSelectedTopLevel(topLevel);
+    setSelectedFamilyId(topLevel === "personal" ? PERSONAL_FAMILY_ID : "all");
+    setSelectedCategoryId(null);
   };
 
   const handleSelectFamily = (familyId: FamilyId | "all") => {
@@ -300,9 +437,12 @@ export default function SearchScreen() {
     ? selectedCategory.label
     : selectedFamily
       ? selectedFamily.label
-      : selectedTopLevel === "services"
+      : selectedTopLevel === "personal"
+        ? "Personal disponible"
+        : selectedTopLevel === "services"
         ? "Servicios disponibles"
         : "Productos disponibles";
+  const selectedTopLevelLabel = getTopLevelResultLabel(selectedTopLevel);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -321,12 +461,14 @@ export default function SearchScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder={
-            selectedTopLevel === "services"
-              ? "Buscar servicios dentro de la categoría elegida"
-              : "Buscar productos, marcas o servicios"
+            selectedTopLevel === "personal"
+              ? "Buscar personal, oficios o empleo"
+              : selectedTopLevel === "services"
+                ? "Buscar servicios dentro de la categoría elegida"
+                : "Buscar productos, marcas o servicios"
           }
           placeholderTextColor="#9E9E9E"
-          autoFocus={normalizeTopLevelIntent(paramTopLevel) === "all" && !paramQuery}
+          autoFocus={initialTopLevel === "all" && !paramQuery}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -343,7 +485,7 @@ export default function SearchScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.chipsRow}
           >
-            {TOP_LEVEL_OPTIONS.map((option) => {
+            {orderedTopLevelOptions.map((option) => {
               const isActive = selectedTopLevel === option.id;
 
               return (
@@ -405,7 +547,7 @@ export default function SearchScreen() {
             ) : (
               <View style={styles.emptyState}>
                 <Ionicons name="search-outline" size={40} color="#C6BDAE" />
-                <Text style={styles.emptyTitle}>Elige Productos o Servicios para empezar</Text>
+                <Text style={styles.emptyTitle}>Elige Personal, Servicios o Compra y Venta</Text>
                 <Text style={styles.emptyBody}>
                   Usa el buscador o toca un chip para entrar directo al recorrido correcto.
                 </Text>
@@ -423,26 +565,28 @@ export default function SearchScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chipsRow}
               >
-                <TouchableOpacity
-                  style={[styles.filterChip, selectedFamilyId === "all" && styles.filterChipActive]}
-                  onPress={() => handleSelectFamily("all")}
-                >
-                  <Ionicons
-                    name="apps"
-                    size={16}
-                    color={selectedFamilyId === "all" ? "#FFFFFF" : "#1B5E20"}
-                  />
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      selectedFamilyId === "all" && styles.filterChipTextActive,
-                    ]}
+                {selectedTopLevel !== "personal" && (
+                  <TouchableOpacity
+                    style={[styles.filterChip, selectedFamilyId === "all" && styles.filterChipActive]}
+                    onPress={() => handleSelectFamily("all")}
                   >
-                    Todas las familias
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons
+                      name="apps"
+                      size={16}
+                      color={selectedFamilyId === "all" ? "#FFFFFF" : "#1B5E20"}
+                    />
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selectedFamilyId === "all" && styles.filterChipTextActive,
+                      ]}
+                    >
+                      Todas las familias
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
-                {families.map((family) => {
+                {visibleFamilies.map((family) => {
                   const isActive = selectedFamilyId === family.id;
 
                   return (
@@ -535,14 +679,14 @@ export default function SearchScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{browseTitle}</Text>
-              <Text style={styles.sectionBadge}>
-                {selectedTopLevel === "services" ? "Servicios" : "Productos"}
-              </Text>
+              <Text style={styles.sectionBadge}>{selectedTopLevelLabel}</Text>
             </View>
 
             <Text style={styles.sectionDescription}>
-              {selectedTopLevel === "services"
-                ? "Resultados recientes de servicios dentro del filtro actual."
+              {selectedTopLevel === "personal"
+                ? "Resultados recientes de personal dentro del filtro actual."
+                : selectedTopLevel === "services"
+                  ? "Resultados recientes de servicios dentro del filtro actual."
                 : "Resultados recientes de productos físicos dentro del filtro actual."}
             </Text>
 
@@ -612,9 +756,7 @@ export default function SearchScreen() {
 
                 {selectedTopLevel !== "all" && searchProducts.length > 0 && (
                   <>
-                    <Text style={styles.sectionTitle}>
-                      {selectedTopLevel === "services" ? "Servicios" : "Productos"}
-                    </Text>
+                    <Text style={styles.sectionTitle}>{selectedTopLevelLabel}</Text>
                     <View style={styles.productsContainer}>
                       {searchProducts.map((product) => (
                         <ListingCard

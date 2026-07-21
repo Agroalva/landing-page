@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgroAlva",
     "slug": "agroalva",
-    "version": "1.1.13",
+    "version": "1.1.22",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -15,7 +15,7 @@
         "applinks:agroalva.com.ar",
         "applinks:www.agroalva.com.ar"
       ],
-      "buildNumber": "31",
+      "buildNumber": "40",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -29,10 +29,11 @@
       },
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
-      "versionCode": 31,
+      "versionCode": 40,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "com.google.android.gms.permission.AD_ID"
       ],
       "intentFilters": [
         {
@@ -64,6 +65,19 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "3673329649472547",
+          "clientToken": "eacdd29d99a0d0a2dce70bfcf9226151",
+          "displayName": "AgroAlva",
+          "scheme": "fb3673329649472547",
+          "isAutoInitEnabled": false,
+          "autoLogAppEventsEnabled": true,
+          "advertiserIDCollectionEnabled": true,
+          "iosUserTrackingPermission": "AgroAlva usa este permiso para medir el rendimiento de anuncios y mejorar la experiencia."
+        }
+      ],
       [
         "expo-splash-screen",
         {

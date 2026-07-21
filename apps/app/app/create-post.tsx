@@ -29,6 +29,7 @@ import {
   getCategoriesForFamily,
   getFamilies,
 } from "../config/taxonomy";
+import { trackCreatePost } from "@/lib/meta-events";
 
 export default function CreatePostScreen() {
   const router = useRouter();
@@ -59,6 +60,19 @@ export default function CreatePostScreen() {
     useState<Location.PermissionStatus | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
   const hasWhatsappNumber = !!profile?.phoneNumber?.trim();
+  const visibleFamilies = useMemo(
+    () =>
+      families.filter((family) => {
+        if (family.id === "personal" && type === "sell") {
+          return false;
+        }
+        if (family.id === "vehicles" && type === "rent") {
+          return false;
+        }
+        return true;
+      }),
+    [families, type],
+  );
 
   const handleSelectFamily = (nextFamilyId: FamilyId) => {
     setFamilyId(nextFamilyId);
@@ -103,6 +117,60 @@ export default function CreatePostScreen() {
     });
   };
 
+  const shouldUseAttribute = (attribute: AttributeDefinition) => {
+    if (attribute.id === "condition" && type === "rent") {
+      return false;
+    }
+    if (attribute.id === "year" && type === "rent") {
+      return false;
+    }
+
+    return true;
+  };
+
+  const isAttributeRequired = (attribute: AttributeDefinition) =>
+    shouldUseAttribute(attribute) && attribute.required === true;
+
+  const hasAttributeValue = (attribute: AttributeDefinition) => {
+    const rawValue = attributeValues[attribute.id];
+    if (rawValue === undefined || rawValue === null) {
+      return false;
+    }
+
+    switch (attribute.type) {
+      case "select":
+      case "text":
+        return typeof rawValue === "string" && rawValue.trim().length > 0;
+      case "multiselect":
+        return Array.isArray(rawValue) && rawValue.length > 0;
+      case "number": {
+        const numericValue =
+          typeof rawValue === "number" ? rawValue : parseFloat(rawValue);
+        return !Number.isNaN(numericValue);
+      }
+      case "numberRange": {
+        const rangeValue = rawValue as { min?: string; max?: string };
+        const parsedMin =
+          rangeValue?.min && rangeValue.min !== "" ? parseFloat(rangeValue.min) : undefined;
+        const parsedMax =
+          rangeValue?.max && rangeValue.max !== "" ? parseFloat(rangeValue.max) : undefined;
+        return (
+          (parsedMin !== undefined && !Number.isNaN(parsedMin)) ||
+          (parsedMax !== undefined && !Number.isNaN(parsedMax))
+        );
+      }
+      case "boolean":
+        return typeof rawValue === "boolean";
+      default:
+        return false;
+    }
+  };
+
+  const getMissingRequiredAttribute = () =>
+    selectedCategory?.attributes.find(
+      (attribute) => isAttributeRequired(attribute) && !hasAttributeValue(attribute),
+    ) ?? null;
+
   const buildAttributesPayload = (): AttributeValueMap | undefined => {
     if (!selectedCategory) {
       return undefined;
@@ -111,12 +179,7 @@ export default function CreatePostScreen() {
     const payload: AttributeValueMap = {};
 
     selectedCategory.attributes.forEach((attribute) => {
-      // Skip condition attribute for services (type === "rent")
-      if (attribute.id === "condition" && type === "rent") {
-        return;
-      }
-      // Skip year attribute for services (type === "rent")
-      if (attribute.id === "year" && type === "rent") {
+      if (!shouldUseAttribute(attribute)) {
         return;
       }
 
@@ -179,19 +242,14 @@ export default function CreatePostScreen() {
   };
 
   const renderAttributeField = (attribute: AttributeDefinition) => {
-    // Hide condition field for services (type === "rent")
-    if (attribute.id === "condition" && type === "rent") {
-      return null;
-    }
-    // Hide year field for services (type === "rent")
-    if (attribute.id === "year" && type === "rent") {
+    if (!shouldUseAttribute(attribute)) {
       return null;
     }
 
     const labelContent = (
       <Text style={styles.label}>
         {attribute.label}
-        {attribute.required && type === "sell" && <Text style={styles.required}>*</Text>}
+        {isAttributeRequired(attribute) && <Text style={styles.required}>*</Text>}
       </Text>
     );
 
@@ -367,8 +425,8 @@ export default function CreatePostScreen() {
   };
 
   const selectedFamily = useMemo(() => {
-    return families.find((family) => family.id === familyId) ?? families[0];
-  }, [families, familyId]);
+    return visibleFamilies.find((family) => family.id === familyId) ?? visibleFamilies[0];
+  }, [visibleFamilies, familyId]);
 
   const availableCategories = useMemo(() => {
     return selectedFamily ? getCategoriesForFamily(selectedFamily.id as FamilyId) : [];
@@ -386,6 +444,14 @@ export default function CreatePostScreen() {
       setCategoryId(availableCategories[0].id);
     }
   }, [availableCategories, categoryId]);
+
+  useEffect(() => {
+    if (!visibleFamilies.some((family) => family.id === familyId)) {
+      setFamilyId(visibleFamilies[0]?.id as FamilyId);
+      setCategoryId(null);
+      setAttributeValues({});
+    }
+  }, [familyId, visibleFamilies]);
 
   // Currency options with symbols
   const currencies = [
@@ -510,6 +576,12 @@ export default function CreatePostScreen() {
       return;
     }
 
+    const missingRequiredAttribute = getMissingRequiredAttribute();
+    if (missingRequiredAttribute) {
+      Alert.alert("Error", `Completa el campo ${missingRequiredAttribute.label}`);
+      return;
+    }
+
     if (mediaIds.length === 0) {
       Alert.alert("Foto de portada requerida", "Agrega al menos una foto para publicar.");
       return;
@@ -519,7 +591,7 @@ export default function CreatePostScreen() {
 
     setLoading(true);
     try {
-      await createProduct({ 
+      const productId = await createProduct({
         name: name.trim(),
         description: description.trim() || undefined,
         type: type,
@@ -537,6 +609,17 @@ export default function CreatePostScreen() {
           address: productLocation.address,
           label: productLocation.label,
         } : undefined,
+      });
+      trackCreatePost({
+        productId,
+        type,
+        familyId: selectedFamily.id,
+        categoryId: selectedCategory.id,
+        hasPrice: !!price,
+        hasLocation: !!productLocation,
+        mediaCount: mediaIds.length,
+        price: price ? parseFloat(price) : undefined,
+        currency: price ? currency : undefined,
       });
       router.back();
     } catch (error: any) {
@@ -734,14 +817,7 @@ export default function CreatePostScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {families
-              .filter((family) => {
-                // Hide "Personal" family for sell posts (only show for services/rent)
-                if (family.id === "personal" && type === "sell") {
-                  return false;
-                }
-                return true;
-              })
+            {visibleFamilies
               .map((family) => {
                 const isSelected = selectedFamily?.id === family.id;
                 return (

@@ -28,6 +28,7 @@ import {
   FamilyId,
   getFamilies,
   getCategoriesForFamily,
+  getCategoryById,
   getFamilyForCategory,
 } from "../../config/taxonomy";
 
@@ -65,10 +66,23 @@ export default function EditProductScreen() {
   const [familyId, setFamilyId] = useState<FamilyId>(DEFAULT_FAMILY_ID);
   const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
   const [attributeValues, setAttributeValues] = useState<Record<string, any>>({});
+  const visibleFamilies = useMemo(
+    () =>
+      families.filter((family) => {
+        if (family.id === "personal" && type === "sell") {
+          return false;
+        }
+        if (family.id === "vehicles" && type === "rent") {
+          return false;
+        }
+        return true;
+      }),
+    [families, type],
+  );
 
   const selectedFamily = useMemo(() => {
-    return families.find((family) => family.id === familyId) ?? families[0];
-  }, [families, familyId]);
+    return visibleFamilies.find((family) => family.id === familyId) ?? visibleFamilies[0];
+  }, [visibleFamilies, familyId]);
 
   const availableCategories = useMemo(() => {
     return selectedFamily ? getCategoriesForFamily(selectedFamily.id as FamilyId) : [];
@@ -78,7 +92,9 @@ export default function EditProductScreen() {
     if (!categoryId) {
       return availableCategories[0] ?? null;
     }
-    return availableCategories.find((category) => category.id === categoryId) ?? null;
+    return availableCategories.find((category) => category.id === categoryId) ??
+      getCategoryById(categoryId) ??
+      null;
   }, [availableCategories, categoryId]);
 
   useEffect(() => {
@@ -86,6 +102,14 @@ export default function EditProductScreen() {
       setCategoryId(availableCategories[0].id);
     }
   }, [availableCategories, categoryId]);
+
+  useEffect(() => {
+    if (!visibleFamilies.some((family) => family.id === familyId)) {
+      setFamilyId(visibleFamilies[0]?.id as FamilyId);
+      setCategoryId(null);
+      setAttributeValues({});
+    }
+  }, [familyId, visibleFamilies]);
 
   const handleSelectFamily = (nextFamilyId: FamilyId) => {
     setFamilyId(nextFamilyId);
@@ -130,6 +154,60 @@ export default function EditProductScreen() {
     });
   };
 
+  const shouldUseAttribute = (attribute: AttributeDefinition) => {
+    if (attribute.id === "condition" && type === "rent") {
+      return false;
+    }
+    if (attribute.id === "year" && type === "rent") {
+      return false;
+    }
+
+    return true;
+  };
+
+  const isAttributeRequired = (attribute: AttributeDefinition) =>
+    shouldUseAttribute(attribute) && attribute.required === true;
+
+  const hasAttributeValue = (attribute: AttributeDefinition) => {
+    const rawValue = attributeValues[attribute.id];
+    if (rawValue === undefined || rawValue === null) {
+      return false;
+    }
+
+    switch (attribute.type) {
+      case "select":
+      case "text":
+        return typeof rawValue === "string" && rawValue.trim().length > 0;
+      case "multiselect":
+        return Array.isArray(rawValue) && rawValue.length > 0;
+      case "number": {
+        const numericValue =
+          typeof rawValue === "number" ? rawValue : parseFloat(rawValue);
+        return !Number.isNaN(numericValue);
+      }
+      case "numberRange": {
+        const rangeValue = rawValue as { min?: string; max?: string };
+        const parsedMin =
+          rangeValue?.min && rangeValue.min !== "" ? parseFloat(rangeValue.min) : undefined;
+        const parsedMax =
+          rangeValue?.max && rangeValue.max !== "" ? parseFloat(rangeValue.max) : undefined;
+        return (
+          (parsedMin !== undefined && !Number.isNaN(parsedMin)) ||
+          (parsedMax !== undefined && !Number.isNaN(parsedMax))
+        );
+      }
+      case "boolean":
+        return typeof rawValue === "boolean";
+      default:
+        return false;
+    }
+  };
+
+  const getMissingRequiredAttribute = () =>
+    selectedCategory?.attributes.find(
+      (attribute) => isAttributeRequired(attribute) && !hasAttributeValue(attribute),
+    ) ?? null;
+
   const convertAttributesToForm = (attributes?: AttributeValueMap | null) => {
     if (!attributes) {
       return {};
@@ -160,12 +238,7 @@ export default function EditProductScreen() {
     const payload: AttributeValueMap = {};
 
     selectedCategory.attributes.forEach((attribute) => {
-      // Skip condition attribute for services (type === "rent")
-      if (attribute.id === "condition" && type === "rent") {
-        return;
-      }
-      // Skip year attribute for services (type === "rent")
-      if (attribute.id === "year" && type === "rent") {
+      if (!shouldUseAttribute(attribute)) {
         return;
       }
 
@@ -228,19 +301,14 @@ export default function EditProductScreen() {
   };
 
   const renderAttributeField = (attribute: AttributeDefinition) => {
-    // Hide condition field for services (type === "rent")
-    if (attribute.id === "condition" && type === "rent") {
-      return null;
-    }
-    // Hide year field for services (type === "rent")
-    if (attribute.id === "year" && type === "rent") {
+    if (!shouldUseAttribute(attribute)) {
       return null;
     }
 
     const labelContent = (
       <Text style={styles.label}>
         {attribute.label}
-        {attribute.required && type === "sell" && <Text style={styles.required}>*</Text>}
+        {isAttributeRequired(attribute) && <Text style={styles.required}>*</Text>}
       </Text>
     );
 
@@ -578,6 +646,12 @@ export default function EditProductScreen() {
       return;
     }
 
+    const missingRequiredAttribute = getMissingRequiredAttribute();
+    if (missingRequiredAttribute) {
+      Alert.alert("Error", `Completa el campo ${missingRequiredAttribute.label}`);
+      return;
+    }
+
     if (mediaIds.length === 0) {
       Alert.alert("Foto de portada requerida", "Debes mantener al menos una foto en la publicación.");
       return;
@@ -815,14 +889,7 @@ export default function EditProductScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {families
-              .filter((family) => {
-                // Hide "Personal" family for sell posts (only show for services/rent)
-                if (family.id === "personal" && type === "sell") {
-                  return false;
-                }
-                return true;
-              })
+            {visibleFamilies
               .map((family) => {
                 const isSelected = selectedFamily?.id === family.id;
                 return (

@@ -103,9 +103,7 @@ export default function HomeScreen() {
       router.push({
         pathname: "/(tabs)/search",
         params: {
-          topLevel: "services",
-          familyId: "personal",
-          categoryId: "personal_services",
+          topLevel: "personal",
         },
       });
       return;

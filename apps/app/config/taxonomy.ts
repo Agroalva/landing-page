@@ -82,6 +82,7 @@ export interface CategoryDefinition {
   icon: string;
   color: string;
   description?: string;
+  hidden?: boolean;
   attributes: AttributeDefinition[];
 }
 
@@ -128,6 +129,23 @@ const commonMachineryAttributes: AttributeDefinition[] = [
     placeholder: "Ej: Buenos Aires",
   },
 ];
+
+const commonPersonalAttributes: AttributeDefinition[] = [
+  {
+    id: "province",
+    label: "Provincia",
+    type: "text",
+    placeholder: "Ej: Buenos Aires",
+  },
+];
+
+const personalDetailAttribute: AttributeDefinition = {
+  id: "specialty",
+  label: "Especialidad",
+  type: "text",
+  required: true,
+  placeholder: "Ej: Electricista, agrónomo, contador",
+};
 
 export const TAXONOMY = [
   {
@@ -1271,10 +1289,97 @@ export const TAXONOMY = [
     description: "Búsqueda de empleo y servicios personales",
     categories: [
       {
+        id: "personal_maquinista",
+        label: "Maquinista",
+        icon: "person-outline",
+        color: "#7B1FA2",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_camionero",
+        label: "Camionero",
+        icon: "bus-outline",
+        color: "#6A1B9A",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_tractorista",
+        label: "Tractorista",
+        icon: "leaf-outline",
+        color: "#5E35B1",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_peon_rural",
+        label: "Peón rural",
+        icon: "walk-outline",
+        color: "#512DA8",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_puestero",
+        label: "Puestero",
+        icon: "home-outline",
+        color: "#4527A0",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_ingeniero",
+        label: "Ingeniero",
+        icon: "school-outline",
+        color: "#3949AB",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_veterinario",
+        label: "Veterinario",
+        icon: "medkit-outline",
+        color: "#303F9F",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_tecnico",
+        label: "Técnico",
+        icon: "construct-outline",
+        color: "#283593",
+        attributes: [
+          ...commonPersonalAttributes,
+          personalDetailAttribute,
+        ],
+      },
+      {
+        id: "personal_administrativo",
+        label: "Administrativo",
+        icon: "briefcase-outline",
+        color: "#1A237E",
+        attributes: commonPersonalAttributes,
+      },
+      {
+        id: "personal_licenciado",
+        label: "Licenciado",
+        icon: "ribbon-outline",
+        color: "#1565C0",
+        attributes: [
+          ...commonPersonalAttributes,
+          personalDetailAttribute,
+        ],
+      },
+      {
+        id: "personal_otros",
+        label: "Otros",
+        icon: "ellipsis-horizontal-outline",
+        color: "#0277BD",
+        attributes: [
+          ...commonPersonalAttributes,
+          personalDetailAttribute,
+        ],
+      },
+      {
         id: "personal_services",
         label: "Empleo y oficios",
         icon: "person",
         color: "#AB47BC",
+        hidden: true,
         attributes: [
           {
             id: "province",
@@ -1309,7 +1414,7 @@ export const getFamilyById = (familyId?: string | null): FamilyDefinition | unde
   TAXONOMY.find((family) => family.id === familyId);
 
 export const getCategoriesForFamily = (familyId: FamilyId): readonly CategoryDefinition[] =>
-  getFamilyById(familyId)?.categories ?? [];
+  getFamilyById(familyId)?.categories.filter((category) => !category.hidden) ?? [];
 
 export const getCategoryById = (categoryId?: string | null): CategoryDefinition | undefined => {
   for (const family of TAXONOMY) {

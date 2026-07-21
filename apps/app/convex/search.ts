@@ -28,7 +28,13 @@ export const querySearch = query({
     handler: async (ctx, args) => {
         const limit = args.limit || 20;
         const searchTerm = args.query.toLowerCase().trim();
-        const user = await authComponent.getAuthUser(ctx);
+        let user = null;
+        try {
+            user = await authComponent.getAuthUser(ctx);
+        } catch {
+            // Guest search is allowed; unauthenticated users receive public profile fields only.
+            user = null;
+        }
 
         // Require minimum 3 characters to avoid expensive queries
         if (!searchTerm || searchTerm.length < 3) {

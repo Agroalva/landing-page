@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,12 @@ import { formatPrice } from "../../utils/currency";
 import { buildPublicProductUrl } from "../../utils/public-url";
 import { getCategoryById, getFamilyById } from "../../config/taxonomy";
 import { CONDITION_OPTIONS } from "../../config/options";
+import {
+  trackAddToWishlist,
+  trackContactSeller,
+  trackShareProduct,
+  trackViewContent,
+} from "@/lib/meta-events";
 
 const { width } = Dimensions.get("window");
 
@@ -31,6 +37,7 @@ export default function ProductDetailScreen() {
   const params = useLocalSearchParams();
   const productId = params.id as Id<"products">;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const trackedProductViewRef = useRef<string | null>(null);
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuthSession();
 
   const product = useQuery(
@@ -81,16 +88,41 @@ export default function ProductDetailScreen() {
     }
   }, [productId, incrementViewCount]);
 
+  useEffect(() => {
+    if (!product || trackedProductViewRef.current === product._id) {
+      return;
+    }
+
+    trackedProductViewRef.current = product._id;
+    trackViewContent({
+      productId: product._id,
+      name: product.name,
+      type: product.type,
+      familyId: product.familyId,
+      categoryId: product.categoryId,
+      price: product.price,
+      currency: product.currency,
+    });
+  }, [product]);
+
   const handleToggleFavorite = async () => {
     if (!productId) return;
     try {
       await toggleFavorite({ productId });
+      if (!isFavorite && product) {
+        trackAddToWishlist({
+          productId: product._id,
+          type: product.type,
+          familyId: product.familyId,
+          categoryId: product.categoryId,
+        });
+      }
     } catch (error: any) {
       Alert.alert("Error", error?.message || "No se pudo actualizar el favorito");
     }
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     if (!product) {
       return;
     }
@@ -111,12 +143,25 @@ export default function ProductDetailScreen() {
     );
     const whatsappUrl = `https://wa.me/${formattedNumber}?text=${defaultMessage}`;
 
-    Linking.openURL(whatsappUrl).catch(() => {
+    try {
+      await Linking.openURL(whatsappUrl);
+      trackContactSeller({
+        method: "whatsapp",
+        productId: product._id,
+        type: product.type,
+        familyId: product.familyId,
+        categoryId: product.categoryId,
+      });
+    } catch {
       Alert.alert("Error", "No se pudo abrir WhatsApp");
-    });
+    }
   };
 
-  const handleCall = () => {
+  const handleCall = async () => {
+    if (!product) {
+      return;
+    }
+
     const phoneNumber = authorPhoneNumber;
     if (!phoneNumber) {
       Alert.alert(
@@ -127,9 +172,18 @@ export default function ProductDetailScreen() {
     }
 
     const phoneUrl = `tel:${phoneNumber}`;
-    Linking.openURL(phoneUrl).catch(() => {
+    try {
+      await Linking.openURL(phoneUrl);
+      trackContactSeller({
+        method: "call",
+        productId: product._id,
+        type: product.type,
+        familyId: product.familyId,
+        categoryId: product.categoryId,
+      });
+    } catch {
       Alert.alert("Error", "No se pudo realizar la llamada");
-    });
+    }
   };
 
   const handleMessage = async () => {
@@ -155,6 +209,13 @@ export default function ProductDetailScreen() {
       const conversationId = await ensureConversation({
         memberIds: [currentUserId, product.authorId],
       });
+      trackContactSeller({
+        method: "message",
+        productId: product._id,
+        type: product.type,
+        familyId: product.familyId,
+        categoryId: product.categoryId,
+      });
       
       // Navigate to chat with conversationId (replace modal)
       router.replace(`/chat/${conversationId}`);
@@ -174,6 +235,12 @@ export default function ProductDetailScreen() {
         message: shareMessage,
         title: product.name,
         url: productUrl,
+      });
+      trackShareProduct({
+        productId: product._id,
+        type: product.type,
+        familyId: product.familyId,
+        categoryId: product.categoryId,
       });
     } catch (error: any) {
       if (error.message !== "User did not share") {
