@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { ConvexClientProvider } from "@/components/convex-provider"
+import { SiteHeader } from "@/components/marketplace/site-header"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -48,7 +49,8 @@ export default function RootLayout({
     <html lang="es">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <ConvexClientProvider>
-          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+          <SiteHeader />
+          <Suspense fallback={<div className="min-h-screen bg-[#f7f6ef]" />}>{children}</Suspense>
         </ConvexClientProvider>
         <Analytics />
       </body>

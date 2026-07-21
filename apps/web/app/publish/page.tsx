@@ -1,0 +1,3 @@
+import { AuthGate } from "@/components/marketplace/auth-gate";
+import { ListingForm } from "@/components/marketplace/listing-form";
+export default function PublishPage() { return <AuthGate><main className="min-h-screen bg-[#f7f6ef]"><div className="mx-auto max-w-4xl px-4 py-12 sm:px-6"><p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Nueva publicación</p><h1 className="mt-2 text-4xl font-black tracking-tight">Publicá en Agroalva</h1><p className="mt-3 text-stone-600">La publicación aparecerá en la web y en la aplicación.</p><div className="mt-9"><ListingForm /></div></div></main></AuthGate>; }

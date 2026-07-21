@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function robots(): MetadataRoute.Robots { const base = process.env.NEXT_PUBLIC_SITE_URL || "https://www.agroalva.com.ar"; return { rules: { userAgent: "*", allow: ["/", "/marketplace", "/product/", "/profile/", "/help", "/terms", "/privacy"], disallow: ["/admin/", "/messages/", "/account/", "/notifications", "/favorites", "/my-listings", "/publish"] }, sitemap: `${base}/sitemap.xml` }; }

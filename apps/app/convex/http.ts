@@ -51,6 +51,37 @@ http.route({
 });
 
 http.route({
+    path: "/public/marketplace-product",
+    method: "GET",
+    handler: httpAction(async (ctx, request) => {
+        const { searchParams } = new URL(request.url);
+        const productId = searchParams.get("id")?.trim();
+
+        if (!productId) {
+            return Response.json({ error: "Missing product id" }, { status: 400 });
+        }
+
+        try {
+            const product = await ctx.runQuery(api.marketplace.getProduct, {
+                productId: productId as Id<"products">,
+            });
+            if (!product) {
+                return Response.json({ error: "Product not found" }, { status: 404 });
+            }
+            return Response.json(product, {
+                status: 200,
+                headers: {
+                    "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+                    "Content-Type": "application/json",
+                },
+            });
+        } catch {
+            return Response.json({ error: "Invalid product id" }, { status: 400 });
+        }
+    }),
+});
+
+http.route({
     path: "/public/storage-image",
     method: "GET",
     handler: httpAction(async (ctx, request) => {

@@ -132,10 +132,52 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#f7f6ef] text-foreground antialiased;
   }
   /* Added smooth scroll behavior for anchor navigation */
   html {
     scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .mobile-menu-link {
+    @apply flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-emerald-50 hover:text-emerald-900;
+  }
+
+  .filter-field {
+    @apply flex flex-col gap-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-2;
+  }
+
+  .filter-field > span {
+    @apply flex items-center gap-1 text-[0.68rem] font-black uppercase tracking-[0.14em] text-stone-500;
+  }
+
+  .filter-field select {
+    @apply min-h-7 bg-transparent text-sm font-semibold text-stone-900 outline-none disabled:text-stone-400;
+  }
+
+  .form-section {
+    @apply space-y-6 rounded-[2rem] border border-emerald-950/10 bg-white p-6 shadow-[0_12px_40px_rgba(32,58,41,0.05)] sm:p-8;
+  }
+
+  .form-kicker {
+    @apply text-xs font-black uppercase tracking-[0.18em] text-emerald-700;
+  }
+
+  .form-title {
+    @apply mt-1 text-2xl font-black tracking-tight text-stone-950;
+  }
+
+  .form-select {
+    @apply h-12 w-full rounded-xl border border-input bg-transparent px-3 text-sm font-semibold outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 disabled:bg-stone-100;
+  }
+
+  .legal-content {
+    @apply space-y-5 leading-8 text-stone-700;
+  }
+
+  .legal-content h2 {
+    @apply pt-4 text-2xl font-black tracking-tight text-stone-950;
   }
 }
