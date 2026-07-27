@@ -27,6 +27,14 @@ export const querySearch = query({
     },
     handler: async (ctx, args) => {
         const limit = args.limit || 20;
+        const productOffset = (() => {
+            if (!args.cursor) {
+                return 0;
+            }
+
+            const parsedOffset = Number.parseInt(args.cursor.split(/[:-]/)[0] ?? "", 10);
+            return Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
+        })();
         const searchTerm = args.query.toLowerCase().trim();
         let user = null;
         try {
@@ -84,15 +92,15 @@ export const querySearch = query({
 
         const recentProducts = await productQuery.take(100);
         
-        matchingProducts = recentProducts
+        const allMatchingProducts = recentProducts
             .filter(product => 
                 (args.listingType ? product.type === args.listingType : true) &&
                 (
                     product.name.toLowerCase().includes(searchTerm) ||
                     product.description?.toLowerCase().includes(searchTerm)
                 )
-            )
-            .slice(0, limit);
+            );
+        matchingProducts = allMatchingProducts.slice(productOffset, productOffset + limit);
 
         // Search profiles - limit fetch for performance
         const allProfiles = await ctx.db
@@ -106,9 +114,9 @@ export const querySearch = query({
             )
             .slice(0, limit);
 
-        // Simple pagination - return cursor for next page if needed
-        const hasMore = matchingProducts.length === limit || matchingProfiles.length === limit;
-        const nextCursor = hasMore ? `${matchingProducts.length}-${matchingProfiles.length}` : null;
+        const nextProductOffset = productOffset + matchingProducts.length;
+        const hasMore = nextProductOffset < allMatchingProducts.length;
+        const nextCursor = hasMore ? String(nextProductOffset) : null;
 
         return {
             products: matchingProducts,

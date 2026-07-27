@@ -11,8 +11,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "convex/react";
+import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Doc } from "../../convex/_generated/dataModel";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthSession } from "@/hooks/use-session";
@@ -154,6 +155,21 @@ const getTopLevelResultLabel = (topLevel: TopLevelIntent) => {
   return "Productos";
 };
 
+const mergeProducts = (
+  existingProducts: Doc<"products">[],
+  incomingProducts: Doc<"products">[],
+) => {
+  const productsById = new Map(
+    existingProducts.map((product) => [product._id, product]),
+  );
+
+  incomingProducts.forEach((product) => {
+    productsById.set(product._id, product);
+  });
+
+  return Array.from(productsById.values());
+};
+
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -191,6 +207,14 @@ export default function SearchScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState((paramQuery ?? "").trim());
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const [searchPagination, setSearchPagination] = useState<{
+    key: string;
+    cursor?: string;
+    products: Doc<"products">[];
+  }>({
+    key: "",
+    products: [],
+  });
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
   const orderedTopLevelOptions = useMemo(
     () => getOrderedTopLevelOptions(selectedTopLevel),
@@ -218,6 +242,12 @@ export default function SearchScreen() {
       : undefined;
   const hasSearchTerm = debouncedQuery.length >= 3;
   const isBrowseMode = !hasSearchTerm && selectedTopLevel !== "all";
+  const searchKey = [
+    debouncedQuery.toLowerCase(),
+    selectedTopLevel,
+    selectedFamily?.id ?? "all",
+    selectedCategory?.id ?? "all",
+  ].join(":");
 
   useEffect(() => {
     const nextTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
@@ -321,6 +351,13 @@ export default function SearchScreen() {
     });
   }, [debouncedQuery, selectedCategory?.id, selectedFamily?.id, selectedTopLevel]);
 
+  useEffect(() => {
+    setSearchPagination({
+      key: searchKey,
+      products: [],
+    });
+  }, [searchKey]);
+
   const loadRecentSearches = async () => {
     try {
       const stored = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
@@ -402,27 +439,82 @@ export default function SearchScreen() {
           categoryId: selectedCategory?.id,
           listingType: derivedListingType,
           limit: 20,
+          cursor:
+            searchPagination.key === searchKey
+              ? searchPagination.cursor
+              : undefined,
         }
       : "skip",
   );
 
-  const browseFeed = useQuery(
+  const {
+    results: browseProducts,
+    status: browseStatus,
+    loadMore: loadMoreBrowseProducts,
+  } = usePaginatedQuery(
     api.products.feed,
     isBrowseMode
       ? {
-          paginationOpts: {
-            numItems: 20,
-            cursor: null,
-          },
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
           listingType: derivedListingType,
         }
       : "skip",
+    {
+      initialNumItems: 20,
+    },
   );
 
-  const searchProducts = useMemo(() => searchResults?.products ?? [], [searchResults]);
-  const browseProducts = useMemo(() => browseFeed?.page ?? [], [browseFeed]);
+  useEffect(() => {
+    if (!searchResults) {
+      return;
+    }
+
+    setSearchPagination((currentPagination) => ({
+      key: searchKey,
+      cursor:
+        currentPagination.key === searchKey
+          ? currentPagination.cursor
+          : undefined,
+      products: mergeProducts(
+        currentPagination.key === searchKey
+          ? currentPagination.products
+          : [],
+        searchResults.products,
+      ),
+    }));
+  }, [searchKey, searchResults]);
+
+  const searchProducts = useMemo(
+    () =>
+      mergeProducts(
+        searchPagination.key === searchKey
+          ? searchPagination.products
+          : [],
+        searchResults?.products ?? [],
+      ),
+    [searchKey, searchPagination, searchResults],
+  );
+  const isLoadingFirstSearchPage =
+    searchResults === undefined && searchProducts.length === 0;
+  const isLoadingMoreSearchResults =
+    searchResults === undefined && searchProducts.length > 0;
+
+  const handleLoadMoreSearchResults = () => {
+    if (!searchResults?.hasMore || !searchResults.nextCursor) {
+      return;
+    }
+
+    setSearchPagination((currentPagination) => ({
+      key: searchKey,
+      cursor: searchResults.nextCursor ?? undefined,
+      products:
+        currentPagination.key === searchKey
+          ? currentPagination.products
+          : [],
+    }));
+  };
+
   const serviceResults = useMemo(
     () => searchProducts.filter((product) => product.type === "rent"),
     [searchProducts],
@@ -690,7 +782,7 @@ export default function SearchScreen() {
                 : "Resultados recientes de productos físicos dentro del filtro actual."}
             </Text>
 
-            {browseFeed === undefined ? (
+            {browseStatus === "LoadingFirstPage" ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#1B5E20" />
               </View>
@@ -703,6 +795,19 @@ export default function SearchScreen() {
                     variant={isAuthenticated ? "full" : "public"}
                   />
                 ))}
+                {browseStatus !== "Exhausted" && (
+                  <TouchableOpacity
+                    style={styles.loadMoreButton}
+                    onPress={() => loadMoreBrowseProducts(20)}
+                    disabled={browseStatus === "LoadingMore"}
+                  >
+                    {browseStatus === "LoadingMore" ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.loadMoreButtonText}>Cargar más</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <View style={styles.emptyState}>
@@ -718,7 +823,7 @@ export default function SearchScreen() {
 
         {hasSearchTerm && (
           <View style={styles.section}>
-            {searchResults === undefined ? (
+            {isLoadingFirstSearchPage ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#1B5E20" />
               </View>
@@ -769,10 +874,10 @@ export default function SearchScreen() {
                   </>
                 )}
 
-                {selectedTopLevel === "all" && isAuthenticated && searchResults.profiles.length > 0 && (
+                {selectedTopLevel === "all" && isAuthenticated && (searchResults?.profiles.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Perfiles</Text>
-                    {searchResults.profiles.map((profile) => (
+                    {searchResults?.profiles.map((profile) => (
                       <TouchableOpacity
                         key={profile._id}
                         style={styles.recentItem}
@@ -787,7 +892,7 @@ export default function SearchScreen() {
                 )}
 
                 {searchProducts.length === 0 &&
-                  (selectedTopLevel !== "all" || searchResults.profiles.length === 0) && (
+                  (selectedTopLevel !== "all" || (searchResults?.profiles.length ?? 0) === 0) && (
                     <View style={styles.emptyState}>
                       <Ionicons name="search-outline" size={40} color="#C6BDAE" />
                       <Text style={styles.emptyTitle}>No encontramos coincidencias</Text>
@@ -796,6 +901,20 @@ export default function SearchScreen() {
                       </Text>
                     </View>
                   )}
+
+                {(isLoadingMoreSearchResults || searchResults?.hasMore) && (
+                  <TouchableOpacity
+                    style={styles.loadMoreButton}
+                    onPress={handleLoadMoreSearchResults}
+                    disabled={isLoadingMoreSearchResults}
+                  >
+                    {isLoadingMoreSearchResults ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.loadMoreButtonText}>Cargar más</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </>
             )}
           </View>
@@ -912,6 +1031,20 @@ const styles = StyleSheet.create({
   },
   loadingRecent: {
     marginTop: 12,
+  },
+  loadMoreButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1B5E20",
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  loadMoreButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   recentItem: {
     flexDirection: "row",
