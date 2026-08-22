@@ -49,7 +49,9 @@ export default function RootLayout({
     <html lang="es">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <ConvexClientProvider>
-          <SiteHeader />
+          <Suspense fallback={<div className="h-18 border-b border-emerald-950/10 bg-[#fbfaf5]" />}>
+            <SiteHeader />
+          </Suspense>
           <Suspense fallback={<div className="min-h-screen bg-[#f7f6ef]" />}>{children}</Suspense>
         </ConvexClientProvider>
         <Analytics />

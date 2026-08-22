@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { Bell, Heart, LogOut, Menu, MessageCircle, Plus, UserRound } from "lucide-react";
 import { api } from "@/lib/convex-api";
@@ -11,13 +11,16 @@ import { useAuthSession } from "@/hooks/use-auth-session";
 import { Button } from "@/components/ui/button";
 
 const publicLinks = [
-    { href: "/marketplace", label: "Explorar" },
-    { href: "/help", label: "Ayuda" },
+    { href: "/?type=sell#catalogo", label: "Productos", section: "products" },
+    { href: "/?type=rent#catalogo", label: "Servicios", section: "services" },
+    { href: "/?type=rent&family=personal&category=personal_services#catalogo", label: "Personal", section: "personnel" },
+    { href: "/help", label: "Ayuda", section: "help" },
 ];
 
 export function SiteHeader() {
     const pathname = usePathname();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { isAuthenticated, isLoading } = useAuthSession();
     const profile = useQuery(api.users.getMe, isAuthenticated ? {} : "skip");
     const unreadNotifications = useQuery(
@@ -43,19 +46,32 @@ export function SiteHeader() {
                 </Link>
 
                 <nav className="hidden items-center gap-1 md:flex" aria-label="Navegación principal">
-                    {publicLinks.map((link) => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                                pathname === link.href
-                                    ? "bg-emerald-950 text-white"
-                                    : "text-stone-700 hover:bg-emerald-950/5 hover:text-emerald-950"
-                            }`}
-                        >
-                            {link.label}
-                        </Link>
-                    ))}
+                    {publicLinks.map((link) => {
+                        const type = searchParams.get("type");
+                        const family = searchParams.get("family");
+                        const isActive = link.section === "help"
+                            ? pathname === "/help"
+                            : pathname === "/" && (
+                                link.section === "personnel"
+                                    ? family === "personal"
+                                    : link.section === "products"
+                                        ? type === "sell" && family !== "personal"
+                                        : type === "rent" && family !== "personal"
+                            );
+                        return (
+                            <Link
+                                key={link.href}
+                                href={link.href}
+                                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                    isActive
+                                        ? "bg-emerald-950 text-white"
+                                        : "text-stone-700 hover:bg-emerald-950/5 hover:text-emerald-950"
+                                }`}
+                            >
+                                {link.label}
+                            </Link>
+                        );
+                    })}
                 </nav>
 
                 <div className="ml-auto flex items-center gap-2">

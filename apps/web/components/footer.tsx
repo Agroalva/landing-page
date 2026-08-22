@@ -13,8 +13,8 @@ export function Footer() {
               <Image src="/logo.svg" alt="AGROALVA" width={180} height={50} className="h-10 w-auto" />
             </div>
             <p className="mb-6 max-w-md leading-relaxed text-muted-foreground">
-              El marketplace que conecta al agro argentino. Comprá, vendé y alquilá maquinaria en una plataforma
-              diseñada para vos.
+              Productos, servicios y personal para el agro argentino. Encontrá todo lo que tu actividad necesita en
+              un solo marketplace.
             </p>
           </div>
 
@@ -39,7 +39,13 @@ export function Footer() {
             <h3 className="mb-4 font-sans text-lg font-bold text-foreground">Enlaces</h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/marketplace" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Marketplace</Link>
+                <Link href="/?type=sell#catalogo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Productos</Link>
+              </li>
+              <li>
+                <Link href="/?type=rent#catalogo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Servicios</Link>
+              </li>
+              <li>
+                <Link href="/?type=rent&family=personal&category=personal_services#catalogo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Personal</Link>
               </li>
               <li>
                 <Link href="/help" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Ayuda y seguridad</Link>

@@ -42,7 +42,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
                 try { await ensureProfile({}); } catch { /* The profile is also ensured from account pages. */ }
             }
             const redirect = searchParams.get("redirect");
-            router.replace(redirect?.startsWith("/") ? redirect : "/marketplace");
+            router.replace(redirect?.startsWith("/") ? redirect : "/");
             router.refresh();
         } catch {
             setError("No pudimos completar la operación. Revisá tu conexión e intentá nuevamente.");
