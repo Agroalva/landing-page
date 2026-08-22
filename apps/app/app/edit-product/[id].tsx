@@ -17,8 +17,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
+import { ListingIntentSelector } from "@/components/ListingIntentSelector";
 import { Id } from "../../convex/_generated/dataModel";
 import * as Location from "expo-location";
+import {
+  getListingIntentForProduct,
+  getProductTypeForIntent,
+  isFamilyAvailableForIntent,
+} from "../../config/listing-intents";
+import type { ListingIntent } from "../../config/listing-intents";
 import {
   AttributeDefinition,
   AttributeValueMap,
@@ -46,7 +53,8 @@ export default function EditProductScreen() {
   
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState<"rent" | "sell">("sell");
+  const [listingIntent, setListingIntent] = useState<ListingIntent>("products");
+  const type = getProductTypeForIntent(listingIntent);
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState<string>("USD");
   const [loading, setLoading] = useState(false);
@@ -68,20 +76,14 @@ export default function EditProductScreen() {
   const [attributeValues, setAttributeValues] = useState<Record<string, any>>({});
   const visibleFamilies = useMemo(
     () =>
-      families.filter((family) => {
-        if (family.id === "personal" && type === "sell") {
-          return false;
-        }
-        if (family.id === "vehicles" && type === "rent") {
-          return false;
-        }
-        return true;
-      }),
-    [families, type],
+      families.filter((family) =>
+        isFamilyAvailableForIntent(family.id, listingIntent),
+      ),
+    [families, listingIntent],
   );
 
   const selectedFamily = useMemo(() => {
-    return visibleFamilies.find((family) => family.id === familyId) ?? visibleFamilies[0];
+    return visibleFamilies.find((family) => family.id === familyId) ?? null;
   }, [visibleFamilies, familyId]);
 
   const availableCategories = useMemo(() => {
@@ -90,26 +92,36 @@ export default function EditProductScreen() {
 
   const selectedCategory: CategoryDefinition | null = useMemo(() => {
     if (!categoryId) {
-      return availableCategories[0] ?? null;
+      return null;
     }
     return availableCategories.find((category) => category.id === categoryId) ??
       getCategoryById(categoryId) ??
       null;
   }, [availableCategories, categoryId]);
 
-  useEffect(() => {
-    if (!categoryId && availableCategories.length > 0) {
-      setCategoryId(availableCategories[0].id);
+  const handleSelectListingIntent = (nextIntent: ListingIntent) => {
+    if (nextIntent === listingIntent) {
+      return;
     }
-  }, [availableCategories, categoryId]);
 
-  useEffect(() => {
-    if (!visibleFamilies.some((family) => family.id === familyId)) {
-      setFamilyId(visibleFamilies[0]?.id as FamilyId);
-      setCategoryId(null);
-      setAttributeValues({});
-    }
-  }, [familyId, visibleFamilies]);
+    const nextFamilies = families.filter((family) =>
+      isFamilyAvailableForIntent(family.id, nextIntent),
+    );
+    const canKeepCurrentFamily = nextFamilies.some(
+      (family) => family.id === familyId,
+    );
+    const nextFamilyId =
+      nextIntent === "personal"
+        ? ("personal" as FamilyId)
+        : canKeepCurrentFamily
+          ? familyId
+          : (nextFamilies[0]?.id as FamilyId);
+
+    setListingIntent(nextIntent);
+    setFamilyId(nextFamilyId);
+    setCategoryId(null);
+    setAttributeValues({});
+  };
 
   const handleSelectFamily = (nextFamilyId: FamilyId) => {
     setFamilyId(nextFamilyId);
@@ -496,7 +508,6 @@ export default function EditProductScreen() {
     if (product) {
       setName(product.name || "");
       setDescription(product.description || "");
-      setType(product.type || "sell");
       setPrice(product.price?.toString() || "");
       setCurrency(product.currency || "USD");
       setMediaIds(product.mediaIds || []);
@@ -526,6 +537,10 @@ export default function EditProductScreen() {
       if (resolvedFamily) {
         setFamilyId(resolvedFamily);
       }
+
+      setListingIntent(
+        getListingIntentForProduct(product.type || "sell", resolvedFamily),
+      );
 
       if (resolvedCategoryId) {
         setCategoryId(resolvedCategoryId);
@@ -816,81 +831,28 @@ export default function EditProductScreen() {
           />
         </View>
 
-        {/* Type Selection */}
+        {/* Listing intent */}
         <View style={styles.section}>
           <Text style={styles.label}>
-            Tipo <Text style={styles.required}>*</Text>
+            ¿Qué quieres publicar? <Text style={styles.required}>*</Text>
           </Text>
-          <View style={styles.typeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                type === "sell" && styles.typeButtonSelected,
-              ]}
-              onPress={() => {
-                setType("sell");
-              }}
-              disabled={loading}
-            >
-              <Ionicons
-                name="cash"
-                size={20}
-                color={type === "sell" ? "#FFFFFF" : "#2E7D32"}
-              />
-              <Text
-                style={[
-                  styles.typeButtonText,
-                  type === "sell" && styles.typeButtonTextSelected,
-                ]}
-              >
-                Venta
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                type === "rent" && styles.typeButtonSelected,
-              ]}
-              onPress={() => {
-                setType("rent");
-                // Clear condition value when switching to services
-                if (attributeValues.condition !== undefined) {
-                  setAttributeValues((prev) => {
-                    const updated = { ...prev };
-                    delete updated.condition;
-                    return updated;
-                  });
-                }
-              }}
-              disabled={loading}
-            >
-              <Ionicons
-                name="calendar"
-                size={20}
-                color={type === "rent" ? "#FFFFFF" : "#2E7D32"}
-              />
-              <Text
-                style={[
-                  styles.typeButtonText,
-                  type === "rent" && styles.typeButtonTextSelected,
-                ]}
-              >
-                Servicios
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <ListingIntentSelector
+            value={listingIntent}
+            onChange={handleSelectListingIntent}
+            disabled={loading}
+          />
         </View>
 
         {/* Family Selection */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Familia</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesContainer}
-          >
-            {visibleFamilies
-              .map((family) => {
+        {listingIntent !== "personal" && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Familia</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesContainer}
+            >
+              {visibleFamilies.map((family) => {
                 const isSelected = selectedFamily?.id === family.id;
                 return (
                   <TouchableOpacity
@@ -919,12 +881,16 @@ export default function EditProductScreen() {
                   </TouchableOpacity>
                 );
               })}
-          </ScrollView>
-        </View>
+            </ScrollView>
+          </View>
+        )}
 
         {/* Category Selection */}
         <View style={styles.section}>
-          <Text style={styles.label}>Categoría</Text>
+          <Text style={styles.label}>
+            {listingIntent === "personal" ? "Rol o especialidad" : "Categoría"}{" "}
+            <Text style={styles.required}>*</Text>
+          </Text>
           {availableCategories.length === 0 ? (
             <Text style={styles.helperText}>
               No hay categorías disponibles para esta familia
@@ -1283,34 +1249,6 @@ const styles = StyleSheet.create({
   },
   booleanRow: {
     flexDirection: "row",
-  },
-  typeContainer: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  typeButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: "#2E7D32",
-    gap: 8,
-  },
-  typeButtonSelected: {
-    backgroundColor: "#2E7D32",
-    borderColor: "#2E7D32",
-  },
-  typeButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#2E7D32",
-  },
-  typeButtonTextSelected: {
-    color: "#FFFFFF",
   },
   priceInputContainer: {
     flexDirection: "row",
