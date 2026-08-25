@@ -7,6 +7,13 @@ import { useMutation } from "convex/react";
 import { ImagePlus, Loader2, MapPin, Trash2 } from "lucide-react";
 import { api, type Id } from "@/lib/convex-api";
 import type { MarketplaceProduct } from "@/lib/marketplace";
+import {
+    getListingIntentForProduct,
+    getProductTypeForIntent,
+    isFamilyAvailableForIntent,
+    LISTING_INTENT_OPTIONS,
+    type ListingIntent,
+} from "../../../app/config/listing-intents";
 import { getCategoriesForFamily, getCategoryById, getFamilies, type AttributeDefinition, type AttributeValue, type AttributeValueMap, type FamilyId } from "../../../app/config/taxonomy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +29,10 @@ export function ListingForm({ product }: { product?: MarketplaceProduct }) {
     const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
     const [name, setName] = useState(product?.name || "");
     const [description, setDescription] = useState(product?.description || "");
-    const [type, setType] = useState<"sell" | "rent">(product?.type || "sell");
+    const [listingIntent, setListingIntent] = useState<ListingIntent>(() =>
+        getListingIntentForProduct(product?.type || "sell", product?.familyId),
+    );
+    const type = getProductTypeForIntent(listingIntent);
     const [familyId, setFamilyId] = useState(product?.familyId || "");
     const [categoryId, setCategoryId] = useState(product?.categoryId || "");
     const [price, setPrice] = useState(product?.price?.toString() || "");
@@ -34,6 +44,9 @@ export function ListingForm({ product }: { product?: MarketplaceProduct }) {
     const [files, setFiles] = useState<File[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const visibleFamilies = FAMILIES.filter((family) =>
+        isFamilyAvailableForIntent(family.id, listingIntent),
+    );
     const categories = familyId ? getCategoriesForFamily(familyId as FamilyId) : [];
     const category = getCategoryById(categoryId);
     const imageCount = keptMedia.length + files.length;
@@ -44,6 +57,23 @@ export function ListingForm({ product }: { product?: MarketplaceProduct }) {
         if (!response.ok) throw new Error("No se pudo subir una imagen.");
         const result = await response.json();
         return result.storageId as Id<"_storage">;
+    };
+
+    const handleListingIntentChange = (nextIntent: ListingIntent) => {
+        const nextFamilies = FAMILIES.filter((family) =>
+            isFamilyAvailableForIntent(family.id, nextIntent),
+        );
+        const canKeepCurrentFamily = nextFamilies.some((family) => family.id === familyId);
+        const nextFamilyId = nextIntent === "personal"
+            ? "personal"
+            : canKeepCurrentFamily
+                ? familyId
+                : "";
+
+        setListingIntent(nextIntent);
+        setFamilyId(nextFamilyId);
+        setCategoryId("");
+        setAttributes({});
     };
 
     const submit = async (event: React.FormEvent) => {
@@ -79,7 +109,7 @@ export function ListingForm({ product }: { product?: MarketplaceProduct }) {
                 <div><p className="form-kicker">Información principal</p><h2 className="form-title">Contanos qué ofrecés</h2></div>
                 <div className="grid gap-5 sm:grid-cols-2">
                     <div className="space-y-2 sm:col-span-2"><Label htmlFor="name">Título</Label><Input id="name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Tractor John Deere 6110J" className="h-12 rounded-xl" /></div>
-                    <div className="space-y-2"><Label htmlFor="type">Tipo</Label><select id="type" className="form-select" value={type} onChange={(e) => setType(e.target.value as "sell" | "rent")}><option value="sell">Venta</option><option value="rent">Alquiler / servicio</option></select></div>
+                    <div className="space-y-2"><Label htmlFor="type">Tipo</Label><select id="type" className="form-select" value={listingIntent} onChange={(e) => handleListingIntentChange(e.target.value as ListingIntent)}>{LISTING_INTENT_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></div>
                     <div className="space-y-2"><Label htmlFor="price">Precio</Label><div className="flex gap-2"><select aria-label="Moneda" className="form-select w-28" value={currency} onChange={(e) => setCurrency(e.target.value)}><option value="ARS">ARS</option><option value="USD">USD</option></select><Input id="price" type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Opcional" className="h-12 rounded-xl" /></div></div>
                     <div className="space-y-2 sm:col-span-2"><Label htmlFor="description">Descripción</Label><Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={6} placeholder="Estado, características, condiciones y cualquier información útil..." className="rounded-xl" /></div>
                 </div>
@@ -88,8 +118,8 @@ export function ListingForm({ product }: { product?: MarketplaceProduct }) {
             <section className="form-section">
                 <div><p className="form-kicker">Clasificación</p><h2 className="form-title">Ayudá a que la encuentren</h2></div>
                 <div className="grid gap-5 sm:grid-cols-2">
-                    <div className="space-y-2"><Label htmlFor="family">Familia</Label><select id="family" required className="form-select" value={familyId} onChange={(e) => { setFamilyId(e.target.value); setCategoryId(""); setAttributes({}); }}><option value="">Seleccionar</option>{FAMILIES.map((family) => <option key={family.id} value={family.id}>{family.label}</option>)}</select></div>
-                    <div className="space-y-2"><Label htmlFor="category">Categoría</Label><select id="category" required disabled={!familyId} className="form-select" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setAttributes({}); }}><option value="">Seleccionar</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
+                    {listingIntent !== "personal" && <div className="space-y-2"><Label htmlFor="family">Familia</Label><select id="family" required className="form-select" value={familyId} onChange={(e) => { setFamilyId(e.target.value); setCategoryId(""); setAttributes({}); }}><option value="">Seleccionar</option>{visibleFamilies.map((family) => <option key={family.id} value={family.id}>{family.label}</option>)}</select></div>}
+                    <div className={`space-y-2 ${listingIntent === "personal" ? "sm:col-span-2" : ""}`}><Label htmlFor="category">{listingIntent === "personal" ? "Rol o especialidad" : "Categoría"}</Label><select id="category" required disabled={!familyId} className="form-select" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setAttributes({}); }}><option value="">Seleccionar</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
                 </div>
                 {category?.attributes && category.attributes.length > 0 && <div className="grid gap-5 border-t pt-6 sm:grid-cols-2">{category.attributes.map((attribute) => <AttributeField key={attribute.id} attribute={attribute} value={attributes[attribute.id]} setValue={(value) => setAttributes((current) => ({ ...current, [attribute.id]: value }))} />)}</div>}
             </section>
