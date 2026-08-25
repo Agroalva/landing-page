@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Eye, Images, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Eye, MapPin, ShieldCheck } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { ProductActions } from "@/components/marketplace/product-actions";
+import { ProductImageCarousel } from "@/components/marketplace/product-image-carousel";
 import { Button } from "@/components/ui/button";
 import { fetchMarketplaceProduct, getProductShareDescription } from "@/lib/product-share";
 import { formatPrice, formatShortDate } from "@/lib/marketplace";
@@ -67,14 +68,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
                 <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
                     <div className="space-y-6">
-                        <div className="grid overflow-hidden rounded-[2rem] bg-stone-200 shadow-[0_20px_70px_rgba(31,55,39,0.12)] sm:grid-cols-2 sm:grid-rows-2">
-                            {(product.imageUrls.length ? product.imageUrls.slice(0, 5) : [""]).map((url, index) => (
-                                <div key={`${url}-${index}`} className={`relative min-h-60 bg-[#e4ebe0] ${index === 0 ? "sm:row-span-2 sm:min-h-[620px]" : "hidden sm:block"}`}>
-                                    {url ? <Image src={url} alt={`${product.name}, imagen ${index + 1}`} fill className="object-cover" unoptimized priority={index === 0} /> : <div className="flex h-full items-center justify-center text-emerald-900/40"><Images className="size-14" /></div>}
-                                    {index === 0 && product.imageUrls.length > 1 && <span className="absolute bottom-4 right-4 rounded-full bg-black/65 px-4 py-2 text-sm font-bold text-white">{product.imageUrls.length} fotos</span>}
-                                </div>
-                            ))}
-                        </div>
+                        <ProductImageCarousel imageUrls={product.imageUrls} productName={product.name} />
 
                         <section className="rounded-[2rem] border border-emerald-950/10 bg-white p-6 md:p-8">
                             <div className="flex flex-wrap items-start justify-between gap-4">
