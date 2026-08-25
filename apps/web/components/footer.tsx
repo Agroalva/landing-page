@@ -1,6 +1,6 @@
-import { Mail, Phone, MapPin, Facebook, Instagram, Linkedin } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Mail, MapPin } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 
 export function Footer() {
   return (
@@ -13,23 +13,9 @@ export function Footer() {
               <Image src="/logo.svg" alt="AGROALVA" width={180} height={50} className="h-10 w-auto" />
             </div>
             <p className="mb-6 max-w-md leading-relaxed text-muted-foreground">
-              El marketplace que conecta al agro argentino. Comprá, vendé y alquilá maquinaria en una plataforma
-              diseñada para vos.
+              Productos, servicios y personal para el agro argentino. Encontrá todo lo que tu actividad necesita en
+              un solo marketplace.
             </p>
-            <div className="flex gap-3">
-              <Button size="icon" variant="outline" className="h-10 w-10 bg-transparent">
-                <Facebook className="h-5 w-5" />
-                <span className="sr-only">Facebook</span>
-              </Button>
-              <Button size="icon" variant="outline" className="h-10 w-10 bg-transparent">
-                <Instagram className="h-5 w-5" />
-                <span className="sr-only">Instagram</span>
-              </Button>
-              <Button size="icon" variant="outline" className="h-10 w-10 bg-transparent">
-                <Linkedin className="h-5 w-5" />
-                <span className="sr-only">LinkedIn</span>
-              </Button>
-            </div>
           </div>
 
           {/* Contact */}
@@ -49,32 +35,29 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Links */}
-          {/* <div>
+          <div>
             <h3 className="mb-4 font-sans text-lg font-bold text-foreground">Enlaces</h3>
             <ul className="space-y-3">
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Sobre nosotros
-                </a>
+                <Link href="/?type=sell#catalogo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Productos</Link>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Cómo funciona
-                </a>
+                <Link href="/?type=rent#catalogo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Servicios</Link>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Términos y condiciones
-                </a>
+                <Link href="/?type=rent&family=personal&category=personal_services#catalogo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Personal</Link>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Política de privacidad
-                </a>
+                <Link href="/help" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Ayuda y seguridad</Link>
+              </li>
+              <li>
+                <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Términos y condiciones</Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Política de privacidad</Link>
               </li>
             </ul>
-          </div> */}
+          </div>
         </div>
 
         <div className="mt-12 border-t pt-8 text-center text-sm text-muted-foreground">

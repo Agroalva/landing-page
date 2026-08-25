@@ -1,256 +1,119 @@
-import type { Metadata } from "next"
-import Image from "next/image"
-import Link from "next/link"
-import { ArrowLeft, MapPin, Store } from "lucide-react"
-import { Footer } from "@/components/footer"
-import { Button } from "@/components/ui/button"
-import {
-  buildProductShareUrl,
-  fetchSharedProduct,
-  getCanonicalSiteUrl,
-  getProductShareDescription,
-  IOS_STORE_URL,
-  PLAY_STORE_URL,
-  type ShareProduct,
-} from "@/lib/product-share"
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeft, Eye, Images, MapPin, ShieldCheck } from "lucide-react";
+import { Footer } from "@/components/footer";
+import { ProductActions } from "@/components/marketplace/product-actions";
+import { Button } from "@/components/ui/button";
+import { fetchMarketplaceProduct, getProductShareDescription } from "@/lib/product-share";
+import { formatPrice, formatShortDate } from "@/lib/marketplace";
 
-type ProductPageProps = {
-  params: Promise<{ id: string }>
-}
+type ProductPageProps = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
-  const { id } = await params
-  const product = await fetchSharedProduct(id)
-
-  if (!product) {
-    return {
-      title: "Publicación no disponible | agroAlva",
-      description: "La publicación que buscás ya no está disponible en agroAlva.",
-      alternates: {
-        canonical: `/product/${id}`,
-      },
-      openGraph: {
-        title: "Publicación no disponible | agroAlva",
-        description: "La publicación que buscás ya no está disponible en agroAlva.",
-        type: "article",
-        url: `/product/${id}`,
-        images: [
-          {
-            url: "/favicon-512.png",
-            width: 512,
-            height: 512,
-            alt: "agroAlva",
-          },
-        ],
-      },
-      twitter: {
-        card: "summary_large_image",
-        title: "Publicación no disponible | agroAlva",
-        description: "La publicación que buscás ya no está disponible en agroAlva.",
-        images: ["/favicon-512.png"],
-      },
-      robots: {
-        index: false,
-        follow: false,
-      },
+    const { id } = await params;
+    const product = await fetchMarketplaceProduct(id);
+    if (!product) {
+        return { title: "Publicación no disponible | Agroalva", robots: { index: false, follow: false } };
     }
-  }
-
-  return {
-    title: `${product.name} | agroAlva`,
-    description: getProductShareDescription(product),
-    alternates: {
-      canonical: `/product/${id}`,
-    },
-    openGraph: {
-      title: `${product.name} | agroAlva`,
-      description: getProductShareDescription(product),
-      type: "article",
-      url: `/product/${id}`,
-      images: [
-        {
-          url: product.primaryImageUrl || "/favicon-512.png",
-          width: 512,
-          height: 512,
-          alt: product.name,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${product.name} | agroAlva`,
-      description: getProductShareDescription(product),
-      images: [product.primaryImageUrl || "/favicon-512.png"],
-    },
-  }
+    const description = getProductShareDescription(product);
+    return {
+        title: `${product.name} | Agroalva`,
+        description,
+        alternates: { canonical: `/product/${id}` },
+        openGraph: { title: product.name, description, type: "article", url: `/product/${id}`, images: [product.imageUrls[0] || "/favicon-512.png"] },
+        twitter: { card: "summary_large_image", title: product.name, description, images: [product.imageUrls[0] || "/favicon-512.png"] },
+    };
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = await params
-  const product = await fetchSharedProduct(id)
+    const { id } = await params;
+    const product = await fetchMarketplaceProduct(id);
 
-  return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f6f7f2_0%,#ffffff_38%,#f9faf7_100%)]">
-      <section className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12 md:px-10 md:py-16">
-        <Link
-          href="/"
-          className="inline-flex w-fit items-center gap-2 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-950"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver a agroAlva
-        </Link>
+    if (!product) {
+        return (
+            <main className="min-h-[75vh] bg-[#f7f6ef] px-6 py-20">
+                <div className="mx-auto max-w-2xl rounded-[2rem] border bg-white p-10 text-center shadow-sm">
+                    <h1 className="text-3xl font-black text-stone-950">Esta publicación ya no está disponible</h1>
+                    <p className="mt-3 text-stone-600">Puede haberse eliminado o el enlace puede ser incorrecto.</p>
+                    <Button asChild className="mt-7 rounded-full bg-emerald-800"><Link href="/#catalogo">Explorar otras publicaciones</Link></Button>
+                </div>
+            </main>
+        );
+    }
 
-        {product ? <AvailableProductView product={product} /> : <UnavailableProductView productId={id} />}
-      </section>
+    return (
+        <main className="min-h-screen bg-[#f7f6ef]">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+                <Link href="/#catalogo" className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-emerald-800"><ArrowLeft className="size-4" /> Volver al marketplace</Link>
 
-      <Footer />
-    </main>
-  )
+                <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
+                    <div className="space-y-6">
+                        <div className="grid overflow-hidden rounded-[2rem] bg-stone-200 shadow-[0_20px_70px_rgba(31,55,39,0.12)] sm:grid-cols-2 sm:grid-rows-2">
+                            {(product.imageUrls.length ? product.imageUrls.slice(0, 5) : [""]).map((url, index) => (
+                                <div key={`${url}-${index}`} className={`relative min-h-60 bg-[#e4ebe0] ${index === 0 ? "sm:row-span-2 sm:min-h-[620px]" : "hidden sm:block"}`}>
+                                    {url ? <Image src={url} alt={`${product.name}, imagen ${index + 1}`} fill className="object-cover" unoptimized priority={index === 0} /> : <div className="flex h-full items-center justify-center text-emerald-900/40"><Images className="size-14" /></div>}
+                                    {index === 0 && product.imageUrls.length > 1 && <span className="absolute bottom-4 right-4 rounded-full bg-black/65 px-4 py-2 text-sm font-bold text-white">{product.imageUrls.length} fotos</span>}
+                                </div>
+                            ))}
+                        </div>
+
+                        <section className="rounded-[2rem] border border-emerald-950/10 bg-white p-6 md:p-8">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">{product.type === "rent" ? "Alquiler / servicio" : "Venta"} · {product.category || "Agroalva"}</p>
+                                    <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] text-stone-950 md:text-5xl">{product.name}</h1>
+                                </div>
+                                <p className="text-3xl font-black text-emerald-950">{formatPrice(product.price, product.currency)}</p>
+                            </div>
+                            <div className="mt-5 flex flex-wrap gap-5 text-sm text-stone-500">
+                                <span>Publicado {formatShortDate(product.createdAt)}</span>
+                                <span className="flex items-center gap-1"><Eye className="size-4" /> {product.viewCount} visualizaciones</span>
+                                {(product.location?.label || product.location?.address) && <span className="flex items-center gap-1"><MapPin className="size-4" /> {product.location.label || product.location.address}</span>}
+                            </div>
+                            <div className="mt-8 border-t pt-7">
+                                <h2 className="text-xl font-black text-stone-950">Descripción</h2>
+                                <p className="mt-3 whitespace-pre-wrap leading-8 text-stone-700">{product.description || "El vendedor no agregó una descripción."}</p>
+                            </div>
+                            {product.attributes && Object.keys(product.attributes).length > 0 && (
+                                <div className="mt-8 border-t pt-7">
+                                    <h2 className="text-xl font-black text-stone-950">Características</h2>
+                                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                                        {Object.entries(product.attributes).map(([key, value]) => <div key={key} className="rounded-2xl bg-stone-50 px-4 py-3"><dt className="text-xs font-black uppercase tracking-wide text-stone-500">{key.split("_").join(" ")}</dt><dd className="mt-1 font-semibold text-stone-900">{formatAttribute(value)}</dd></div>)}
+                                    </dl>
+                                </div>
+                            )}
+                        </section>
+                    </div>
+
+                    <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+                        <div className="rounded-[2rem] border border-emerald-950/10 bg-white p-6 shadow-[0_16px_50px_rgba(32,58,41,0.08)]">
+                            <ProductActions productId={product._id} authorId={product.authorId} productName={product.name} />
+                        </div>
+                        <div className="rounded-[2rem] border border-emerald-950/10 bg-white p-6">
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Publicado por</p>
+                            <div className="mt-4 flex items-center gap-4">
+                                {product.seller.avatarUrl ? <Image src={product.seller.avatarUrl} alt={product.seller.displayName} width={56} height={56} className="size-14 rounded-full object-cover" unoptimized /> : <div className="flex size-14 items-center justify-center rounded-full bg-emerald-100 text-xl font-black text-emerald-800">{product.seller.displayName.charAt(0)}</div>}
+                                <div><Link href={`/profile/${product.authorId}`} className="text-lg font-black text-stone-950 hover:text-emerald-800">{product.seller.displayName}</Link><p className="text-sm text-stone-500">Miembro de Agroalva</p></div>
+                            </div>
+                            {product.seller.bio && <p className="mt-4 line-clamp-3 text-sm leading-6 text-stone-600">{product.seller.bio}</p>}
+                            <Link href={`/profile/${product.authorId}`} className="mt-4 inline-block text-sm font-bold text-emerald-800 hover:underline">Ver perfil y publicaciones</Link>
+                        </div>
+                        <div className="rounded-[2rem] bg-emerald-950 p-6 text-white"><ShieldCheck className="size-6 text-lime-300" /><h2 className="mt-4 text-lg font-bold">Comprá y vendé con cuidado</h2><p className="mt-2 text-sm leading-6 text-emerald-50/75">Verificá la información y no envíes dinero antes de confirmar la identidad y las condiciones de la operación.</p><Link href="/help" className="mt-4 inline-block text-sm font-bold text-lime-300">Consejos de seguridad</Link></div>
+                    </aside>
+                </div>
+            </div>
+            <Footer />
+        </main>
+    );
 }
 
-function AvailableProductView({ product }: { product: ShareProduct }) {
-  const formattedPrice =
-    product.price !== undefined ? new Intl.NumberFormat("es-AR").format(product.price) : null
-  const shareUrl = buildProductShareUrl(product._id)
-
-  return (
-    <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-      <div className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-white shadow-[0_24px_80px_rgba(23,68,40,0.08)]">
-        <div className="relative aspect-[4/3] bg-zinc-100">
-          {product.primaryImageUrl ? (
-            <Image src={product.primaryImageUrl} alt={product.name} fill className="object-cover" unoptimized />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(22,163,74,0.15),transparent_55%),linear-gradient(135deg,#f2f7f1,#d7e6d3)]">
-              <Store className="h-14 w-14 text-emerald-800/70" />
-            </div>
-          )}
-        </div>
-        <div className="space-y-5 p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">
-                {product.type === "rent" ? "Alquiler" : "Venta"}
-              </p>
-              <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 md:text-4xl">{product.name}</h1>
-              <p className="text-sm text-zinc-500">
-                Publicado el{" "}
-                {new Date(product.createdAt).toLocaleDateString("es-AR", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-            {formattedPrice ? (
-              <div className="rounded-2xl bg-emerald-950 px-5 py-4 text-right text-white shadow-lg">
-                <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Precio</p>
-                <p className="text-2xl font-semibold">${formattedPrice}</p>
-              </div>
-            ) : null}
-          </div>
-
-          {product.description ? (
-            <p className="text-base leading-7 text-zinc-700">{product.description}</p>
-          ) : (
-            <p className="text-base leading-7 text-zinc-500">
-              Esta publicación fue compartida desde la app de agroAlva.
-            </p>
-          )}
-
-          <div className="grid gap-3 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 sm:grid-cols-2">
-            {product.authorDisplayName ? (
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Publicado por</p>
-                <p className="mt-2 font-medium text-zinc-900">{product.authorDisplayName}</p>
-              </div>
-            ) : null}
-            {product.location?.label || product.location?.address ? (
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Ubicación</p>
-                <p className="mt-2 flex items-start gap-2 font-medium text-zinc-900">
-                  <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-700" />
-                  <span>{product.location?.label || product.location?.address}</span>
-                </p>
-              </div>
-            ) : null}
-            {product.category ? (
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Categoría</p>
-                <p className="mt-2 font-medium text-zinc-900">{product.category}</p>
-              </div>
-            ) : null}
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Enlace compartido</p>
-              <p className="mt-2 break-all text-sm text-zinc-700">{shareUrl}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <aside className="rounded-[2rem] border border-emerald-100 bg-white p-6 shadow-[0_24px_80px_rgba(23,68,40,0.08)] md:p-8">
-        <div className="space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">Abrila en la app</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-zinc-950">
-            Si la app está instalada, este enlace se abre directo en agroAlva.
-          </h2>
-          <p className="text-base leading-7 text-zinc-600">
-            Si todavía no la tenés, descargala para contactar vendedores, guardar favoritos y ver todos los detalles
-            desde el celular.
-          </p>
-        </div>
-
-        <div className="mt-8 space-y-4">
-          <Button asChild className="h-12 w-full bg-emerald-800 text-base hover:bg-emerald-900">
-            <a href={getCanonicalSiteUrl()} target="_blank" rel="noreferrer">
-              Abrir agroAlva
-            </a>
-          </Button>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <a
-              href={IOS_STORE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="flex flex-1 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 transition hover:border-emerald-200 hover:bg-emerald-50"
-            >
-              <Image src="/app-store.svg" alt="Descargar en App Store" width={160} height={48} className="h-10 w-auto" />
-            </a>
-            <a
-              href={PLAY_STORE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="flex flex-1 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 transition hover:border-emerald-200 hover:bg-emerald-50"
-            >
-              <Image src="/play-store.svg" alt="Descargar en Google Play" width={160} height={48} className="h-10 w-auto" />
-            </a>
-          </div>
-        </div>
-      </aside>
-    </div>
-  )
-}
-
-function UnavailableProductView({ productId }: { productId: string }) {
-  return (
-    <div className="mx-auto max-w-3xl overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-      <div className="space-y-5 bg-[radial-gradient(circle_at_top,_rgba(22,163,74,0.16),transparent_48%),linear-gradient(160deg,#ffffff,#f2f6ef)] px-8 py-12 text-center md:px-14">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">Publicación no disponible</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">La publicación que buscás ya no está activa.</h1>
-        <p className="mx-auto max-w-xl text-base leading-7 text-zinc-600">
-          Puede haberse eliminado, vencido o el enlace podría ser incorrecto. Desde la app o el sitio podés seguir
-          explorando otras publicaciones.
-        </p>
-        <p className="text-sm text-zinc-500">ID compartido: {productId}</p>
-        <div className="flex flex-col justify-center gap-3 pt-4 sm:flex-row">
-          <Button asChild className="h-12 bg-emerald-800 px-6 hover:bg-emerald-900">
-            <Link href="/">Ir a inicio</Link>
-          </Button>
-          <Button asChild variant="outline" className="h-12 px-6">
-            <a href={getCanonicalSiteUrl()} target="_blank" rel="noreferrer">
-              Abrir agroAlva
-            </a>
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
+function formatAttribute(value: unknown) {
+    if (Array.isArray(value)) return value.join(", ");
+    if (typeof value === "boolean") return value ? "Sí" : "No";
+    if (value && typeof value === "object") {
+        const range = value as { min?: number; max?: number };
+        return [range.min !== undefined ? `Desde ${range.min}` : "", range.max !== undefined ? `hasta ${range.max}` : ""].filter(Boolean).join(" ");
+    }
+    return String(value);
 }

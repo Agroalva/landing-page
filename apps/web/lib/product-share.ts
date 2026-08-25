@@ -1,3 +1,5 @@
+import type { MarketplaceProduct } from "@/lib/marketplace";
+
 export type ShareProduct = {
   _id: string
   name: string
@@ -69,4 +71,15 @@ export async function fetchSharedProduct(productId: string): Promise<ShareProduc
   }
 
   return (await response.json()) as ShareProduct
+}
+
+export async function fetchMarketplaceProduct(productId: string): Promise<MarketplaceProduct | null> {
+  const baseUrl = getShareEndpointBaseUrl()
+  if (!baseUrl) return null
+  const response = await fetch(`${baseUrl}/public/marketplace-product?id=${encodeURIComponent(productId)}`, {
+    next: { revalidate: 60 },
+  })
+  if (response.status === 404 || response.status === 400) return null
+  if (!response.ok) throw new Error(`Failed to fetch marketplace product: ${response.status}`)
+  return (await response.json()) as MarketplaceProduct
 }
