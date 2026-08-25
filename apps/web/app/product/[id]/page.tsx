@@ -7,8 +7,21 @@ import { ProductActions } from "@/components/marketplace/product-actions";
 import { Button } from "@/components/ui/button";
 import { fetchMarketplaceProduct, getProductShareDescription } from "@/lib/product-share";
 import { formatPrice, formatShortDate } from "@/lib/marketplace";
+import { getCategoryById, getFamilies, type AttributeDefinition } from "../../../../app/config/taxonomy";
 
 type ProductPageProps = { params: Promise<{ id: string }> };
+
+const fallbackAttributeDefinitions = new Map<string, AttributeDefinition>();
+
+for (const family of getFamilies()) {
+    for (const category of family.categories) {
+        for (const attribute of category.attributes) {
+            if (!fallbackAttributeDefinitions.has(attribute.id)) {
+                fallbackAttributeDefinitions.set(attribute.id, attribute);
+            }
+        }
+    }
+}
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
     const { id } = await params;
@@ -40,6 +53,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </div>
             </main>
         );
+    }
+
+    const attributeDefinitions = new Map(fallbackAttributeDefinitions);
+    for (const attribute of getCategoryById(product.categoryId)?.attributes ?? []) {
+        attributeDefinitions.set(attribute.id, attribute);
     }
 
     return (
@@ -79,7 +97,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                 <div className="mt-8 border-t pt-7">
                                     <h2 className="text-xl font-black text-stone-950">Características</h2>
                                     <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                                        {Object.entries(product.attributes).map(([key, value]) => <div key={key} className="rounded-2xl bg-stone-50 px-4 py-3"><dt className="text-xs font-black uppercase tracking-wide text-stone-500">{key.split("_").join(" ")}</dt><dd className="mt-1 font-semibold text-stone-900">{formatAttribute(value)}</dd></div>)}
+                                        {Object.entries(product.attributes).map(([key, value]) => {
+                                            const definition = attributeDefinitions.get(key);
+                                            return <div key={key} className="rounded-2xl bg-stone-50 px-4 py-3"><dt className="text-xs font-black uppercase tracking-wide text-stone-500">{definition?.label ?? formatAttributeLabel(key)}</dt><dd className="mt-1 font-semibold text-stone-900">{formatAttribute(value, definition)}</dd></div>;
+                                        })}
                                     </dl>
                                 </div>
                             )}
@@ -108,12 +129,27 @@ export default async function ProductPage({ params }: ProductPageProps) {
     );
 }
 
-function formatAttribute(value: unknown) {
-    if (Array.isArray(value)) return value.join(", ");
+function formatAttribute(value: unknown, definition?: AttributeDefinition) {
+    if (Array.isArray(value)) return value.map((item) => formatAttributeOption(item, definition)).join(", ");
     if (typeof value === "boolean") return value ? "Sí" : "No";
     if (value && typeof value === "object") {
         const range = value as { min?: number; max?: number };
-        return [range.min !== undefined ? `Desde ${range.min}` : "", range.max !== undefined ? `hasta ${range.max}` : ""].filter(Boolean).join(" ");
+        const formattedRange = [range.min !== undefined ? `Desde ${range.min}` : "", range.max !== undefined ? `hasta ${range.max}` : ""].filter(Boolean).join(" ");
+        return definition?.unit && formattedRange ? `${formattedRange} ${definition.unit}` : formattedRange;
     }
-    return String(value);
+    const formattedValue = formatAttributeOption(value, definition);
+    return definition?.unit && formattedValue ? `${formattedValue} ${definition.unit}` : formattedValue;
+}
+
+function formatAttributeOption(value: unknown, definition?: AttributeDefinition) {
+    const rawValue = String(value);
+    const optionLabel = definition?.options?.find((option) => option.id === rawValue)?.label;
+    if (optionLabel) return optionLabel;
+    if (definition?.type === "select" || definition?.type === "multiselect") return formatAttributeLabel(rawValue);
+    return rawValue;
+}
+
+function formatAttributeLabel(value: string) {
+    const words = value.split("_").join(" ");
+    return words.charAt(0).toLocaleUpperCase("es-AR") + words.slice(1);
 }
