@@ -26,7 +26,7 @@ export function Hero() {
 
           {/* Hero headline */}
           <h2 className="mb-6 font-sans text-4xl font-bold leading-tight tracking-tight text-foreground text-balance md:text-6xl lg:text-7xl">
-            El marketplace del agro argentino
+            El mercado digital del agro argentino
           </h2>
 
           {/* Subheadline */}

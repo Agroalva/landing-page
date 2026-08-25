@@ -14,7 +14,7 @@ export function Footer() {
             </div>
             <p className="mb-6 max-w-md leading-relaxed text-muted-foreground">
               Productos, servicios y personal para el agro argentino. Encontrá todo lo que tu actividad necesita en
-              un solo marketplace.
+              una sola plataforma.
             </p>
           </div>
 

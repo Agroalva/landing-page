@@ -45,7 +45,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     return (
         <main className="min-h-screen bg-[#f7f6ef]">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-                <Link href="/#catalogo" className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-emerald-800"><ArrowLeft className="size-4" /> Volver al marketplace</Link>
+                <Link href="/#catalogo" className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-emerald-800"><ArrowLeft className="size-4" /> Volver al mercado</Link>
 
                 <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
                     <div className="space-y-6">

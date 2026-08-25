@@ -195,7 +195,7 @@ export function MarketplaceBrowser() {
                     <Search className="mx-auto size-10 text-emerald-700" />
                     <h2 className="mt-5 text-2xl font-bold text-stone-950">No encontramos publicaciones</h2>
                     <p className="mx-auto mt-2 max-w-md text-stone-600">Probá con otra búsqueda o quitá algunos filtros.</p>
-                    <Button type="button" variant="outline" onClick={clearFilters} className="mt-6 rounded-full bg-white px-6">Ver todo el marketplace</Button>
+                    <Button type="button" variant="outline" onClick={clearFilters} className="mt-6 rounded-full bg-white px-6">Ver todas las publicaciones</Button>
                 </div>
             ) : (
                 <>

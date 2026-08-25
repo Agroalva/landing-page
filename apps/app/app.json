@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgroAlva",
     "slug": "agroalva",
-    "version": "1.2.3",
+    "version": "1.2.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -15,7 +15,7 @@
         "applinks:agroalva.com.ar",
         "applinks:www.agroalva.com.ar"
       ],
-      "buildNumber": "43",
+      "buildNumber": "44",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -29,7 +29,7 @@
       },
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
-      "versionCode": 43,
+      "versionCode": 44,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS",

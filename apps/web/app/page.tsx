@@ -61,7 +61,7 @@ export default function Home() {
                     <div className="max-w-3xl">
                         <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur">
                             <Tractor className="size-4 text-[#d9ed9f]" />
-                            El marketplace del agro argentino
+                            El mercado digital del agro argentino
                         </div>
                         <h1 className="mt-7 text-5xl font-black leading-[0.94] tracking-[-0.055em] md:text-7xl">
                             Todo el campo.
@@ -134,7 +134,7 @@ export default function Home() {
                     <div className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
                         <div>
                             <p className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
-                                <BriefcaseBusiness className="size-4" /> Marketplace
+                                <BriefcaseBusiness className="size-4" /> Mercado agropecuario
                             </p>
                             <h2 className="mt-3 max-w-3xl text-4xl font-black tracking-[-0.045em] text-stone-950 md:text-5xl">
                                 Encontrá tu próxima oportunidad.

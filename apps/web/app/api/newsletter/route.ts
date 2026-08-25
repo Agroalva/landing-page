@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     // Validate input
     if (!name || !email) {
       return NextResponse.json(
-        { error: 'Name and email are required' },
+        { error: 'El nombre y el correo electrónico son obligatorios' },
         { status: 400 }
       );
     }
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
-        { error: 'Invalid email format' },
+        { error: 'El formato del correo electrónico no es válido' },
         { status: 400 }
       );
     }
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Newsletter signup error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     );
   }

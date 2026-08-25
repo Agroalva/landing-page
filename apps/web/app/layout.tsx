@@ -9,14 +9,14 @@ import { SiteHeader } from "@/components/marketplace/site-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "agroAlva - Marketplace del Agro Argentino",
+  title: "agroAlva - Mercado del Agro Argentino",
   description:
     "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.agroalva.com.ar",
   ),
   openGraph: {
-    title: "Agroalva - Marketplace del Agro Argentino",
+    title: "Agroalva - Mercado del Agro Argentino",
     description:
       "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
     type: "website",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "agroAlva - Marketplace del Agro Argentino",
+    title: "agroAlva - Mercado del Agro Argentino",
     description:
       "Conectamos productores, distribuidores y prestadores de servicios. Alquilá maquinaria, comprá insumos y vendé tu producción en un solo lugar.",
     images: ["/favicon-512.png"],

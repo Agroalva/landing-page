@@ -4,7 +4,7 @@ import { ShoppingCart, Search, MessageCircle, MapPin } from "lucide-react"
 const features = [
   {
     icon: ShoppingCart,
-    title: "Marketplace completo",
+    title: "Mercado agropecuario completo",
     description:
       "Comprá, vendé y alquilá insumos, maquinaria, productos agrícolas y más. Todo en una plataforma segura y confiable.",
   },

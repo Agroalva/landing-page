@@ -99,7 +99,7 @@ export function Newsletter() {
                     />
                     <Input
                       type="email"
-                      placeholder="Tu email"
+                      placeholder="Tu correo electrónico"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -118,7 +118,7 @@ export function Newsletter() {
                 </form>
 
                 <p className="mt-6 text-center text-sm text-muted-foreground">
-                  No spam. Solo novedades importantes sobre el lanzamiento.
+                  Sin correo no deseado. Solo novedades importantes sobre el lanzamiento.
                 </p>
               </>
             ) : (

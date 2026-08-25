@@ -34,7 +34,7 @@ function BannerMobilePreview({ imageUrl, bannerUrl }: { imageUrl: string | null;
       <div className="overflow-hidden rounded-[1.8rem] border border-[#e8e0d0] bg-[#fffdf8] shadow-[0_18px_50px_rgba(31,26,20,0.08)]">
         <div className="flex items-center justify-between border-b border-[#e8e0d0] px-5 py-4">
           <div className="text-[1.9rem] font-extrabold tracking-[0.01em] text-[#1b5e20]">Agroalva</div>
-          <div className="rounded-full bg-[#1b5e20] px-4 py-2.5 text-[0.78rem] font-bold text-white">Iniciar sesion</div>
+          <div className="rounded-full bg-[#1b5e20] px-4 py-2.5 text-[0.78rem] font-bold text-white">Iniciar sesión</div>
         </div>
         <div className="space-y-[18px] px-5 py-5">
           <div className="flex items-center justify-between">
@@ -44,7 +44,7 @@ function BannerMobilePreview({ imageUrl, bannerUrl }: { imageUrl: string | null;
           <div className="overflow-hidden rounded-[1.75rem] border border-[rgba(31,26,20,0.08)] bg-[#dce6d3]">
             <div className="relative aspect-[16/4] bg-[#eef2ea]">
               {imageUrl ? (
-                <img src={imageUrl} alt="Vista previa del banner mobile" className="absolute inset-0 h-full w-full object-contain" />
+                <img src={imageUrl} alt="Vista previa del anuncio para celular" className="absolute inset-0 h-full w-full object-contain" />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
                   Sin imagen
@@ -90,7 +90,7 @@ function BannerSourcePreview({ imageUrl, index }: { imageUrl: string | null; ind
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/75">Imagen base</div>
-          <div className="mt-1 text-sm text-muted-foreground">{index ? `Banner #${index}` : "Archivo subido"}</div>
+          <div className="mt-1 text-sm text-muted-foreground">{index ? `Anuncio #${index}` : "Archivo subido"}</div>
         </div>
         <div className="rounded-full border border-emerald-900/10 bg-emerald-50 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[#1b5e20]">
           16:4
@@ -98,13 +98,13 @@ function BannerSourcePreview({ imageUrl, index }: { imageUrl: string | null; ind
       </div>
       <div className="overflow-hidden rounded-[1.25rem] border border-border/70 bg-[#eef2ea] shadow-inner">
         {imageUrl ? (
-          <img src={imageUrl} alt={index ? `Imagen base del banner ${index}` : "Imagen base del banner"} className="aspect-[16/4] w-full object-contain" />
+          <img src={imageUrl} alt={index ? `Imagen base del anuncio ${index}` : "Imagen base del anuncio"} className="aspect-[16/4] w-full object-contain" />
         ) : (
           <div className="flex aspect-[16/4] items-center justify-center text-sm text-muted-foreground">Sin imagen</div>
         )}
       </div>
       <div className="mt-3 text-xs leading-5 text-muted-foreground">
-        Esta vista muestra el archivo completo en la proporcion recomendada, sin el contexto de la pantalla mobile.
+        Esta vista muestra el archivo completo en la proporción recomendada, sin el contexto de la pantalla del celular.
       </div>
     </div>
   )
@@ -131,7 +131,7 @@ async function uploadBannerImage(file: File, uploadUrl: string) {
   })
 
   if (!response.ok) {
-    throw new Error("No se pudo subir la imagen del banner.")
+    throw new Error("No se pudo subir la imagen del anuncio.")
   }
 
   const result = await response.json()
@@ -215,10 +215,10 @@ export function AdminBannersClient() {
       })
 
       if (error) {
-        setSignInError("No se pudo iniciar sesion con esas credenciales.")
+        setSignInError("No se pudo iniciar sesión con esas credenciales.")
       }
     } catch {
-      setSignInError("No se pudo iniciar sesion con esas credenciales.")
+      setSignInError("No se pudo iniciar sesión con esas credenciales.")
     } finally {
       setIsSigningIn(false)
     }
@@ -234,7 +234,7 @@ export function AdminBannersClient() {
     }
 
     if (!ACCEPTED_IMAGE_TYPES.includes(selectedFile.type)) {
-      setCreateError("Subi una imagen JPG o PNG.")
+      setCreateError("Subí una imagen JPG o PNG.")
       setFile(null)
       return
     }
@@ -247,7 +247,7 @@ export function AdminBannersClient() {
     setStatusMessage(null)
 
     if (!file) {
-      setCreateError("Selecciona una imagen para el banner.")
+      setCreateError("Seleccioná una imagen para el anuncio.")
       return
     }
 
@@ -272,9 +272,9 @@ export function AdminBannersClient() {
       setFileInputKey((current) => current + 1)
       setTargetUrl("")
       setPreviewImageUrl(null)
-      setStatusMessage("Banner creado correctamente.")
+      setStatusMessage("Anuncio creado correctamente.")
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "No se pudo crear el banner.")
+      setCreateError(error instanceof Error ? error.message : "No se pudo crear el anuncio.")
     } finally {
       setIsCreating(false)
     }
@@ -284,7 +284,7 @@ export function AdminBannersClient() {
     const nextUrl = (draftUrls[bannerId] ?? "").trim()
 
     if (nextUrl && !isValidExternalUrl(nextUrl)) {
-      setStatusMessage("Cada banner debe usar una URL externa valida.")
+      setStatusMessage("Cada anuncio debe usar una URL externa válida.")
       return
     }
 
@@ -297,9 +297,9 @@ export function AdminBannersClient() {
         targetUrl: nextUrl || null,
         isActive,
       })
-      setStatusMessage("Banner actualizado.")
+      setStatusMessage("Anuncio actualizado.")
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "No se pudo guardar el banner.")
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo guardar el anuncio.")
     } finally {
       setSaving(bannerId, false)
     }
@@ -315,9 +315,9 @@ export function AdminBannersClient() {
         isActive: checked,
         targetUrl: (draftUrls[bannerId] ?? "").trim() || null,
       })
-      setStatusMessage("Estado del banner actualizado.")
+      setStatusMessage("Estado del anuncio actualizado.")
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "No se pudo actualizar el banner.")
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo actualizar el anuncio.")
     } finally {
       setSaving(bannerId, false)
     }
@@ -346,7 +346,7 @@ export function AdminBannersClient() {
       await reorderBanners({
         orderedBannerIds: nextOrder.map((item) => item._id),
       })
-      setStatusMessage("Orden de banners actualizado.")
+      setStatusMessage("Orden de los anuncios actualizado.")
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "No se pudo reordenar.")
     } finally {
@@ -360,9 +360,9 @@ export function AdminBannersClient() {
 
     try {
       await deleteBanner({ bannerId })
-      setStatusMessage("Banner eliminado.")
+      setStatusMessage("Anuncio eliminado.")
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "No se pudo eliminar el banner.")
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo eliminar el anuncio.")
     } finally {
       setDeleting(bannerId, false)
     }
@@ -381,21 +381,21 @@ export function AdminBannersClient() {
       <div className="mx-auto max-w-md">
         <Card className="border-border/60 bg-card/95 shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl">Ingresar al panel de banners</CardTitle>
+            <CardTitle className="text-2xl">Ingresar al panel de anuncios</CardTitle>
             <CardDescription>
-              Usa una cuenta con rol admin para gestionar los banners del inicio mobile.
+              Usá una cuenta con rol de administrador para gestionar los anuncios del inicio en celulares.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground" htmlFor="email">
-                Email
+                Correo electrónico
               </label>
               <Input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground" htmlFor="password">
-                Contrasena
+                Contraseña
               </label>
               <Input
                 id="password"
@@ -425,7 +425,7 @@ export function AdminBannersClient() {
               <CardTitle>Acceso restringido</CardTitle>
             </div>
             <CardDescription className="text-amber-900/80">
-              La cuenta {user?.email ?? "actual"} no tiene rol admin en Convex.
+              La cuenta {user?.email ?? "actual"} no tiene rol de administrador en Convex.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -436,30 +436,30 @@ export function AdminBannersClient() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <section className="rounded-[2rem] border border-emerald-950/10 bg-[radial-gradient(circle_at_top_left,rgba(27,94,32,0.16),transparent_32%),linear-gradient(135deg,rgba(255,253,248,0.96),rgba(243,247,238,0.98))] p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary/80">Admin dashboard</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-primary/80">Panel de administración</p>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Banners del home mobile</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Anuncios del inicio en celulares</h1>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Carga imagenes, define enlaces externos y controla el orden del carrusel sin afectar a clientes viejos.
+              Cargá imágenes, definí enlaces externos y controlá el orden del carrusel sin afectar a clientes anteriores.
             </p>
           </div>
           <Button variant="outline" onClick={() => authClient.signOut()}>
-            Cerrar sesion
+            Cerrar sesión
           </Button>
         </div>
       </section>
 
       <Card className="border-border/60 bg-card/95 shadow-sm">
         <CardHeader>
-          <CardTitle>Nuevo banner</CardTitle>
+          <CardTitle>Nuevo anuncio</CardTitle>
           <CardDescription>
             Recomendado: imagen horizontal, hasta 5 MB, formato JPG o PNG. La URL debe ser externa.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-[1.1fr_1fr_auto] md:items-end">
           <div className="rounded-2xl border border-emerald-900/10 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-950 md:col-span-3">
-            Usa una composicion panoramica. Referencia recomendada: proporcion 16:4, minimo 1600 x 400 px; ideal 2400 x 600 px para mejor nitidez en pantallas modernas. Mantiene el contenido importante centrado porque el banner se muestra mas bajo en mobile.
+            Usá una composición panorámica. Referencia recomendada: proporción 16:4, mínimo 1600 x 400 px; ideal 2400 x 600 px para mejor nitidez en pantallas modernas. Mantené el contenido importante centrado porque el anuncio se muestra más bajo en celulares.
           </div>
           <div className="md:col-span-3">
             <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-primary/75">Vista previa en la app</div>
@@ -493,7 +493,7 @@ export function AdminBannersClient() {
           </div>
           <Button className="min-w-44" onClick={handleCreateBanner} disabled={isCreating}>
             {isCreating ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
-            Crear banner
+            Crear anuncio
           </Button>
           {createError ? <p className="text-sm text-destructive md:col-span-3">{createError}</p> : null}
           {statusMessage ? <p className="text-sm text-muted-foreground md:col-span-3">{statusMessage}</p> : null}
@@ -505,12 +505,12 @@ export function AdminBannersClient() {
           <Card className="border-border/60 bg-card/95 p-8 shadow-sm">
             <div className="flex items-center gap-3 text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              Cargando banners...
+              Cargando anuncios...
             </div>
           </Card>
         ) : orderedBanners.length === 0 ? (
           <Card className="border-dashed border-border/80 bg-card/80 p-8 text-sm text-muted-foreground shadow-sm">
-            Aun no hay banners. El primero que crees se mostrara al inicio del carrusel mobile.
+            Aún no hay anuncios. El primero que crees se mostrará al inicio del carrusel en celulares.
           </Card>
         ) : (
           orderedBanners.map((banner: (typeof orderedBanners)[number], index: number) => {
@@ -525,7 +525,7 @@ export function AdminBannersClient() {
                     <BannerSourcePreview imageUrl={banner.imageUrl} index={index + 1} />
 
                     <div className="self-start">
-                      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-primary/75">Como se vera en la app</div>
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-primary/75">Cómo se verá en la aplicación</div>
                       <div className="max-w-[24rem]">
                         <BannerMobilePreview imageUrl={banner.imageUrl} bannerUrl={bannerUrl || undefined} />
                       </div>
@@ -535,7 +535,7 @@ export function AdminBannersClient() {
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
-                            Banner #{index + 1}
+                            Anuncio #{index + 1}
                           </p>
                           <p className="mt-1 text-sm text-muted-foreground">
                             Orden actual: {banner.sortOrder + 1}
@@ -593,7 +593,7 @@ export function AdminBannersClient() {
                         <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-secondary/40 px-4 py-3">
                           <div>
                             <p className="text-sm font-medium text-foreground">Activo</p>
-                            <p className="text-xs text-muted-foreground">Visible en el carrusel mobile</p>
+                            <p className="text-xs text-muted-foreground">Visible en el carrusel para celulares</p>
                           </div>
                           <Switch
                             checked={banner.isActive}
