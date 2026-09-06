@@ -59,6 +59,13 @@ export default function Home() {
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(11,48,30,0.98)_0%,rgba(18,65,40,0.92)_52%,rgba(18,65,40,0.22)_100%)]" />
                 <div className="relative mx-auto grid min-h-[680px] max-w-7xl items-center gap-10 px-4 pb-28 pt-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:pb-32 lg:pt-20">
                     <div className="max-w-3xl">
+                        <Image
+                            src="/logo.svg"
+                            alt="Agroalva"
+                            width={500}
+                            height={177}
+                            className="mb-5 h-auto w-full max-w-[500px]"
+                        />
                         <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur">
                             <Tractor className="size-4 text-[#d9ed9f]" />
                             El mercado digital del agro argentino
