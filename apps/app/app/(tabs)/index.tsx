@@ -17,6 +17,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { buildPublicStorageImageUrl } from "@/utils/public-url";
+import { FieldPulse } from "@/components/FieldPulse";
 import { useEffect, useMemo, useState } from "react";
 
 type TopLevelIntent = "products" | "services";
@@ -262,6 +263,8 @@ export default function HomeScreen() {
             </View>
           </View>
         ) : null}
+
+        <FieldPulse />
 
         <View style={styles.sectionHeader}>
           <View>
