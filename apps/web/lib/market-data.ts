@@ -221,14 +221,19 @@ async function getDollars(): Promise<MarketPulseData["dollars"]> {
 }
 
 export async function getMarketPulseData(): Promise<MarketPulseData> {
-    const [weather, grains, dollars] = await Promise.all([
+    const [weather, { grains, dollars }] = await Promise.all([
         getWeatherForCoordinates(
             DEFAULT_WEATHER_LOCATION.latitude,
             DEFAULT_WEATHER_LOCATION.longitude,
         ),
-        getGrains(),
-        getDollars(),
+        getMarketRates(),
     ]);
 
     return { weather, grains, dollars };
+}
+
+export async function getMarketRates(): Promise<Pick<MarketPulseData, "grains" | "dollars">> {
+    const [grains, dollars] = await Promise.all([getGrains(), getDollars()]);
+
+    return { grains, dollars };
 }
