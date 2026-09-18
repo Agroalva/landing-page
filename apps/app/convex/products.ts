@@ -4,6 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
 import { getCategoryById } from "../config/taxonomy";
 import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
+import { buildProductSearchText } from "./productSearch";
 import { resolveTaxonomyFilter } from "./taxonomy";
 
 const attributeValueValidator = v.union(
@@ -151,6 +152,7 @@ export const create = mutation({
         return await ctx.db.insert("products", {
             authorId: user._id as string,
             name: args.name.trim(),
+            searchText: buildProductSearchText(args.name, args.location, normalizedAttributes),
             description: args.description?.trim(),
             type: args.type,
             category: legacyCategory,
@@ -438,6 +440,12 @@ export const update = mutation({
         if (args.location !== undefined) {
             updates.location = args.location;
         }
+
+        updates.searchText = buildProductSearchText(
+            updates.name ?? product.name,
+            updates.location ?? product.location,
+            updates.attributes ?? product.attributes,
+        );
 
         await ctx.db.patch(args.productId, updates);
     },

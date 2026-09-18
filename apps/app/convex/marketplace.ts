@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { authComponent } from "./auth";
 import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
+import { normalizeProductSearchTerm } from "./productSearch";
 import { resolveTaxonomyFilter } from "./taxonomy";
 
 const listingTypeValidator = v.union(v.literal("rent"), v.literal("sell"));
@@ -145,18 +146,18 @@ export const list = query({
         continueCursor: v.string(),
     }),
     handler: async (ctx, args) => {
-        const searchTerm = args.search?.trim();
+        const searchTerm = args.search ? normalizeProductSearchTerm(args.search) : "";
         const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(
             args.familyId,
             args.categoryId,
         );
         let result;
 
-        if (searchTerm && searchTerm.length >= 2) {
+        if (searchTerm.length >= 2) {
             const searchQuery = ctx.db
                 .query("products")
-                .withSearchIndex("search_name", (q) => {
-                    let builder = q.search("name", searchTerm);
+                .withSearchIndex("search_content", (q) => {
+                    let builder = q.search("searchText", searchTerm);
                     if (resolvedFamily) {
                         builder = builder.eq("familyId", resolvedFamily);
                     }

@@ -1,5 +1,6 @@
 import { internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { buildProductSearchText } from "./productSearch";
 
 // Sample product data with image URLs from Unsplash (free stock photos)
 const SAMPLE_PRODUCTS = [
@@ -337,6 +338,7 @@ export const seedProducts = internalMutation({
         const productId = await ctx.db.insert("products", {
           authorId,
           name: product.name,
+          searchText: buildProductSearchText(product.name, product.location),
           description: product.description,
           type: product.type,
           category: product.category,

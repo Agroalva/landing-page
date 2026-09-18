@@ -89,7 +89,7 @@ export default function Home() {
                                 <input
                                     name="q"
                                     type="search"
-                                    placeholder="¿Qué estás buscando?"
+                                    placeholder="¿Qué buscás? Producto, servicio o provincia"
                                     className="h-13 w-full rounded-2xl bg-transparent pl-12 pr-4 text-base font-medium text-stone-950 outline-none placeholder:text-stone-400"
                                 />
                             </label>

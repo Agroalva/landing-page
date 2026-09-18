@@ -19,6 +19,7 @@ import type * as lib_admin from "../lib/admin.js";
 import type * as marketplace from "../marketplace.js";
 import type * as notifications from "../notifications.js";
 import type * as presence from "../presence.js";
+import type * as productSearch from "../productSearch.js";
 import type * as products from "../products.js";
 import type * as schema_banners from "../schema/banners.js";
 import type * as schema_conversations from "../schema/conversations.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   marketplace: typeof marketplace;
   notifications: typeof notifications;
   presence: typeof presence;
+  productSearch: typeof productSearch;
   products: typeof products;
   "schema/banners": typeof schema_banners;
   "schema/conversations": typeof schema_conversations;

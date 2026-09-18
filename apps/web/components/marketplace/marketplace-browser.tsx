@@ -138,7 +138,7 @@ export function MarketplaceBrowser() {
                         <Input
                             value={draftSearch}
                             onChange={(event) => setSearchDraft({ value: event.target.value, sourceQuery: currentQuery })}
-                            placeholder={activeView === "personnel" ? "Buscar oficio, rol o experiencia..." : "Buscar tractores, semillas, transporte..."}
+                            placeholder={activeView === "personnel" ? "Buscar oficio, rol o experiencia..." : "Buscar maquinaria, insumos o provincia..."}
                             className="h-12 rounded-full pl-12 text-base"
                         />
                     </label>

@@ -31,6 +31,9 @@ export async function MarketPulse() {
     const allLive = data.weather.isLive && data.grains.isLive && data.dollars.isLive;
     const someLive = data.weather.isLive || data.grains.isLive || data.dollars.isLive;
     const grainDate = formatTradingDate(data.grains.tradingDate);
+    const grainPrices = data.grains.prices.filter(
+        (grain): grain is { label: string; value: number } => grain.value !== null,
+    );
 
     return (
         <aside
@@ -49,23 +52,27 @@ export async function MarketPulse() {
 
             <WeatherCard initialWeather={data.weather} />
 
-            <section className="mt-3 rounded-[1.4rem] bg-white p-4" aria-labelledby="grain-title">
-                <div className="flex items-center gap-2 text-emerald-800">
-                    <Wheat className="size-5" />
-                    <div>
-                        <h3 id="grain-title" className="text-sm font-black text-stone-950">Valor del cereal</h3>
-                        <p className="text-[0.65rem] font-bold text-stone-400">ARS por tonelada · Rosario{grainDate ? ` · ${grainDate}` : ""}</p>
-                    </div>
-                </div>
-                <dl className="mt-4 grid grid-cols-3 divide-x divide-stone-900/8 border-t border-stone-900/8 pt-3">
-                    {data.grains.prices.map((grain) => (
-                        <div key={grain.label} className="px-2 text-center first:pl-0 last:pr-0">
-                            <dt className="text-xs font-semibold text-stone-500">{grain.label}</dt>
-                            <dd className="mt-1 text-sm font-black text-stone-950">{PRICE_FORMATTER.format(grain.value)}</dd>
+            {grainPrices.length > 0 && (
+                <section className="mt-3 rounded-[1.4rem] bg-white p-4" aria-labelledby="grain-title">
+                    <div className="flex items-center gap-2 text-emerald-800">
+                        <Wheat className="size-5" />
+                        <div>
+                            <h3 id="grain-title" className="text-sm font-black text-stone-950">Valor del cereal</h3>
+                            <p className="text-[0.65rem] font-bold text-stone-400">ARS por tonelada · Rosario{grainDate ? ` · ${grainDate}` : ""}</p>
                         </div>
-                    ))}
-                </dl>
-            </section>
+                    </div>
+                    <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4 border-t border-stone-900/8 pt-3">
+                        {grainPrices.map((grain) => (
+                            <div key={grain.label} className="min-w-0 text-center">
+                                <dt className="text-xs font-semibold text-stone-500">{grain.label}</dt>
+                                <dd className="mt-1 whitespace-nowrap text-sm font-black text-stone-950">
+                                    {PRICE_FORMATTER.format(grain.value)}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                </section>
+            )}
 
             <section className="mt-3 rounded-[1.4rem] bg-[#e3ece8] p-4" aria-labelledby="dollar-title">
                 <div className="flex items-center justify-between gap-3">

@@ -15,6 +15,7 @@ const attributeValue = v.union(
 export const productsTable = defineTable({
     authorId: v.string(), // References Better Auth user ID
     name: v.string(),
+    searchText: v.optional(v.string()),
     description: v.optional(v.string()),
     type: v.union(v.literal("rent"), v.literal("sell")), // Rent or Sell
     category: v.optional(v.string()), // Category for filtering
@@ -44,5 +45,9 @@ export const productsTable = defineTable({
     .index("by_category_createdAt", ["category", "createdAt"])
     .searchIndex("search_name", {
         searchField: "name",
+        filterFields: ["category", "type", "familyId", "categoryId"],
+    })
+    .searchIndex("search_content", {
+        searchField: "searchText",
         filterFields: ["category", "type", "familyId", "categoryId"],
     });

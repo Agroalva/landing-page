@@ -22,13 +22,13 @@ importers:
         version: 1.3.27(better-auth@1.3.27(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(expo-constants@18.0.14)(expo-crypto@15.0.9(expo@54.0.37))(expo-linking@8.0.12)(expo-secure-store@15.0.8(expo@54.0.37))(expo-web-browser@15.0.11(expo@54.0.37)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0)))
       '@convex-dev/better-auth':
         specifier: ^0.9.7
-        version: 0.9.7(better-auth@1.3.27(next@16.1.6(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(convex@1.28.2(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+        version: 0.9.7(better-auth@1.3.27(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(convex@1.28.2(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
       '@convex-dev/presence':
         specifier: ^0.3.0
         version: 0.3.0(convex@1.28.2(react@19.1.0))(expo-crypto@15.0.9(expo@54.0.37))(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@convex-dev/resend':
         specifier: ^0.2.0
-        version: 0.2.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@3.25.67))(convex@1.28.2(react@19.1.0))(react@19.1.0)
+        version: 0.2.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12))(convex@1.28.2(react@19.1.0))(react@19.1.0)
       '@expo/vector-icons':
         specifier: ^15.0.3
         version: 15.0.3(expo-font@14.0.12(expo@54.0.37)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -138,6 +138,9 @@ importers:
         specifier: 0.5.1
         version: 0.5.1(@babel/core@7.28.5)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
     devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.18.13
       '@types/react':
         specifier: ~19.1.0
         version: 19.1.17
@@ -158,7 +161,7 @@ importers:
     dependencies:
       '@convex-dev/better-auth':
         specifier: ^0.9.7
-        version: 0.9.7(better-auth@1.3.27(next@16.1.6(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(convex@1.28.2(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
+        version: 0.9.7(better-auth@1.3.27(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(convex@1.28.2(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.65.0(react@19.1.0))
@@ -6987,7 +6990,7 @@ snapshots:
 
   '@better-fetch/fetch@1.1.18': {}
 
-  '@convex-dev/better-auth@0.9.7(better-auth@1.3.27(next@16.1.6(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(convex@1.28.2(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.3)':
+  '@convex-dev/better-auth@0.9.7(better-auth@1.3.27(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(convex@1.28.2(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.3)':
     dependencies:
       better-auth: 1.3.27(next@16.1.6(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       common-tags: 1.8.2
@@ -7020,21 +7023,21 @@ snapshots:
     optionalDependencies:
       react: 19.1.0
 
-  '@convex-dev/resend@0.2.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@3.25.67))(convex@1.28.2(react@19.1.0))(react@19.1.0)':
+  '@convex-dev/resend@0.2.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12))(convex@1.28.2(react@19.1.0))(react@19.1.0)':
     dependencies:
       '@convex-dev/rate-limiter': 0.3.0(convex@1.28.2(react@19.1.0))(react@19.1.0)
-      '@convex-dev/workpool': 0.3.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@3.25.67))(convex@1.28.2(react@19.1.0))
+      '@convex-dev/workpool': 0.3.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12))(convex@1.28.2(react@19.1.0))
       convex: 1.28.2(react@19.1.0)
-      convex-helpers: 0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@3.25.67)
+      convex-helpers: 0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12)
       remeda: 2.32.0
       svix: 1.82.0
     transitivePeerDependencies:
       - react
 
-  '@convex-dev/workpool@0.3.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@3.25.67))(convex@1.28.2(react@19.1.0))':
+  '@convex-dev/workpool@0.3.0(convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12))(convex@1.28.2(react@19.1.0))':
     dependencies:
       convex: 1.28.2(react@19.1.0)
-      convex-helpers: 0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@3.25.67)
+      convex-helpers: 0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12)
 
   '@date-fns/tz@1.2.0': {}
 
@@ -9846,6 +9849,14 @@ snapshots:
       react: 19.1.0
       typescript: 5.9.3
       zod: 3.25.67
+
+  convex-helpers@0.1.104(convex@1.28.2(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.1.12):
+    dependencies:
+      convex: 1.28.2(react@19.1.0)
+    optionalDependencies:
+      react: 19.1.0
+      typescript: 5.9.3
+      zod: 4.1.12
 
   convex@1.28.2(react@19.1.0):
     dependencies:

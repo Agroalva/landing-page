@@ -10,6 +10,8 @@ const FALLBACK_GRAINS = [
     { label: "Soja", value: 521500 },
     { label: "Maíz", value: 266710 },
     { label: "Trigo", value: 335250 },
+    { label: "Girasol", value: null },
+    { label: "Sorgo", value: null },
 ];
 
 const FALLBACK_DOLLARS = [
@@ -40,7 +42,7 @@ export type MarketPulseData = {
         isLive: boolean;
     };
     grains: {
-        prices: Array<{ label: string; value: number }>;
+        prices: Array<{ label: string; value: number | null }>;
         tradingDate: string | null;
         isLive: boolean;
     };
@@ -149,7 +151,7 @@ async function getGrains(): Promise<MarketPulseData["grains"]> {
         const headingCells = [...table.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)].map((match) => decodeCell(match[1]));
         const tradingDate = headingCells.find((cell) => /^\d{2}\/\d{2}\/\d{4}$/.test(cell)) ?? null;
         const rows = [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
-        const requestedLabels = ["Soja", "Maíz", "Trigo"];
+        const requestedLabels = ["Soja", "Maíz", "Trigo", "Girasol", "Sorgo"];
 
         const prices = requestedLabels.map((label) => {
             const row = rows.find((candidate) => {
@@ -158,11 +160,15 @@ async function getGrains(): Promise<MarketPulseData["grains"]> {
             });
 
             if (!row) {
-                throw new Error(`BCR row not found for ${label}`);
+                return { label, value: null };
             }
 
             const cells = [...row[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((match) => decodeCell(match[1]));
-            return { label, value: parseArgentineNumber(cells[2] ?? "") };
+            const currentPrice = cells[2] ?? "";
+            return {
+                label,
+                value: /\d/.test(currentPrice) ? parseArgentineNumber(currentPrice) : null,
+            };
         });
 
         return { prices, tradingDate, isLive: true };
