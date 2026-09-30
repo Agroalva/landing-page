@@ -4,6 +4,7 @@ import { MapPin, PackageOpen } from "lucide-react";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatPrice } from "@/lib/marketplace";
 import { FavoriteButton } from "./favorite-button";
+import { StarRating } from "./star-rating";
 
 export function ProductCard({ product }: { product: MarketplaceListing }) {
     return (
@@ -27,8 +28,13 @@ export function ProductCard({ product }: { product: MarketplaceListing }) {
                     <h2 className="mt-2 line-clamp-2 text-xl font-bold tracking-tight text-stone-950 group-hover:text-emerald-800">{product.name}</h2>
                 </Link>
                 <p className="mt-3 text-2xl font-black text-emerald-950">{formatPrice(product.price, product.currency)}</p>
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-stone-100 pt-4 text-sm text-stone-500">
-                    <Link href={`/profile/${product.seller.userId}`} className="truncate font-semibold text-stone-700 hover:text-emerald-800">{product.seller.displayName}</Link>
+                <div className="mt-4 flex items-end justify-between gap-3 border-t border-stone-100 pt-4 text-sm text-stone-500">
+                    <div className="min-w-0">
+                        <Link href={`/profile/${product.seller.userId}`} className="block truncate font-semibold text-stone-700 hover:text-emerald-800">{product.seller.displayName}</Link>
+                        {product.seller.ratingAverage !== null && (
+                            <StarRating value={product.seller.ratingAverage} size="sm" showValue reviewCount={product.seller.ratingCount} className="mt-1 gap-1" />
+                        )}
+                    </div>
                     {(product.location?.label || product.location?.address) && (
                         <span className="flex max-w-[45%] items-center gap-1 truncate"><MapPin className="size-3.5 shrink-0" />{product.location.label || product.location.address}</span>
                     )}

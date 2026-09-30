@@ -28,6 +28,8 @@ const sellerSummaryValidator = v.object({
     displayName: v.string(),
     bio: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
+    ratingAverage: v.union(v.number(), v.null()),
+    ratingCount: v.number(),
 });
 
 const listingCardValidator = v.object({
@@ -77,6 +79,8 @@ const profileValidator = v.object({
     displayName: v.string(),
     bio: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
+    ratingAverage: v.union(v.number(), v.null()),
+    ratingCount: v.number(),
     createdAt: v.number(),
     listings: v.array(listingCardValidator),
 });
@@ -95,6 +99,10 @@ async function getSellerSummary(ctx: any, userId: string) {
         displayName: profile?.displayName || "Usuario de Agroalva",
         bio: profile?.bio,
         avatarUrl,
+        ratingAverage: profile?.ratingCount
+            ? (profile.ratingSum || 0) / profile.ratingCount
+            : null,
+        ratingCount: profile?.ratingCount || 0,
     };
 }
 
@@ -292,6 +300,10 @@ export const getPublicProfile = query({
             displayName: profile.displayName,
             bio: profile.bio,
             avatarUrl,
+            ratingAverage: profile.ratingCount
+                ? (profile.ratingSum || 0) / profile.ratingCount
+                : null,
+            ratingCount: profile.ratingCount || 0,
             createdAt: profile.createdAt,
             listings: await Promise.all(products.map((product) => toListingCard(ctx, product))),
         };

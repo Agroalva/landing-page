@@ -63,6 +63,8 @@ export default function NotificationsScreen() {
         return "chatbubble-ellipses";
       case "like":
         return "thumbs-up";
+      case "review":
+        return "star";
       default:
         return "notifications";
     }
@@ -79,6 +81,8 @@ export default function NotificationsScreen() {
       router.push(`/chat/${relatedId}`);
     } else if (type === "favorite" && relatedId) {
       router.push(`/product/${relatedId}`);
+    } else if (type === "review" && relatedId) {
+      router.push(`/user-profile/${relatedId}`);
     }
   };
 
@@ -187,6 +191,8 @@ function getNotificationColor(type: string): string {
       return "#2196F3";
     case "like":
       return "#FF9800";
+    case "review":
+      return "#F9A825";
     default:
       return "#757575";
   }

@@ -9,6 +9,8 @@ export const profilesTable = defineTable({
     bio: v.optional(v.string()),
     phoneNumber: v.optional(v.string()), // Phone number for contact
     pushToken: v.optional(v.string()), // Expo push notification token
+    ratingSum: v.optional(v.number()),
+    ratingCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
 })

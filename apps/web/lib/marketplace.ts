@@ -16,6 +16,8 @@ export type MarketplaceListing = {
         displayName: string;
         bio?: string;
         avatarUrl?: string;
+        ratingAverage: number | null;
+        ratingCount: number;
     };
     viewCount: number;
     createdAt: number;

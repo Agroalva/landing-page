@@ -5,6 +5,7 @@ import { ArrowLeft, Eye, MapPin, ShieldCheck } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { ProductActions } from "@/components/marketplace/product-actions";
 import { ProductImageCarousel } from "@/components/marketplace/product-image-carousel";
+import { StarRating } from "@/components/marketplace/star-rating";
 import { Button } from "@/components/ui/button";
 import { fetchMarketplaceProduct, getProductShareDescription } from "@/lib/product-share";
 import { formatPrice, formatShortDate } from "@/lib/marketplace";
@@ -109,7 +110,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Publicado por</p>
                             <div className="mt-4 flex items-center gap-4">
                                 {product.seller.avatarUrl ? <Image src={product.seller.avatarUrl} alt={product.seller.displayName} width={56} height={56} className="size-14 rounded-full object-cover" unoptimized /> : <div className="flex size-14 items-center justify-center rounded-full bg-emerald-100 text-xl font-black text-emerald-800">{product.seller.displayName.charAt(0)}</div>}
-                                <div><Link href={`/profile/${product.authorId}`} className="text-lg font-black text-stone-950 hover:text-emerald-800">{product.seller.displayName}</Link><p className="text-sm text-stone-500">Miembro de Agroalva</p></div>
+                                <div>
+                                    <Link href={`/profile/${product.authorId}`} className="text-lg font-black text-stone-950 hover:text-emerald-800">{product.seller.displayName}</Link>
+                                    {product.seller.ratingAverage !== null ? (
+                                        <StarRating value={product.seller.ratingAverage} size="sm" showValue reviewCount={product.seller.ratingCount} className="mt-1 gap-1" />
+                                    ) : (
+                                        <p className="text-sm text-stone-500">Sin calificaciones todavía</p>
+                                    )}
+                                </div>
                             </div>
                             {product.seller.bio && <p className="mt-4 line-clamp-3 text-sm leading-6 text-stone-600">{product.seller.bio}</p>}
                             <Link href={`/profile/${product.authorId}`} className="mt-4 inline-block text-sm font-bold text-emerald-800 hover:underline">Ver perfil y publicaciones</Link>

@@ -11,10 +11,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Redirect } from "expo-router";
-import { useQuery, useMutation } from "convex/react";
+import { usePaginatedQuery, useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { ConvexImage } from "@/components/ConvexImage";
+import { StarRating } from "@/components/StarRating";
 
 export default function UserProfileScreen() {
   const router = useRouter();
@@ -28,7 +29,45 @@ export default function UserProfileScreen() {
     api.products.byUser,
     params.userId ? { userId: params.userId, limit: 50 } : "skip"
   );
+  const reviewSummary = useQuery(
+    api.reviews.getSummaryForUser,
+    params.userId ? { userId: params.userId } : "skip"
+  );
+  const myReview = useQuery(
+    api.reviews.getMyReviewForUser,
+    params.userId ? { reviewedUserId: params.userId } : "skip"
+  );
+  const {
+    results: reviews,
+    status: reviewsStatus,
+    loadMore: loadMoreReviews,
+  } = usePaginatedQuery(
+    api.reviews.listForUser,
+    params.userId ? { reviewedUserId: params.userId } : "skip",
+    { initialNumItems: 5 }
+  );
   const ensureConversation = useMutation(api.conversations.ensureConversation);
+  const reportReview = useMutation(api.reviews.report);
+
+  const currentUserId = user?.id || user?.userId;
+  const isOwnProfile = currentUserId === params.userId;
+
+  const handleReportReview = (reviewId: (typeof reviews)[number]["_id"]) => {
+    const submitReport = async (reason: "spam" | "inappropriate") => {
+      try {
+        await reportReview({ reviewId, reason });
+        Alert.alert("Reporte enviado", "Gracias. Revisaremos esta reseña.");
+      } catch (error: any) {
+        Alert.alert("Error", error?.data || error?.message || "No se pudo enviar el reporte");
+      }
+    };
+
+    Alert.alert("Reportar reseña", "Selecciona el motivo del reporte.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Spam", onPress: () => submitReport("spam") },
+      { text: "Contenido inapropiado", onPress: () => submitReport("inappropriate") },
+    ]);
+  };
 
   if (authLoading) {
     return (
@@ -59,8 +98,6 @@ export default function UserProfileScreen() {
       </SafeAreaView>
     );
   }
-
-  const isOwnProfile = user?.id === params.userId;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -97,43 +134,54 @@ export default function UserProfileScreen() {
           </Text>
           {profile?.bio && <Text style={styles.userBio}>{profile.bio}</Text>}
 
+          <View style={styles.profileRating}>
+            {reviewSummary === undefined ? (
+              <ActivityIndicator size="small" color="#2E7D32" />
+            ) : reviewSummary.count > 0 && reviewSummary.average !== null ? (
+              <StarRating
+                value={reviewSummary.average}
+                reviewCount={reviewSummary.count}
+                showValue
+                size={19}
+              />
+            ) : (
+              <Text style={styles.noReviewsText}>Sin calificaciones todavía</Text>
+            )}
+          </View>
+
           {!isOwnProfile && (
-            <TouchableOpacity
-              style={styles.messageButton}
-              onPress={async () => {
-                if (!user || !params.userId) {
-                  Alert.alert("Error", "No se pudo iniciar la conversación");
-                  return;
-                }
+            <View style={styles.profileActions}>
+              <TouchableOpacity
+                style={styles.messageButton}
+                onPress={async () => {
+                  if (!currentUserId || !params.userId) {
+                    Alert.alert("Error", "No se pudo iniciar la conversación");
+                    return;
+                  }
 
-                const currentUserId = user.id || user.userId;
-                if (!currentUserId) {
-                  Alert.alert("Error", "No se pudo identificar al usuario");
-                  return;
-                }
-
-                // Don't allow messaging yourself
-                if (currentUserId === params.userId) {
-                  Alert.alert("Error", "No puedes enviarte un mensaje a ti mismo");
-                  return;
-                }
-
-                try {
-                  // Ensure conversation exists between current user and profile user
-                  const conversationId = await ensureConversation({
-                    memberIds: [currentUserId, params.userId],
-                  });
-                  
-                  // Navigate to chat with conversationId
-                  router.push(`/chat/${conversationId}`);
-                } catch (error: any) {
-                  Alert.alert("Error", error?.message || "No se pudo iniciar la conversación");
-                }
-              }}
-            >
-              <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.messageButtonText}>Enviar mensaje</Text>
-            </TouchableOpacity>
+                  try {
+                    const conversationId = await ensureConversation({
+                      memberIds: [currentUserId, params.userId],
+                    });
+                    router.push(`/chat/${conversationId}`);
+                  } catch (error: any) {
+                    Alert.alert("Error", error?.message || "No se pudo iniciar la conversación");
+                  }
+                }}
+              >
+                <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.messageButtonText}>Mensaje</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reviewButton}
+                onPress={() => router.push(`/review/${params.userId}` as any)}
+              >
+                <Ionicons name={myReview ? "create-outline" : "star-outline"} size={20} color="#2E7D32" />
+                <Text style={styles.reviewButtonText}>
+                  {myReview ? "Editar reseña" : "Calificar"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -143,6 +191,100 @@ export default function UserProfileScreen() {
             <Text style={styles.statValue}>{userProducts?.length || 0}</Text>
             <Text style={styles.statLabel}>Publicaciones</Text>
           </View>
+        </View>
+
+        {/* Reviews */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Calificaciones y reseñas</Text>
+          {reviewsStatus === "LoadingFirstPage" ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#2E7D32" />
+            </View>
+          ) : reviews.length === 0 ? (
+            <View style={styles.reviewsEmptyState}>
+              <Ionicons name="star-outline" size={38} color="#BDBDBD" />
+              <Text style={styles.emptyText}>Sin calificaciones todavía</Text>
+            </View>
+          ) : (
+            <>
+              {reviews.map((review) => (
+                <View key={review._id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <TouchableOpacity
+                      style={styles.reviewerInfo}
+                      onPress={() => router.push(`/user-profile/${review.reviewer.userId}`)}
+                      disabled={review.reviewer.userId === params.userId}
+                    >
+                      {review.reviewer.avatarId ? (
+                        <ConvexImage
+                          storageId={review.reviewer.avatarId}
+                          style={styles.reviewerAvatar}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.reviewerAvatar}>
+                          <Ionicons name="person" size={18} color="#9E9E9E" />
+                        </View>
+                      )}
+                      <View style={styles.reviewerText}>
+                        <Text style={styles.reviewerName}>{review.reviewer.displayName}</Text>
+                        <Text style={styles.reviewDate}>
+                          {new Date(review.createdAt).toLocaleDateString("es-AR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.reviewMenuButton}
+                      onPress={() => {
+                        if (review.reviewer.userId === currentUserId) {
+                          router.push(`/review/${params.userId}` as any);
+                        } else {
+                          handleReportReview(review._id);
+                        }
+                      }}
+                      accessibilityLabel={
+                        review.reviewer.userId === currentUserId
+                          ? "Editar mi reseña"
+                          : "Reportar reseña"
+                      }
+                    >
+                      <Ionicons
+                        name={review.reviewer.userId === currentUserId ? "create-outline" : "flag-outline"}
+                        size={18}
+                        color="#757575"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <StarRating value={review.rating} size={17} />
+                  <Text style={styles.reviewComment}>{review.comment}</Text>
+                  <View style={styles.verifiedInteraction}>
+                    <Ionicons name="shield-checkmark-outline" size={14} color="#2E7D32" />
+                    <Text style={styles.verifiedInteractionText}>Interacción en Agroalva</Text>
+                  </View>
+                  {review.productName && (
+                    <Text style={styles.reviewProduct} numberOfLines={1}>
+                      Relacionada con: {review.productName}
+                    </Text>
+                  )}
+                </View>
+              ))}
+              {reviewsStatus === "CanLoadMore" && (
+                <TouchableOpacity
+                  style={styles.loadMoreButton}
+                  onPress={() => loadMoreReviews(5)}
+                >
+                  <Text style={styles.loadMoreText}>Ver más reseñas</Text>
+                </TouchableOpacity>
+              )}
+              {reviewsStatus === "LoadingMore" && (
+                <ActivityIndicator size="small" color="#2E7D32" style={styles.loadMoreSpinner} />
+              )}
+            </>
+          )}
         </View>
 
         {/* User's Products */}
@@ -255,6 +397,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 32,
   },
+  profileRating: {
+    minHeight: 28,
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  noReviewsText: {
+    fontSize: 14,
+    color: "#757575",
+  },
+  profileActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
   messageButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -271,6 +426,22 @@ const styles = StyleSheet.create({
   },
   messageButtonText: {
     color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  reviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2E7D32",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    gap: 7,
+  },
+  reviewButtonText: {
+    color: "#2E7D32",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -311,6 +482,59 @@ const styles = StyleSheet.create({
     color: "#212121",
     marginBottom: 12,
   },
+  reviewsEmptyState: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 28,
+  },
+  reviewCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  reviewerInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  reviewerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#EEEEEE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewerText: { marginLeft: 10, flex: 1 },
+  reviewerName: { color: "#212121", fontSize: 14, fontWeight: "700" },
+  reviewDate: { color: "#9E9E9E", fontSize: 12, marginTop: 2 },
+  reviewMenuButton: { padding: 8 },
+  reviewComment: { color: "#424242", fontSize: 14, lineHeight: 20, marginTop: 10 },
+  verifiedInteraction: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginTop: 12,
+  },
+  verifiedInteractionText: { color: "#2E7D32", fontSize: 12, fontWeight: "600" },
+  reviewProduct: { color: "#757575", fontSize: 12, marginTop: 7 },
+  loadMoreButton: { alignItems: "center", paddingVertical: 14 },
+  loadMoreText: { color: "#2E7D32", fontSize: 14, fontWeight: "700" },
+  loadMoreSpinner: { marginVertical: 14 },
   listingCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -381,4 +605,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

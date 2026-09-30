@@ -18,6 +18,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
+import { StarRating } from "@/components/StarRating";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -155,6 +156,22 @@ export default function ProfileScreen() {
             {profile?.displayName || user?.name || "Usuario"}
           </Text>
           {profile?.bio && <Text style={styles.userRole}>{profile.bio}</Text>}
+
+          <TouchableOpacity
+            style={styles.ratingContainer}
+            disabled={!userId}
+            onPress={() => userId && router.push(`/user-profile/${userId}`)}
+          >
+            {(profile?.ratingCount || 0) > 0 ? (
+              <StarRating
+                value={(profile?.ratingSum || 0) / (profile?.ratingCount || 1)}
+                reviewCount={profile?.ratingCount}
+                showValue
+              />
+            ) : (
+              <Text style={styles.reviewsText}>Sin calificaciones todavía</Text>
+            )}
+          </TouchableOpacity>
 
           <View style={styles.actionButtons}>
             <TouchableOpacity 
@@ -625,4 +642,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-

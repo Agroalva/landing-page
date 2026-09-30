@@ -7,7 +7,8 @@ export const notificationsTable = defineTable({
         v.literal("message"),
         v.literal("favorite"),
         v.literal("comment"),
-        v.literal("like")
+        v.literal("like"),
+        v.literal("review")
     ),
     title: v.string(),
     body: v.string(),

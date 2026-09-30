@@ -7,7 +7,9 @@ import { internal } from "./_generated/api";
 export const ensureConversation = mutation({
     args: {
         memberIds: v.array(v.string()),
+        productId: v.optional(v.id("products")),
     },
+    returns: v.id("conversations"),
     handler: async (ctx, args) => {
         const user = await authComponent.getAuthUser(ctx);
         if (!user) {
@@ -28,12 +30,18 @@ export const ensureConversation = mutation({
             .first();
 
         if (existing) {
+            if (args.productId && !existing.productIds?.includes(args.productId)) {
+                await ctx.db.patch(existing._id, {
+                    productIds: [...(existing.productIds || []), args.productId],
+                });
+            }
             return existing._id;
         }
 
         // Create new conversation
         return await ctx.db.insert("conversations", {
             memberIds: sortedMembers,
+            productIds: args.productId ? [args.productId] : undefined,
             createdAt: Date.now(),
         });
     },
@@ -47,6 +55,7 @@ export const listForUser = query({
             _id: v.id("conversations"),
             _creationTime: v.number(),
             memberIds: v.array(v.string()),
+            productIds: v.optional(v.array(v.id("products"))),
             lastMessageAt: v.optional(v.number()),
             lastMessageText: v.optional(v.string()),
             lastMessageSenderId: v.optional(v.string()),
@@ -253,4 +262,3 @@ export const getUnreadCount = query({
         }
     },
 });
-

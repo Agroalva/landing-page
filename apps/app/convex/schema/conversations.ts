@@ -3,6 +3,7 @@ import { v } from "convex/values";
 
 export const conversationsTable = defineTable({
     memberIds: v.array(v.string()), // Array of Better Auth user IDs
+    productIds: v.optional(v.array(v.id("products"))),
     lastMessageAt: v.optional(v.number()),
     lastMessageText: v.optional(v.string()), // Preview of last message
     lastMessageSenderId: v.optional(v.string()), // ID of sender of last message
@@ -10,4 +11,3 @@ export const conversationsTable = defineTable({
 })
     .index("by_memberIds", ["memberIds"])
     .index("by_lastMessageAt", ["lastMessageAt"]);
-

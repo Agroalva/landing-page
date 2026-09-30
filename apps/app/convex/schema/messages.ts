@@ -10,5 +10,5 @@ export const messagesTable = defineTable({
     createdAt: v.number(),
 })
     .index("by_conversationId", ["conversationId"])
+    .index("by_conversationId_senderId", ["conversationId", "senderId"])
     .index("by_conversationId_createdAt", ["conversationId", "createdAt"]);
-

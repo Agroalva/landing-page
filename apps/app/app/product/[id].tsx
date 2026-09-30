@@ -18,6 +18,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
+import { StarRating } from "@/components/StarRating";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
 import { buildPublicProductUrl } from "../../utils/public-url";
@@ -208,6 +209,7 @@ export default function ProductDetailScreen() {
       // Ensure conversation exists between current user and product author
       const conversationId = await ensureConversation({
         memberIds: [currentUserId, product.authorId],
+        productId: product._id,
       });
       trackContactSeller({
         method: "message",
@@ -456,6 +458,16 @@ export default function ProductDetailScreen() {
                   <Text style={styles.sellerName}>
                     {authorProfile.displayName}
                   </Text>
+                  {(authorProfile.ratingCount || 0) > 0 ? (
+                    <StarRating
+                      value={(authorProfile.ratingSum || 0) / (authorProfile.ratingCount || 1)}
+                      reviewCount={authorProfile.ratingCount}
+                      showValue
+                      size={15}
+                    />
+                  ) : (
+                    <Text style={styles.noReviewsText}>Sin calificaciones todavía</Text>
+                  )}
                   {authorProfile.bio && (
                     <Text style={styles.statText} numberOfLines={1}>
                       {authorProfile.bio}
@@ -962,6 +974,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#212121",
     marginLeft: 4,
+  },
+  noReviewsText: {
+    fontSize: 12,
+    color: "#757575",
   },
   viewProfileButton: {
     paddingVertical: 8,

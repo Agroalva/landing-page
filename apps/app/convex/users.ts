@@ -12,6 +12,8 @@ const profileValidator = v.object({
     bio: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     pushToken: v.optional(v.string()),
+    ratingSum: v.optional(v.number()),
+    ratingCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
 });
@@ -24,6 +26,8 @@ const toPublicProfile = (profile: any) => ({
     role: profile.role,
     avatarId: profile.avatarId,
     bio: profile.bio,
+    ratingSum: profile.ratingSum,
+    ratingCount: profile.ratingCount,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
 });
@@ -165,7 +169,65 @@ export const cleanupUserData = internalMutation({
     handler: async (ctx, args) => {
         const userId = args.userId;
 
-        // 1) Delete profile
+        // 1) Remove reviews written by this user and repair recipient aggregates.
+        const authoredReviews = await ctx.db
+            .query("reviews")
+            .withIndex("by_reviewerId", (q) => q.eq("reviewerId", userId))
+            .collect();
+        for (const review of authoredReviews) {
+            if (review.status === "published") {
+                const reviewedProfile = await ctx.db
+                    .query("profiles")
+                    .withIndex("by_userId", (q) => q.eq("userId", review.reviewedUserId))
+                    .first();
+                if (reviewedProfile) {
+                    await ctx.db.patch(reviewedProfile._id, {
+                        ratingSum: Math.max(0, (reviewedProfile.ratingSum || 0) - review.rating),
+                        ratingCount: Math.max(0, (reviewedProfile.ratingCount || 0) - 1),
+                        updatedAt: Date.now(),
+                    });
+                }
+            }
+
+            const reports = await ctx.db
+                .query("reviewReports")
+                .withIndex("by_reviewId", (q) => q.eq("reviewId", review._id))
+                .collect();
+            for (const report of reports) {
+                await ctx.db.delete(report._id);
+            }
+            await ctx.db.delete(review._id);
+        }
+
+        // 2) Remove reviews received by this user.
+        for (const status of ["published", "hidden", "deleted"] as const) {
+            const receivedReviews = await ctx.db
+                .query("reviews")
+                .withIndex("by_reviewedUserId_status_createdAt", (q) =>
+                    q.eq("reviewedUserId", userId).eq("status", status),
+                )
+                .collect();
+            for (const review of receivedReviews) {
+                const reports = await ctx.db
+                    .query("reviewReports")
+                    .withIndex("by_reviewId", (q) => q.eq("reviewId", review._id))
+                    .collect();
+                for (const report of reports) {
+                    await ctx.db.delete(report._id);
+                }
+                await ctx.db.delete(review._id);
+            }
+        }
+
+        const submittedReports = await ctx.db
+            .query("reviewReports")
+            .withIndex("by_reportedBy", (q) => q.eq("reportedBy", userId))
+            .collect();
+        for (const report of submittedReports) {
+            await ctx.db.delete(report._id);
+        }
+
+        // 3) Delete profile
         const profile = await ctx.db
             .query("profiles")
             .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -174,7 +236,7 @@ export const cleanupUserData = internalMutation({
             await ctx.db.delete(profile._id);
         }
 
-        // 2) Delete products authored by user and their favorites
+        // 4) Delete products authored by user and their favorites
         const products = await ctx.db
             .query("products")
             .withIndex("by_authorId", (q) => q.eq("authorId", userId))
@@ -191,7 +253,7 @@ export const cleanupUserData = internalMutation({
             await ctx.db.delete(product._id);
         }
 
-        // 3) Delete favorites created by the user
+        // 5) Delete favorites created by the user
         const myFavorites = await ctx.db
             .query("favorites")
             .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -200,7 +262,7 @@ export const cleanupUserData = internalMutation({
             await ctx.db.delete(favorite._id);
         }
 
-        // 4) Delete notifications for the user
+        // 6) Delete notifications for the user
         const myNotifications = await ctx.db
             .query("notifications")
             .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -209,7 +271,7 @@ export const cleanupUserData = internalMutation({
             await ctx.db.delete(notification._id);
         }
 
-        // 5) Clean up conversations and messages involving this user
+        // 7) Clean up conversations and messages involving this user
         const conversations = await ctx.db.query("conversations").collect();
         for (const conversation of conversations) {
             if (!conversation.memberIds.includes(userId)) {
