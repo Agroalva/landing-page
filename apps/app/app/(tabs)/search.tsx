@@ -8,11 +8,14 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "convex/react";
+import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Doc } from "../../convex/_generated/dataModel";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthSession } from "@/hooks/use-session";
@@ -142,6 +145,24 @@ const isFamilyVisibleForTopLevel = (familyId: FamilyId, topLevel: TopLevelIntent
   return true;
 };
 
+const PAGE_SIZE = 20;
+const INFINITE_SCROLL_THRESHOLD = 600;
+
+const mergeProducts = (
+  existingProducts: Doc<"products">[],
+  incomingProducts: Doc<"products">[],
+) => {
+  const productsById = new Map(
+    existingProducts.map((product) => [product._id, product]),
+  );
+
+  incomingProducts.forEach((product) => {
+    productsById.set(product._id, product);
+  });
+
+  return Array.from(productsById.values());
+};
+
 const getTopLevelResultLabel = (topLevel: TopLevelIntent) => {
   if (topLevel === "personal") {
     return "Personal";
@@ -191,6 +212,14 @@ export default function SearchScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState((paramQuery ?? "").trim());
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const [searchPagination, setSearchPagination] = useState<{
+    key: string;
+    cursor?: string;
+    products: Doc<"products">[];
+  }>({
+    key: "",
+    products: [],
+  });
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
   const orderedTopLevelOptions = useMemo(
     () => getOrderedTopLevelOptions(selectedTopLevel),
@@ -218,6 +247,12 @@ export default function SearchScreen() {
       : undefined;
   const hasSearchTerm = debouncedQuery.length >= 3;
   const isBrowseMode = !hasSearchTerm && selectedTopLevel !== "all";
+  const searchKey = [
+    debouncedQuery.toLowerCase(),
+    selectedTopLevel,
+    selectedFamily?.id ?? "all",
+    selectedCategory?.id ?? "all",
+  ].join(":");
 
   useEffect(() => {
     const nextTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
@@ -321,6 +356,13 @@ export default function SearchScreen() {
     });
   }, [debouncedQuery, selectedCategory?.id, selectedFamily?.id, selectedTopLevel]);
 
+  useEffect(() => {
+    setSearchPagination({
+      key: searchKey,
+      products: [],
+    });
+  }, [searchKey]);
+
   const loadRecentSearches = async () => {
     try {
       const stored = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
@@ -401,28 +443,101 @@ export default function SearchScreen() {
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
           listingType: derivedListingType,
-          limit: 20,
+          limit: PAGE_SIZE,
+          clientPaginates: true,
+          cursor:
+            searchPagination.key === searchKey
+              ? searchPagination.cursor
+              : undefined,
         }
       : "skip",
   );
 
-  const browseFeed = useQuery(
+  const {
+    results: browseProducts,
+    status: browseStatus,
+    loadMore: loadMoreBrowseProducts,
+  } = usePaginatedQuery(
     api.products.feed,
     isBrowseMode
       ? {
-          paginationOpts: {
-            numItems: 20,
-            cursor: null,
-          },
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
           listingType: derivedListingType,
+          clientPaginates: true,
         }
       : "skip",
+    {
+      initialNumItems: PAGE_SIZE,
+    },
   );
 
-  const searchProducts = useMemo(() => searchResults?.products ?? [], [searchResults]);
-  const browseProducts = useMemo(() => browseFeed?.page ?? [], [browseFeed]);
+  useEffect(() => {
+    if (!searchResults) {
+      return;
+    }
+
+    setSearchPagination((currentPagination) => ({
+      key: searchKey,
+      cursor:
+        currentPagination.key === searchKey
+          ? currentPagination.cursor
+          : undefined,
+      products: mergeProducts(
+        currentPagination.key === searchKey
+          ? currentPagination.products
+          : [],
+        searchResults.products,
+      ),
+    }));
+  }, [searchKey, searchResults]);
+
+  const searchProducts = useMemo(
+    () =>
+      mergeProducts(
+        searchPagination.key === searchKey
+          ? searchPagination.products
+          : [],
+        searchResults?.products ?? [],
+      ),
+    [searchKey, searchPagination, searchResults],
+  );
+  const isLoadingFirstSearchPage =
+    searchResults === undefined && searchProducts.length === 0;
+  const isLoadingMoreSearchResults =
+    searchResults === undefined && searchProducts.length > 0;
+
+  const handleLoadMoreSearchResults = () => {
+    const nextCursor = searchResults?.nextCursor;
+    if (!searchResults?.hasMore || !nextCursor || searchPagination.cursor === nextCursor) {
+      return;
+    }
+
+    setSearchPagination((currentPagination) => ({
+      key: searchKey,
+      cursor: nextCursor,
+      products:
+        currentPagination.key === searchKey
+          ? currentPagination.products
+          : [],
+    }));
+  };
+
+  const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - (layoutMeasurement.height + contentOffset.y);
+
+    if (distanceFromBottom > INFINITE_SCROLL_THRESHOLD) {
+      return;
+    }
+
+    if (isBrowseMode && browseStatus === "CanLoadMore") {
+      loadMoreBrowseProducts(PAGE_SIZE);
+    } else if (hasSearchTerm) {
+      handleLoadMoreSearchResults();
+    }
+  };
   const serviceResults = useMemo(
     () => searchProducts.filter((product) => product.type === "rent"),
     [searchProducts],
@@ -477,6 +592,8 @@ export default function SearchScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
       >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de búsqueda</Text>
@@ -690,7 +807,7 @@ export default function SearchScreen() {
                 : "Resultados recientes de productos físicos dentro del filtro actual."}
             </Text>
 
-            {browseFeed === undefined ? (
+            {browseStatus === "LoadingFirstPage" ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#1B5E20" />
               </View>
@@ -703,6 +820,9 @@ export default function SearchScreen() {
                     variant={isAuthenticated ? "full" : "public"}
                   />
                 ))}
+                {browseStatus === "LoadingMore" && (
+                  <ActivityIndicator size="small" color="#1B5E20" style={styles.loadingMore} />
+                )}
               </View>
             ) : (
               <View style={styles.emptyState}>
@@ -718,7 +838,7 @@ export default function SearchScreen() {
 
         {hasSearchTerm && (
           <View style={styles.section}>
-            {searchResults === undefined ? (
+            {isLoadingFirstSearchPage ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#1B5E20" />
               </View>
@@ -769,10 +889,10 @@ export default function SearchScreen() {
                   </>
                 )}
 
-                {selectedTopLevel === "all" && isAuthenticated && searchResults.profiles.length > 0 && (
+                {selectedTopLevel === "all" && isAuthenticated && (searchResults?.profiles.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Perfiles</Text>
-                    {searchResults.profiles.map((profile) => (
+                    {searchResults?.profiles.map((profile) => (
                       <TouchableOpacity
                         key={profile._id}
                         style={styles.recentItem}
@@ -787,7 +907,7 @@ export default function SearchScreen() {
                 )}
 
                 {searchProducts.length === 0 &&
-                  (selectedTopLevel !== "all" || searchResults.profiles.length === 0) && (
+                  (selectedTopLevel !== "all" || (searchResults?.profiles.length ?? 0) === 0) && (
                     <View style={styles.emptyState}>
                       <Ionicons name="search-outline" size={40} color="#C6BDAE" />
                       <Text style={styles.emptyTitle}>No encontramos coincidencias</Text>
@@ -796,6 +916,10 @@ export default function SearchScreen() {
                       </Text>
                     </View>
                   )}
+
+                {isLoadingMoreSearchResults && (
+                  <ActivityIndicator size="small" color="#1B5E20" style={styles.loadingMore} />
+                )}
               </>
             )}
           </View>
@@ -909,6 +1033,9 @@ const styles = StyleSheet.create({
   loadingBox: {
     paddingVertical: 28,
     alignItems: "center",
+  },
+  loadingMore: {
+    marginVertical: 16,
   },
   loadingRecent: {
     marginTop: 12,

@@ -110,8 +110,8 @@ const applyListingTypeFilter = (query: any, listingType?: "rent" | "sell") => {
     return query.filter((q: any) => q.eq(q.field("type"), listingType));
 };
 
-// Released clients request a single 20-item page with no way to load more,
-// so serve a larger first page until a client with pagination ships.
+// Clients released before 1.2.9 request a single 20-item page with no way to
+// load more, so serve them a larger page. Newer clients send clientPaginates.
 const MIN_FEED_PAGE_SIZE = 100;
 
 // Create a new product
@@ -182,13 +182,16 @@ export const feed = query({
         categoryId: v.optional(v.string()),
         legacyCategory: v.optional(v.string()),
         listingType: v.optional(v.union(v.literal("rent"), v.literal("sell"))),
+        clientPaginates: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
-        const paginationOpts = {
-            ...args.paginationOpts,
-            numItems: Math.max(args.paginationOpts.numItems, MIN_FEED_PAGE_SIZE),
-        };
+        const paginationOpts = args.clientPaginates
+            ? args.paginationOpts
+            : {
+                ...args.paginationOpts,
+                numItems: Math.max(args.paginationOpts.numItems, MIN_FEED_PAGE_SIZE),
+            };
 
         if (resolvedCategory) {
             const query = applyListingTypeFilter(
