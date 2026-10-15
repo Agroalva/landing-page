@@ -4,7 +4,11 @@ import { authComponent } from "./auth";
 import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { normalizeProductSearchTerm } from "./productSearch";
-import { resolveTaxonomyFilter } from "./taxonomy";
+import {
+    excludePersonalListings,
+    resolveTaxonomyFilter,
+    shouldExcludePersonalListings,
+} from "./taxonomy";
 
 const listingTypeValidator = v.union(v.literal("rent"), v.literal("sell"));
 const attributeValueValidator = v.union(
@@ -159,10 +163,11 @@ export const list = query({
             args.familyId,
             args.categoryId,
         );
+        const excludePersonal = shouldExcludePersonalListings(args.listingType, resolvedFamily);
         let result;
 
         if (searchTerm.length >= 2) {
-            const searchQuery = ctx.db
+            let searchQuery = ctx.db
                 .query("products")
                 .withSearchIndex("search_content", (q) => {
                     let builder = q.search("searchText", searchTerm);
@@ -177,6 +182,9 @@ export const list = query({
                     }
                     return builder;
                 });
+            if (excludePersonal) {
+                searchQuery = excludePersonalListings(searchQuery);
+            }
             result = await searchQuery.paginate(args.paginationOpts);
         } else if (resolvedCategory && resolvedFamily) {
             const products = applyListingTypeFilter(
@@ -197,11 +205,14 @@ export const list = query({
             );
             result = await products.order("desc").paginate(args.paginationOpts);
         } else if (args.listingType) {
-            result = await ctx.db
+            let products = ctx.db
                 .query("products")
                 .withIndex("by_type", (q) => q.eq("type", args.listingType!))
-                .order("desc")
-                .paginate(args.paginationOpts);
+                .order("desc");
+            if (excludePersonal) {
+                products = excludePersonalListings(products);
+            }
+            result = await products.paginate(args.paginationOpts);
         } else {
             result = await ctx.db
                 .query("products")

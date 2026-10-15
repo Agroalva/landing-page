@@ -1,7 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
-import { resolveTaxonomyFilter } from "./taxonomy";
+import { resolveTaxonomyFilter, shouldExcludePersonalListings } from "./taxonomy";
 
 const toPublicProfile = (profile: any) => ({
     _id: profile._id,
@@ -94,10 +94,12 @@ export const querySearch = query({
         }
 
         const recentProducts = await productQuery.take(500);
+        const excludePersonal = shouldExcludePersonalListings(args.listingType, resolvedFamily);
         
         const allMatchingProducts = recentProducts
             .filter(product => 
                 (args.listingType ? product.type === args.listingType : true) &&
+                (excludePersonal ? product.familyId !== "personal" : true) &&
                 (
                     product.name.toLowerCase().includes(searchTerm) ||
                     product.description?.toLowerCase().includes(searchTerm)

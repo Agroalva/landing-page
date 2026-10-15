@@ -6,7 +6,15 @@ import { ConvexImage } from "./ConvexImage";
 import { formatPrice } from "../utils/currency";
 import { Id } from "../convex/_generated/dataModel";
 import { getCategoryById } from "../config/taxonomy";
+import { getListingIntentForProduct } from "../config/listing-intents";
+import type { ListingIntent } from "../config/listing-intents";
 import { CONDITION_OPTIONS } from "../config/options";
+
+const TYPE_BADGE_LABELS: Record<ListingIntent, string> = {
+  products: "Venta",
+  services: "Servicio",
+  personal: "Personal",
+};
 
 interface ListingCardProps {
   product: {
@@ -16,6 +24,7 @@ interface ListingCardProps {
     price?: number;
     currency?: string;
     type: "rent" | "sell";
+    familyId?: string;
     mediaIds?: Id<"_storage">[];
     categoryId?: string;
     category?: string;
@@ -73,7 +82,7 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
         {showFullDetails && (
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>
-              {product.type === "rent" ? "Servicio" : "Venta"}
+              {TYPE_BADGE_LABELS[getListingIntentForProduct(product.type, product.familyId)]}
             </Text>
           </View>
         )}

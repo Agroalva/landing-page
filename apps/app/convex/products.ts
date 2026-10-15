@@ -5,7 +5,11 @@ import { authComponent } from "./auth";
 import { getCategoryById } from "../config/taxonomy";
 import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
 import { buildProductSearchText } from "./productSearch";
-import { resolveTaxonomyFilter } from "./taxonomy";
+import {
+    excludePersonalListings,
+    resolveTaxonomyFilter,
+    shouldExcludePersonalListings,
+} from "./taxonomy";
 
 const attributeValueValidator = v.union(
     v.string(),
@@ -221,8 +225,10 @@ export const feed = query({
                 .paginate(paginationOpts);
         }
 
+        const excludePersonal = shouldExcludePersonalListings(args.listingType, resolvedFamily);
+
         if (args.legacyCategory && args.legacyCategory !== "Todos") {
-            const query = applyListingTypeFilter(
+            let query = applyListingTypeFilter(
                 ctx.db
                     .query("products")
                     .withIndex("by_category_createdAt", (q) =>
@@ -230,18 +236,24 @@ export const feed = query({
                     ),
                 args.listingType,
             );
+            if (excludePersonal) {
+                query = excludePersonalListings(query);
+            }
 
             return await query
                 .order("desc")
                 .paginate(paginationOpts);
         }
 
-        const query = applyListingTypeFilter(
+        let query = applyListingTypeFilter(
             ctx.db
                 .query("products")
                 .withIndex("by_createdAt"),
             args.listingType,
         );
+        if (excludePersonal) {
+            query = excludePersonalListings(query);
+        }
 
         return await query
             .order("desc")

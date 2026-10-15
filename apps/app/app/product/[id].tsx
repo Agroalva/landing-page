@@ -23,6 +23,8 @@ import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
 import { buildPublicProductUrl } from "../../utils/public-url";
 import { getCategoryById, getFamilyById } from "../../config/taxonomy";
+import { getListingIntentForProduct } from "../../config/listing-intents";
+import type { ListingIntent } from "../../config/listing-intents";
 import { CONDITION_OPTIONS } from "../../config/options";
 import {
   trackAddToWishlist,
@@ -32,6 +34,17 @@ import {
 } from "@/lib/meta-events";
 
 const { width } = Dimensions.get("window");
+
+const TYPE_BADGE_LABELS: Record<ListingIntent, string> = {
+  products: "Venta",
+  services: "Servicios",
+  personal: "Personal",
+};
+const TYPE_DETAIL_LABELS: Record<ListingIntent, string> = {
+  products: "Producto",
+  services: "Servicio",
+  personal: "Personal",
+};
 
 export default function ProductDetailScreen() {
   const router = useRouter();
@@ -434,7 +447,7 @@ export default function ProductDetailScreen() {
           {showFullDetails && (
             <View style={styles.typeBadge}>
               <Text style={styles.typeBadgeText}>
-                {product.type === "rent" ? "Servicios" : "Venta"}
+                {TYPE_BADGE_LABELS[getListingIntentForProduct(product.type, product.familyId)]}
               </Text>
             </View>
           )}
@@ -496,7 +509,7 @@ export default function ProductDetailScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Tipo</Text>
                   <Text style={styles.detailValue}>
-                    {product.type === "rent" ? "Servicio" : "Producto"}
+                    {TYPE_DETAIL_LABELS[getListingIntentForProduct(product.type, product.familyId)]}
                   </Text>
                 </View>
 

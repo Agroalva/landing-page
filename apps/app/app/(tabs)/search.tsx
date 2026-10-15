@@ -539,11 +539,21 @@ export default function SearchScreen() {
     }
   };
   const serviceResults = useMemo(
-    () => searchProducts.filter((product) => product.type === "rent"),
+    () =>
+      searchProducts.filter(
+        (product) => product.type === "rent" && product.familyId !== PERSONAL_FAMILY_ID,
+      ),
+    [searchProducts],
+  );
+  const personalResults = useMemo(
+    () => searchProducts.filter((product) => product.familyId === PERSONAL_FAMILY_ID),
     [searchProducts],
   );
   const productResults = useMemo(
-    () => searchProducts.filter((product) => product.type === "sell"),
+    () =>
+      searchProducts.filter(
+        (product) => product.type === "sell" && product.familyId !== PERSONAL_FAMILY_ID,
+      ),
     [searchProducts],
   );
 
@@ -844,6 +854,21 @@ export default function SearchScreen() {
               </View>
             ) : (
               <>
+                {selectedTopLevel === "all" && personalResults.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitle}>Personal</Text>
+                    <View style={styles.productsContainer}>
+                      {personalResults.map((product) => (
+                        <ListingCard
+                          key={product._id}
+                          product={product}
+                          variant={isAuthenticated ? "full" : "public"}
+                        />
+                      ))}
+                    </View>
+                  </>
+                )}
+
                 {selectedTopLevel === "all" && serviceResults.length > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Servicios</Text>

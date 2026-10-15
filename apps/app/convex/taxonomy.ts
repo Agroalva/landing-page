@@ -31,3 +31,16 @@ export const resolveTaxonomyFilter = (familyId?: string | null, categoryId?: str
 
     return { resolvedFamily, resolvedCategory };
 };
+
+const PERSONAL_FAMILY_ID: FamilyId = "personal";
+
+// Servicios and Personal listings are both stored as type "rent"; only the family
+// tells them apart. A "rent" request without a family comes from the Servicios
+// view, so Personal listings must be left out of it.
+export const shouldExcludePersonalListings = (
+    listingType?: "rent" | "sell",
+    resolvedFamily?: FamilyId,
+) => listingType === "rent" && !resolvedFamily;
+
+export const excludePersonalListings = (queryBuilder: any) =>
+    queryBuilder.filter((q: any) => q.neq(q.field("familyId"), PERSONAL_FAMILY_ID));

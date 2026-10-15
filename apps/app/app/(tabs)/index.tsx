@@ -20,7 +20,7 @@ import { buildPublicStorageImageUrl } from "@/utils/public-url";
 import { FieldPulse } from "@/components/FieldPulse";
 import { useEffect, useMemo, useState } from "react";
 
-type TopLevelIntent = "products" | "services";
+type TopLevelIntent = "products" | "services" | "personal";
 
 type DiscoveryCardDefinition = {
   id: string;
@@ -63,7 +63,7 @@ const DISCOVERY_CARDS: DiscoveryCardDefinition[] = [
   },
   {
     id: "personal",
-    topLevel: "services",
+    topLevel: "personal",
     title: "Personal",
     subtitle: {
       text: "Empleo, oficios y búsqueda de personal.",
@@ -100,16 +100,6 @@ export default function HomeScreen() {
   }, [visibleBanners.length]);
 
   const navigateToBrowse = (card: DiscoveryCardDefinition) => {
-    if (card.id === "personal") {
-      router.push({
-        pathname: "/(tabs)/search",
-        params: {
-          topLevel: "personal",
-        },
-      });
-      return;
-    }
-
     router.push({
       pathname: "/(tabs)/search",
       params: { topLevel: card.topLevel },
