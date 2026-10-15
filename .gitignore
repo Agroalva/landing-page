@@ -126,3 +126,6 @@ web-build/
 
 # Local credentials
 apps/app/agroalva-d779668fe3ff.json
+
+# Local screenshots and store review captures
+output/
