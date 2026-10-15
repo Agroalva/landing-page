@@ -26,7 +26,8 @@ export const querySearch = query({
         cursor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const limit = args.limit || 20;
+        // Released clients can't page search results; return everything that matches.
+        const limit = Math.max(args.limit || 20, 100);
         const searchTerm = args.query.toLowerCase().trim();
         let user = null;
         try {
@@ -82,7 +83,7 @@ export const querySearch = query({
                 .order("desc");
         }
 
-        const recentProducts = await productQuery.take(100);
+        const recentProducts = await productQuery.take(500);
         
         matchingProducts = recentProducts
             .filter(product => 

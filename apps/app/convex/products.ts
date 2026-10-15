@@ -110,6 +110,10 @@ const applyListingTypeFilter = (query: any, listingType?: "rent" | "sell") => {
     return query.filter((q: any) => q.eq(q.field("type"), listingType));
 };
 
+// Released clients request a single 20-item page with no way to load more,
+// so serve a larger first page until a client with pagination ships.
+const MIN_FEED_PAGE_SIZE = 100;
+
 // Create a new product
 export const create = mutation({
     args: {
@@ -181,6 +185,10 @@ export const feed = query({
     },
     handler: async (ctx, args) => {
         const { resolvedFamily, resolvedCategory } = resolveTaxonomyFilter(args.familyId, args.categoryId);
+        const paginationOpts = {
+            ...args.paginationOpts,
+            numItems: Math.max(args.paginationOpts.numItems, MIN_FEED_PAGE_SIZE),
+        };
 
         if (resolvedCategory) {
             const query = applyListingTypeFilter(
@@ -194,7 +202,7 @@ export const feed = query({
 
             return await query
                 .order("desc")
-                .paginate(args.paginationOpts);
+                .paginate(paginationOpts);
         }
 
         if (resolvedFamily) {
@@ -207,7 +215,7 @@ export const feed = query({
 
             return await query
                 .order("desc")
-                .paginate(args.paginationOpts);
+                .paginate(paginationOpts);
         }
 
         if (args.legacyCategory && args.legacyCategory !== "Todos") {
@@ -222,7 +230,7 @@ export const feed = query({
 
             return await query
                 .order("desc")
-                .paginate(args.paginationOpts);
+                .paginate(paginationOpts);
         }
 
         const query = applyListingTypeFilter(
@@ -234,7 +242,7 @@ export const feed = query({
 
         return await query
             .order("desc")
-            .paginate(args.paginationOpts);
+            .paginate(paginationOpts);
     },
 });
 
