@@ -252,11 +252,11 @@ This document outlines all tasks needed to bring the Agroalva mobile app to 100%
   - [ ] Add keyboard navigation
 
 ### Additional Features
-- [ ] Ratings and reviews system
-  - [ ] Add ratings schema
-  - [ ] Rating UI component
-  - [ ] Display ratings on profiles
-  - [ ] Review submission
+- [x] Ratings and reviews system
+  - [x] Add ratings schema
+  - [x] Rating UI component
+  - [x] Display ratings on profiles
+  - [x] Review submission
 
 - [ ] Report/flag content
   - [ ] Report button on posts
@@ -450,4 +450,3 @@ This document outlines all tasks needed to bring the Agroalva mobile app to 100%
 
 **Last Updated:** 2024-12-19
 **Next Review:** [Date]
-
