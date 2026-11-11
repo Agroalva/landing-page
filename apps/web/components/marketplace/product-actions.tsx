@@ -24,7 +24,7 @@ export function ProductActions({ productId, authorId, productName }: { productId
         }
         setBusy(true);
         try {
-            const conversationId = await ensureConversation({ memberIds: [user.id, authorId] });
+            const conversationId = await ensureConversation({ memberIds: [user.id, authorId], productId: productId as Id<"products">, source: "web" });
             router.push(`/messages/${conversationId}`);
         } finally { setBusy(false); }
     };

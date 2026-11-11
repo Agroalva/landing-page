@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin, PackageOpen } from "lucide-react";
@@ -6,7 +7,7 @@ import { formatPrice } from "@/lib/marketplace";
 import { FavoriteButton } from "./favorite-button";
 import { StarRating } from "./star-rating";
 
-export function ProductCard({ product }: { product: MarketplaceListing }) {
+export function ProductCard({ product, footer }: { product: MarketplaceListing; footer?: ReactNode }) {
     return (
         <article className="group overflow-hidden rounded-[1.6rem] border border-emerald-950/10 bg-white shadow-[0_12px_40px_rgba(32,58,41,0.06)] transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(32,58,41,0.12)]">
             <div className="relative aspect-[4/3] overflow-hidden bg-[#e8eee5]">
@@ -40,6 +41,7 @@ export function ProductCard({ product }: { product: MarketplaceListing }) {
                     )}
                 </div>
             </div>
+            {footer}
         </article>
     );
 }

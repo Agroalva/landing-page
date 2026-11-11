@@ -19,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
 import { StarRating } from "@/components/StarRating";
+import { StatsTiles } from "@/components/ListingStats";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
 import { buildPublicProductUrl } from "../../utils/public-url";
@@ -73,10 +74,17 @@ export default function ProductDetailScreen() {
   const incrementViewCount = useMutation(api.products.incrementViewCount);
   const ensureConversation = useMutation(api.conversations.ensureConversation);
   const deleteProduct = useMutation(api.products.deleteProduct);
+  const recordContact = useMutation(api.productStats.recordContact);
 
   // Check if current user is the author
   const currentUserId = user?.id || user?.userId;
   const isAuthor = currentUserId && product?.authorId === currentUserId;
+
+  // Private stats: the query returns null unless the viewer is the author.
+  const authorStats = useQuery(
+    api.productStats.getProductStats,
+    isAuthor && productId ? { productId, days: 30 } : "skip"
+  );
   const showFullDetails = isAuthenticated;
   const showGuestCta = !isAuthenticated && !isAuthLoading;
 
@@ -159,6 +167,9 @@ export default function ProductDetailScreen() {
 
     try {
       await Linking.openURL(whatsappUrl);
+      recordContact({ productId: product._id, channel: "whatsapp", source: "app" }).catch((error) => {
+        console.error("Failed to record WhatsApp contact:", error);
+      });
       trackContactSeller({
         method: "whatsapp",
         productId: product._id,
@@ -188,6 +199,9 @@ export default function ProductDetailScreen() {
     const phoneUrl = `tel:${phoneNumber}`;
     try {
       await Linking.openURL(phoneUrl);
+      recordContact({ productId: product._id, channel: "call", source: "app" }).catch((error) => {
+        console.error("Failed to record call contact:", error);
+      });
       trackContactSeller({
         method: "call",
         productId: product._id,
@@ -223,6 +237,7 @@ export default function ProductDetailScreen() {
       const conversationId = await ensureConversation({
         memberIds: [currentUserId, product.authorId],
         productId: product._id,
+        source: "app",
       });
       trackContactSeller({
         method: "message",
@@ -449,6 +464,36 @@ export default function ProductDetailScreen() {
               <Text style={styles.typeBadgeText}>
                 {TYPE_BADGE_LABELS[getListingIntentForProduct(product.type, product.familyId)]}
               </Text>
+            </View>
+          )}
+
+          {/* Private stats, only for the author */}
+          {isAuthor && authorStats && (
+            <View style={styles.authorStatsCard}>
+              <View style={styles.authorStatsHeader}>
+                <Ionicons name="stats-chart" size={18} color="#2E7D32" />
+                <Text style={styles.authorStatsTitle}>Estadísticas de tu publicación</Text>
+              </View>
+              <StatsTiles stats={authorStats.totals} />
+              <Text style={styles.authorStatsPeriod}>
+                Últimos {authorStats.period.days} días: {authorStats.period.views}{" "}
+                {authorStats.period.views === 1 ? "visita" : "visitas"} ·{" "}
+                {authorStats.period.contacts.total}{" "}
+                {authorStats.period.contacts.total === 1 ? "contacto" : "contactos"}
+              </Text>
+              <TouchableOpacity
+                style={styles.authorStatsButton}
+                onPress={() =>
+                  router.push({
+                    pathname: "/product-stats/[id]",
+                    params: { id: product._id },
+                  })
+                }
+              >
+                <Text style={styles.authorStatsButtonText}>Ver evolución</Text>
+                <Ionicons name="chevron-forward" size={16} color="#2E7D32" />
+              </TouchableOpacity>
+              <Text style={styles.authorStatsPrivate}>Solo vos podés ver estas estadísticas.</Text>
             </View>
           )}
 
@@ -927,6 +972,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#9E9E9E",
     marginTop: 8,
+  },
+  authorStatsCard: {
+    backgroundColor: "#F1F8E9",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  authorStatsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  authorStatsTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#212121",
+  },
+  authorStatsPeriod: {
+    fontSize: 13,
+    color: "#616161",
+  },
+  authorStatsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+  },
+  authorStatsButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#2E7D32",
+  },
+  authorStatsPrivate: {
+    fontSize: 12,
+    color: "#9E9E9E",
   },
   sellerCard: {
     backgroundColor: "#F5F5F5",

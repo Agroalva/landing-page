@@ -14,6 +14,7 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { ListingCard } from "@/components/ListingCard";
+import { ListingStatsSummary } from "@/components/ListingStats";
 
 export default function MyPostsScreen() {
   const router = useRouter();
@@ -27,6 +28,15 @@ export default function MyPostsScreen() {
   const userProducts = useQuery(
     api.products.byUser,
     isAuthenticated && userId ? { userId, limit: 100 } : "skip"
+  );
+
+  // Private stats (only returned for the signed-in author's own listings).
+  const listingsStats = useQuery(
+    api.productStats.getMyListingsStats,
+    isAuthenticated ? {} : "skip"
+  );
+  const statsByProductId = new Map(
+    (listingsStats ?? []).map((stats) => [stats.productId, stats])
   );
 
   if (isLoading) {
@@ -72,7 +82,21 @@ export default function MyPostsScreen() {
         ) : (
           <View style={styles.productsContainer}>
             {userProducts.map((product) => (
-              <ListingCard key={product._id} product={product} />
+              <ListingCard
+                key={product._id}
+                product={product}
+                footer={
+                  <ListingStatsSummary
+                    stats={statsByProductId.get(product._id)}
+                    onPressDetails={() =>
+                      router.push({
+                        pathname: "/product-stats/[id]",
+                        params: { id: product._id },
+                      })
+                    }
+                  />
+                }
+              />
             ))}
           </View>
         )}

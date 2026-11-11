@@ -97,6 +97,7 @@ function AppContent() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="product/[id]" options={{ presentation: "card" }} />
+        <Stack.Screen name="product-stats/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="user-profile/[userId]" options={{ presentation: "card" }} />
         <Stack.Screen name="review/[userId]" options={{ presentation: "modal" }} />
         <Stack.Screen name="create-post" options={{ presentation: "modal" }} />
