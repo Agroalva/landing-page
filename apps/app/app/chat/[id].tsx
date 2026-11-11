@@ -11,6 +11,8 @@ import {
   Platform,
   ActivityIndicator,
   Keyboard,
+  Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,23 +22,43 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
+import { ImageViewerModal } from "@/components/ImageViewerModal";
+import {
+  useFileUpload,
+  selectImage,
+  type ImageSource,
+  type SelectedImage,
+} from "@/hooks/use-file-upload";
 
 type Message = {
   _id: Id<"messages">;
   senderId: string;
   text: string;
+  mediaId?: Id<"_storage">;
+  // Set by the backend when `text` is only a placeholder for older app versions.
+  textIsFallback?: boolean;
   createdAt: number;
+};
+
+// A photo message that is being compressed/uploaded/sent.
+type OutgoingPhoto = {
+  image: SelectedImage;
+  caption: string;
 };
 
 function MessageItem({
   msg,
   isMe,
   formatTime,
+  onPressPhoto,
 }: {
   msg: Message;
   isMe: boolean;
   formatTime: (timestamp: number) => string;
+  onPressPhoto: (storageId: Id<"_storage">) => void;
 }) {
+  const caption = msg.mediaId && msg.textIsFallback ? "" : msg.text;
+
   const senderProfile = useQuery(
     api.users.getByUserId,
     msg.senderId ? { userId: msg.senderId } : "skip"
@@ -62,22 +84,83 @@ function MessageItem({
         </View>
       )}
       <View
-        style={[styles.messageBubble, isMe && styles.messageBubbleMe]}
+        style={[
+          styles.messageBubble,
+          isMe && styles.messageBubbleMe,
+          msg.mediaId && styles.messageBubblePhoto,
+        ]}
       >
         {!isMe && (
-          <Text style={styles.senderName}>
+          <Text style={[styles.senderName, msg.mediaId && styles.photoBubblePadding]}>
             {senderProfile?.displayName || "Usuario"}
           </Text>
         )}
+        {msg.mediaId && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => onPressPhoto(msg.mediaId!)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="Ver foto"
+          >
+            <ConvexImage
+              storageId={msg.mediaId}
+              style={styles.messagePhoto}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        )}
+        {!!caption && (
+          <Text
+            style={[
+              styles.messageText,
+              isMe && styles.messageTextMe,
+              msg.mediaId && styles.photoCaption,
+            ]}
+          >
+            {caption}
+          </Text>
+        )}
         <Text
-          style={[styles.messageText, isMe && styles.messageTextMe]}
-        >
-          {msg.text}
-        </Text>
-        <Text
-          style={[styles.messageTime, isMe && styles.messageTimeMe]}
+          style={[
+            styles.messageTime,
+            isMe && styles.messageTimeMe,
+            msg.mediaId && styles.photoBubblePadding,
+          ]}
         >
           {formatTime(msg.createdAt)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function OutgoingPhotoItem({ photo }: { photo: OutgoingPhoto }) {
+  return (
+    <View style={[styles.messageRow, styles.messageRowMe]}>
+      <View
+        style={[
+          styles.messageBubble,
+          styles.messageBubbleMe,
+          styles.messageBubblePhoto,
+        ]}
+      >
+        <View>
+          <Image
+            source={{ uri: photo.image.uri }}
+            style={styles.messagePhoto}
+            resizeMode="cover"
+          />
+          <View style={styles.photoSendingOverlay}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          </View>
+        </View>
+        {!!photo.caption && (
+          <Text style={[styles.messageText, styles.messageTextMe, styles.photoCaption]}>
+            {photo.caption}
+          </Text>
+        )}
+        <Text style={[styles.messageTime, styles.messageTimeMe, styles.photoBubblePadding]}>
+          Enviando...
         </Text>
       </View>
     </View>
@@ -90,6 +173,11 @@ export default function ChatScreen() {
   const { isAuthenticated, isLoading, user } = useAuthSession();
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  // Photo picked by the user, shown as a preview above the input until sent.
+  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
+  const [outgoingPhoto, setOutgoingPhoto] = useState<OutgoingPhoto | null>(null);
+  const [viewerStorageId, setViewerStorageId] = useState<Id<"_storage"> | null>(null);
+  const { uploadCompressedImage } = useFileUpload();
   const conversationId = params.id as Id<"conversations">;
   const messageInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -133,12 +221,90 @@ export default function ChatScreen() {
     }
   }, [messages]);
 
+  const scrollToBottomSoon = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const pickImage = async (source: ImageSource) => {
+    try {
+      const { image, permissionDenied } = await selectImage(source);
+      if (permissionDenied) {
+        Alert.alert(
+          source === "camera" ? "Sin acceso a la cámara" : "Sin acceso a tus fotos",
+          source === "camera"
+            ? "Habilita el permiso de cámara en la configuración para tomar fotos."
+            : "Habilita el acceso a tus fotos en la configuración para enviarlas.",
+          [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Abrir configuración", onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      if (image) {
+        setSelectedImage(image);
+      }
+    } catch (error) {
+      console.error("Failed to pick image:", error);
+      Alert.alert("Error", "No se pudo abrir la foto. Intenta nuevamente.");
+    }
+  };
+
+  const handleAttach = () => {
+    if (isSending) return;
+    Keyboard.dismiss();
+    Alert.alert("Enviar una foto", undefined, [
+      { text: "Tomar foto", onPress: () => pickImage("camera") },
+      { text: "Elegir de la galería", onPress: () => pickImage("library") },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  };
+
+  const handleSendPhoto = async (image: SelectedImage) => {
+    if (!conversationId || isSending || !user) return;
+
+    const caption = message.trim();
+    setSelectedImage(null);
+    setMessage("");
+    setIsSending(true);
+    setOutgoingPhoto({ image, caption });
+    Keyboard.dismiss();
+    messageInputRef.current?.blur();
+    scrollToBottomSoon();
+
+    try {
+      const mediaId = await uploadCompressedImage(image);
+      if (!mediaId) {
+        throw new Error("Upload returned no storage id");
+      }
+      await sendMessage({ conversationId, text: caption, mediaId });
+      scrollToBottomSoon();
+    } catch (error) {
+      console.error("Failed to send photo:", error);
+      // Restore the preview and caption so the user can retry.
+      setSelectedImage(image);
+      setMessage(caption);
+      Alert.alert(
+        "No se pudo enviar la foto",
+        "Revisa tu conexión e intenta nuevamente."
+      );
+    } finally {
+      setOutgoingPhoto(null);
+      setIsSending(false);
+    }
+  };
+
   const handleSend = async () => {
+    if (selectedImage) {
+      await handleSendPhoto(selectedImage);
+      return;
+    }
     if (!message.trim() || !conversationId || isSending || !user) return;
 
     const messageText = message.trim();
-    const tempMessageId = `temp-${Date.now()}` as Id<"messages">;
-    
+
     setMessage("");
     setIsSending(true);
     Keyboard.dismiss();
@@ -152,9 +318,7 @@ export default function ChatScreen() {
         text: messageText,
       });
       // Scroll to bottom after sending
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      scrollToBottomSoon();
     } catch (error: any) {
       console.error("Failed to send message:", error);
       // Restore message on error
@@ -206,6 +370,8 @@ export default function ChatScreen() {
     
     return groups;
   }, [messages]);
+
+  const canSend = !isSending && (!!selectedImage || !!message.trim());
 
   if (isLoading) {
     return (
@@ -281,7 +447,7 @@ export default function ChatScreen() {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2E7D32" />
             </View>
-          ) : messages.length === 0 ? (
+          ) : messages.length === 0 && !outgoingPhoto ? (
             <View style={styles.emptyState}>
               <Ionicons name="chatbubbles-outline" size={48} color="#E0E0E0" />
               <Text style={styles.emptyText}>No hay mensajes aún</Text>
@@ -301,21 +467,64 @@ export default function ChatScreen() {
                       msg={msg}
                       isMe={!!isMe}
                       formatTime={formatTime}
+                      onPressPhoto={setViewerStorageId}
                     />
                   );
                 })}
               </View>
             ))
           )}
+          {outgoingPhoto && <OutgoingPhotoItem photo={outgoingPhoto} />}
         </ScrollView>
+
+        {/* Photo preview before sending */}
+        {selectedImage && (
+          <View style={styles.previewContainer}>
+            <Image
+              source={{ uri: selectedImage.uri }}
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
+            <View style={styles.previewInfo}>
+              <Text style={styles.previewTitle}>Foto lista para enviar</Text>
+              <Text style={styles.previewSubtitle}>
+                Puedes agregar un mensaje (opcional)
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.previewRemove}
+              onPress={() => setSelectedImage(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Quitar foto"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Input Bar */}
         <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={styles.attachButton}
+            onPress={handleAttach}
+            disabled={isSending}
+            accessibilityRole="button"
+            accessibilityLabel="Adjuntar foto"
+          >
+            <Ionicons
+              name="camera-outline"
+              size={24}
+              color={isSending ? "#BDBDBD" : "#2E7D32"}
+            />
+          </TouchableOpacity>
           <View style={styles.inputWrapper}>
             <TextInput
               ref={messageInputRef}
               style={styles.input}
-              placeholder="Escribe un mensaje..."
+              placeholder={
+                selectedImage ? "Agrega un mensaje..." : "Escribe un mensaje..."
+              }
               value={message}
               onChangeText={setMessage}
               multiline
@@ -327,10 +536,13 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[
               styles.sendButton,
-              message.trim() && !isSending && styles.sendButtonActive,
+              canSend && styles.sendButtonActive,
+              isSending && styles.sendButtonActive,
             ]}
             onPress={handleSend}
-            disabled={!message.trim() || isSending}
+            disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={selectedImage ? "Enviar foto" : "Enviar mensaje"}
           >
             {isSending ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -338,12 +550,17 @@ export default function ChatScreen() {
               <Ionicons
                 name="send"
                 size={20}
-                color={message.trim() ? "#FFFFFF" : "#9E9E9E"}
+                color={canSend ? "#FFFFFF" : "#9E9E9E"}
               />
             )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ImageViewerModal
+        storageId={viewerStorageId}
+        onClose={() => setViewerStorageId(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -456,6 +673,73 @@ const styles = StyleSheet.create({
   },
   messageTimeMe: {
     color: "#FFFFFFCC",
+  },
+  messageBubblePhoto: {
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  photoBubblePadding: {
+    paddingHorizontal: 8,
+  },
+  messagePhoto: {
+    width: 220,
+    height: 220,
+    borderRadius: 16,
+  },
+  photoCaption: {
+    paddingHorizontal: 8,
+    marginTop: 6,
+  },
+  photoSendingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E0E0E0",
+    gap: 12,
+  },
+  previewImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: "#E0E0E0",
+  },
+  previewInfo: {
+    flex: 1,
+  },
+  previewTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#212121",
+  },
+  previewSubtitle: {
+    fontSize: 12,
+    color: "#757575",
+    marginTop: 2,
+  },
+  previewRemove: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#757575",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   inputContainer: {
     flexDirection: "row",

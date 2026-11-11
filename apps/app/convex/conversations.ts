@@ -90,13 +90,30 @@ export const listForUser = query({
     },
 });
 
-// Send a message in a conversation
+// Preview shown in conversation lists and notifications for photo messages.
+const PHOTO_PREVIEW_TEXT = "📷 Foto";
+// Stored as `text` when a photo is sent without a caption, so app versions that
+// predate photo support render a meaningful bubble instead of an empty one.
+const PHOTO_FALLBACK_TEXT = "📷 Foto (actualiza la app para verla)";
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
+const NOTIFICATION_PREVIEW_LENGTH = 50;
+
+function truncatePreview(text: string): string {
+    return text.length > NOTIFICATION_PREVIEW_LENGTH
+        ? text.substring(0, NOTIFICATION_PREVIEW_LENGTH) + "..."
+        : text;
+}
+
+// Send a message in a conversation.
+// `text` stays required for backward compatibility; it may be empty (or
+// whitespace) only when a photo (`mediaId`) is attached.
 export const sendMessage = mutation({
     args: {
         conversationId: v.id("conversations"),
         text: v.string(),
         mediaId: v.optional(v.id("_storage")),
     },
+    returns: v.id("messages"),
     handler: async (ctx, args) => {
         const user = await authComponent.getAuthUser(ctx);
         if (!user) {
@@ -112,20 +129,52 @@ export const sendMessage = mutation({
             throw new Error("Not a member of this conversation");
         }
 
+        let text = args.text;
+        let textIsFallback: boolean | undefined;
+        let lastMessageText = args.text;
+
+        if (args.mediaId) {
+            const file = await ctx.db.system.get(args.mediaId);
+            if (!file) {
+                throw new Error("Attached file not found");
+            }
+            if (file.contentType && !file.contentType.startsWith("image/")) {
+                throw new Error("Only images can be attached");
+            }
+            if (file.size > MAX_PHOTO_BYTES) {
+                throw new Error("Attached image is too large");
+            }
+
+            const caption = args.text.trim();
+            if (caption) {
+                text = caption;
+                lastMessageText = `📷 ${caption}`;
+            } else {
+                text = PHOTO_FALLBACK_TEXT;
+                textIsFallback = true;
+                lastMessageText = PHOTO_PREVIEW_TEXT;
+            }
+        } else if (!args.text.trim()) {
+            throw new Error("Message cannot be empty");
+        }
+
+        const now = Date.now();
+
         // Create message
         const messageId = await ctx.db.insert("messages", {
             conversationId: args.conversationId,
             senderId: user._id as string,
-            text: args.text,
+            text,
             mediaId: args.mediaId,
+            textIsFallback,
             readBy: [user._id as string], // Sender has read their own message
-            createdAt: Date.now(),
+            createdAt: now,
         });
 
         // Update conversation with last message info
         await ctx.db.patch(args.conversationId, {
-            lastMessageAt: Date.now(),
-            lastMessageText: args.text,
+            lastMessageAt: now,
+            lastMessageText,
             lastMessageSenderId: user._id as string,
         });
 
@@ -138,7 +187,7 @@ export const sendMessage = mutation({
                 userId: memberId,
                 type: "message",
                 title: "Nuevo mensaje",
-                body: args.text.length > 50 ? args.text.substring(0, 50) + "..." : args.text,
+                body: truncatePreview(lastMessageText),
                 relatedId: args.conversationId,
             });
         }
