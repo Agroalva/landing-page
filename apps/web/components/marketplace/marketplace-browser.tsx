@@ -9,6 +9,7 @@ import {
     CalendarRange,
     CircleDollarSign,
     Filter,
+    LocateFixed,
     PackageOpen,
     Search,
     SlidersHorizontal,
@@ -28,11 +29,12 @@ const PERSONAL_FAMILY_ID = "personal";
 const PERSONAL_CATEGORY_ID = "personal_services";
 
 type MarketplaceView = "all" | "products" | "services" | "personnel";
-type ListingSort = "recent" | "price_asc" | "price_desc";
+type ListingSort = "recent" | "price_asc" | "price_desc" | "distance";
 type PriceCurrency = "USD" | "ARS";
 
 const SORT_OPTIONS: Array<{ id: ListingSort; label: string }> = [
     { id: "recent", label: "Más recientes" },
+    { id: "distance", label: "Más cerca" },
     { id: "price_asc", label: "Menor precio" },
     { id: "price_desc", label: "Mayor precio" },
 ];
@@ -47,9 +49,22 @@ function parseIntegerParam(value: string | null) {
     return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+const RADIUS_OPTIONS_KM = [50, 100, 200];
+
 function parseSort(value: string | null): ListingSort {
-    return value === "price_asc" || value === "price_desc" ? value : "recent";
+    return value === "price_asc" || value === "price_desc" || value === "distance" ? value : "recent";
 }
+
+function parseCoordinate(value: string | null, limit: number) {
+    if (!value) {
+        return undefined;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && Math.abs(parsed) <= limit ? parsed : undefined;
+}
+
+// ~1 km precision: enough for 50+ km radii and keeps exact coordinates out of URLs.
+const roundCoordinate = (value: number) => Math.round(value * 100) / 100;
 
 const VIEW_OPTIONS: Array<{
     id: MarketplaceView;
@@ -85,7 +100,15 @@ export function MarketplaceBrowser() {
     const availableFamilies = listingType === "sell"
         ? FAMILIES.filter((family) => family.id !== PERSONAL_FAMILY_ID)
         : FAMILIES;
-    const sort = parseSort(searchParams.get("sort"));
+    const radiusKm = parseIntegerParam(searchParams.get("radius"));
+    const nearLatitude = parseCoordinate(searchParams.get("lat"), 90);
+    const nearLongitude = parseCoordinate(searchParams.get("lng"), 180);
+    const near = radiusKm && nearLatitude !== undefined && nearLongitude !== undefined
+        ? { latitude: nearLatitude, longitude: nearLongitude, radiusKm }
+        : undefined;
+    const [locationStatus, setLocationStatus] = useState<"idle" | "locating" | "error">("idle");
+    const requestedSort = parseSort(searchParams.get("sort"));
+    const sort: ListingSort = requestedSort === "distance" && !near ? "recent" : requestedSort;
     const priceCurrency: PriceCurrency = searchParams.get("currency") === "ARS" ? "ARS" : "USD";
     const minPrice = parseIntegerParam(searchParams.get("minPrice"));
     const maxPrice = parseIntegerParam(searchParams.get("maxPrice"));
@@ -93,7 +116,7 @@ export function MarketplaceBrowser() {
     const maxYear = parseIntegerParam(searchParams.get("maxYear"));
     const hasPriceFilter = minPrice !== undefined || maxPrice !== undefined;
     const hasRangeFilters = hasPriceFilter || minYear !== undefined || maxYear !== undefined;
-    const usesDiscover = sort !== "recent" || hasRangeFilters;
+    const usesDiscover = sort !== "recent" || hasRangeFilters || near !== undefined;
     const rangeKey = searchParams.toString();
     const [rangeDraft, setRangeDraft] = useState({
         sourceKey: rangeKey,
@@ -131,6 +154,7 @@ export function MarketplaceBrowser() {
                 maxPrice,
                 minYear,
                 maxYear,
+                near,
             }
             : "skip",
         { initialNumItems: 12 },
@@ -200,6 +224,42 @@ export function MarketplaceBrowser() {
         });
     };
 
+    const selectRadius = (value: string) => {
+        const nextRadius = parseIntegerParam(value);
+        if (!nextRadius) {
+            setParams({
+                radius: undefined,
+                lat: undefined,
+                lng: undefined,
+                sort: requestedSort === "distance" ? undefined : searchParams.get("sort") || undefined,
+            });
+            return;
+        }
+        const nextSort = sort === "recent" ? "distance" : sort;
+        if (nearLatitude !== undefined && nearLongitude !== undefined) {
+            setParams({ radius: String(nextRadius), sort: nextSort });
+            return;
+        }
+        if (!navigator.geolocation) {
+            setLocationStatus("error");
+            return;
+        }
+        setLocationStatus("locating");
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLocationStatus("idle");
+                setParams({
+                    radius: String(nextRadius),
+                    lat: String(roundCoordinate(position.coords.latitude)),
+                    lng: String(roundCoordinate(position.coords.longitude)),
+                    sort: nextSort,
+                });
+            },
+            () => setLocationStatus("error"),
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 },
+        );
+    };
+
     const clearFilters = () => {
         setSearchDraft({ value: "", sourceQuery: currentQuery });
         router.replace(`${pathname}#catalogo`, { scroll: false });
@@ -244,7 +304,7 @@ export function MarketplaceBrowser() {
                     </label>
                     <Button type="submit" className="h-12 rounded-full bg-emerald-800 px-7">Buscar</Button>
                 </form>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="filter-field">
                         <span><Filter className="size-3.5" /> Rubro</span>
                         <select value={familyId || ""} onChange={(event) => setParams({ family: event.target.value || undefined, category: undefined })}>
@@ -278,12 +338,25 @@ export function MarketplaceBrowser() {
                             <option value="rent">Alquiler / servicio</option>
                         </select>
                     </label>
+                    <label className="filter-field">
+                        <span><LocateFixed className="size-3.5" /> Distancia</span>
+                        <select value={near ? String(near.radiusKm) : ""} disabled={locationStatus === "locating"} onChange={(event) => selectRadius(event.target.value)}>
+                            <option value="">{locationStatus === "locating" ? "Buscando tu ubicación..." : "Cualquier distancia"}</option>
+                            {RADIUS_OPTIONS_KM.map((radius) => <option key={radius} value={radius}>A menos de {radius} km</option>)}
+                        </select>
+                    </label>
                 </div>
+                {locationStatus === "error" && (
+                    <p className="mt-3 text-xs font-semibold text-red-700">No pudimos obtener tu ubicación. Revisá el permiso del navegador e intentá de nuevo.</p>
+                )}
+                {near && (
+                    <p className="mt-3 text-xs text-stone-500">Mostrando publicaciones cerca de tu ubicación. Las publicaciones sin ubicación no aparecen con este filtro.</p>
+                )}
                 <form onSubmit={applyRanges} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1.4fr_1.1fr_auto]">
                     <label className="filter-field">
                         <span><ArrowDownUp className="size-3.5" /> Ordenar</span>
                         <select value={sort} onChange={(event) => setParams({ sort: event.target.value === "recent" ? undefined : event.target.value })}>
-                            {SORT_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            {SORT_OPTIONS.filter((option) => option.id !== "distance" || near).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                         </select>
                     </label>
                     <div className="filter-field">

@@ -10,7 +10,17 @@ export const listingSortValidator = v.union(
     v.literal("recent"),
     v.literal("price_asc"),
     v.literal("price_desc"),
+    // Only meaningful together with `near`; falls back to "recent" otherwise.
+    v.literal("distance"),
 );
+
+export const nearFilterValidator = v.object({
+    latitude: v.number(),
+    longitude: v.number(),
+    radiusKm: v.number(),
+    // Display name of the reference point (e.g. "Tu ubicación", "Rafaela").
+    label: v.optional(v.string()),
+});
 
 export const listingFilterFields = {
     query: v.optional(v.string()),
@@ -23,6 +33,7 @@ export const listingFilterFields = {
     priceCurrency: v.optional(priceCurrencyValidator),
     minYear: v.optional(v.number()),
     maxYear: v.optional(v.number()),
+    near: v.optional(nearFilterValidator),
 };
 
 export const listingFiltersValidator = v.object(listingFilterFields);

@@ -60,6 +60,8 @@ const listingCardValidator = v.object({
     viewCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Present only in "near me" results from discover.
+    distanceKm: v.optional(v.number()),
 });
 
 const productDetailValidator = v.object({
@@ -261,7 +263,10 @@ export const discover = query({
         });
 
         return {
-            page: await Promise.all(result.page.map((product) => toListingCard(ctx, product))),
+            page: await Promise.all(result.page.map(async ({ product, distanceKm }) => {
+                const card = await toListingCard(ctx, product);
+                return distanceKm === undefined ? card : { ...card, distanceKm };
+            })),
             isDone: !result.hasMore,
             continueCursor: result.nextCursor ?? String(offset + result.page.length),
         };

@@ -35,8 +35,16 @@ export function ProductCard({ product }: { product: MarketplaceListing }) {
                             <StarRating value={product.seller.ratingAverage} size="sm" showValue reviewCount={product.seller.ratingCount} className="mt-1 gap-1" />
                         )}
                     </div>
-                    {(product.location?.label || product.location?.address) && (
-                        <span className="flex max-w-[45%] items-center gap-1 truncate"><MapPin className="size-3.5 shrink-0" />{product.location.label || product.location.address}</span>
+                    {(product.location?.label || product.location?.address || product.distanceKm !== undefined) && (
+                        <span className="flex max-w-[45%] items-center gap-1 truncate">
+                            <MapPin className="size-3.5 shrink-0" />
+                            {[
+                                product.location?.label || product.location?.address,
+                                product.distanceKm !== undefined
+                                    ? `a ${product.distanceKm < 1 ? "menos de 1" : Math.round(product.distanceKm)} km`
+                                    : undefined,
+                            ].filter(Boolean).join(" · ")}
+                        </span>
                     )}
                 </div>
             </div>

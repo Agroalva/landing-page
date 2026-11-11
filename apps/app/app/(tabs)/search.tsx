@@ -19,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import { useAuthSession } from "@/hooks/use-session";
 import {
   CategoryId,
@@ -34,7 +35,11 @@ import {
   hasAdvancedFilters,
   toAppliedFilters,
 } from "../../components/SearchFiltersPanel";
-import type { AppliedSearchFilters, SearchFilterDraft } from "../../components/SearchFiltersPanel";
+import type {
+  AppliedSearchFilters,
+  SearchFilterDraft,
+  SearchPoint,
+} from "../../components/SearchFiltersPanel";
 import { trackSearch } from "@/lib/meta-events";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
@@ -157,6 +162,16 @@ const isFamilyVisibleForTopLevel = (familyId: FamilyId, topLevel: TopLevelIntent
 const PAGE_SIZE = 20;
 const INFINITE_SCROLL_THRESHOLD = 600;
 const FILTER_INPUT_DEBOUNCE_MS = 500;
+// ~1 km precision: enough for 50+ km radii and avoids sending exact coordinates.
+const roundCoordinate = (value: number) => Math.round(value * 100) / 100;
+
+const parseOptionalNumber = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 const mergeProducts = (
   existingProducts: Doc<"products">[],
@@ -198,6 +213,10 @@ export default function SearchScreen() {
     maxPrice?: string | string[];
     minYear?: string | string[];
     maxYear?: string | string[];
+    nearLat?: string | string[];
+    nearLng?: string | string[];
+    nearLabel?: string | string[];
+    radiusKm?: string | string[];
     restore?: string | string[];
   }>();
   const paramTopLevel = getParamValue(params.topLevel);
@@ -210,6 +229,10 @@ export default function SearchScreen() {
   const paramMaxPrice = getParamValue(params.maxPrice);
   const paramMinYear = getParamValue(params.minYear);
   const paramMaxYear = getParamValue(params.maxYear);
+  const paramNearLat = getParamValue(params.nearLat);
+  const paramNearLng = getParamValue(params.nearLng);
+  const paramNearLabel = getParamValue(params.nearLabel);
+  const paramRadiusKm = getParamValue(params.radiusKm);
   // Changes every time a saved search is opened, to re-apply its params.
   const paramRestore = getParamValue(params.restore);
   const initialTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
@@ -252,6 +275,7 @@ export default function SearchScreen() {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [savedSearchKey, setSavedSearchKey] = useState<string | null>(null);
   const [isSavingSearch, setIsSavingSearch] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
   const createSavedSearch = useMutation(api.savedSearches.create);
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
   const orderedTopLevelOptions = useMemo(
@@ -338,13 +362,25 @@ export default function SearchScreen() {
   ]);
 
   useEffect(() => {
+    const nearLatitude = parseOptionalNumber(paramNearLat);
+    const nearLongitude = parseOptionalNumber(paramNearLng);
+    const radiusKm = parseOptionalNumber(paramRadiusKm);
+    const near: SearchPoint | null =
+      nearLatitude !== undefined && nearLongitude !== undefined
+        ? { latitude: nearLatitude, longitude: nearLongitude, label: paramNearLabel || undefined }
+        : null;
     const nextDraft: SearchFilterDraft = {
-      sort: paramSort === "price_asc" || paramSort === "price_desc" ? paramSort : "recent",
+      sort:
+        paramSort === "price_asc" || paramSort === "price_desc" || paramSort === "distance"
+          ? paramSort
+          : "recent",
       priceCurrency: paramCurrency === "ARS" ? "ARS" : "USD",
       minPrice: paramMinPrice ?? "",
       maxPrice: paramMaxPrice ?? "",
       minYear: paramMinYear ?? "",
       maxYear: paramMaxYear ?? "",
+      radiusKm: near && radiusKm ? radiusKm : null,
+      near,
     };
     setFilterDraft(nextDraft);
     setAppliedFilters(toAppliedFilters(nextDraft));
@@ -357,6 +393,10 @@ export default function SearchScreen() {
     paramMaxYear,
     paramMinPrice,
     paramMinYear,
+    paramNearLabel,
+    paramNearLat,
+    paramNearLng,
+    paramRadiusKm,
     paramRestore,
     paramSort,
   ]);
@@ -408,10 +448,83 @@ export default function SearchScreen() {
 
   const handleFilterDraftChange = (nextDraft: SearchFilterDraft) => {
     setFilterDraft(nextDraft);
-    // Sort changes are taps, not typing: apply them right away.
-    if (nextDraft.sort !== filterDraft.sort) {
+    // Taps (sort, currency, distance) apply right away; typing is debounced.
+    if (
+      nextDraft.sort !== filterDraft.sort ||
+      nextDraft.priceCurrency !== filterDraft.priceCurrency ||
+      nextDraft.radiusKm !== filterDraft.radiusKm ||
+      nextDraft.near !== filterDraft.near
+    ) {
       setAppliedFilters(toAppliedFilters(nextDraft));
     }
+  };
+
+  const getUserLocation = async (): Promise<SearchPoint | null> => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Ubicación desactivada",
+        "Activá el permiso de ubicación para ver publicaciones cerca tuyo.",
+      );
+      return null;
+    }
+
+    const position =
+      (await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 })) ??
+      (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+
+    let label: string | undefined;
+    try {
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      label = place?.city || place?.subregion || place?.region || undefined;
+    } catch {
+      // The label is cosmetic; distance filtering works without it.
+    }
+
+    return {
+      latitude: roundCoordinate(position.coords.latitude),
+      longitude: roundCoordinate(position.coords.longitude),
+      label,
+    };
+  };
+
+  const handleSelectRadius = async (radiusKm: number | null) => {
+    if (radiusKm === null) {
+      handleFilterDraftChange({
+        ...filterDraft,
+        radiusKm: null,
+        near: null,
+        sort: filterDraft.sort === "distance" ? "recent" : filterDraft.sort,
+      });
+      return;
+    }
+
+    let near = filterDraft.near;
+    if (!near) {
+      setIsLocating(true);
+      try {
+        near = await getUserLocation();
+      } catch (error) {
+        console.error("Error getting location for search:", error);
+        Alert.alert("No pudimos obtener tu ubicación", "Intentá de nuevo en unos segundos.");
+        near = null;
+      } finally {
+        setIsLocating(false);
+      }
+    }
+    if (!near) {
+      return;
+    }
+
+    handleFilterDraftChange({
+      ...filterDraft,
+      radiusKm,
+      near,
+      sort: filterDraft.sort === "recent" ? "distance" : filterDraft.sort,
+    });
   };
 
   useEffect(() => {
@@ -532,6 +645,7 @@ export default function SearchScreen() {
           maxPrice: activeFilters.maxPrice,
           minYear: activeFilters.minYear,
           maxYear: activeFilters.maxYear,
+          near: activeFilters.near,
           limit: PAGE_SIZE,
           cursor:
             searchPagination.key === searchKey
@@ -645,6 +759,7 @@ export default function SearchScreen() {
         maxPrice: activeFilters.maxPrice,
         minYear: activeFilters.minYear,
         maxYear: activeFilters.maxYear,
+        near: activeFilters.near,
       });
       setSavedSearchKey(searchKey);
       Alert.alert(
@@ -987,6 +1102,8 @@ export default function SearchScreen() {
                 showYear={selectedTopLevel !== "personal"}
                 usdArsRate={searchResults?.exchangeRate?.usdArs ?? null}
                 showRateNote={showRateNote}
+                onSelectRadius={handleSelectRadius}
+                isLocating={isLocating}
               />
             </View>
           </>

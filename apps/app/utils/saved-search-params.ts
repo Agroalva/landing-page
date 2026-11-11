@@ -10,6 +10,12 @@ type SavedSearchLike = {
   maxPrice?: number;
   minYear?: number;
   maxYear?: number;
+  near?: {
+    latitude: number;
+    longitude: number;
+    radiusKm: number;
+    label?: string;
+  };
 };
 
 const toParam = (value?: string | number) => (value === undefined ? "" : String(value));
@@ -47,6 +53,10 @@ export function buildSavedSearchParams(search: SavedSearchLike): Record<string, 
     maxPrice: toParam(search.maxPrice),
     minYear: toParam(search.minYear),
     maxYear: toParam(search.maxYear),
+    nearLat: toParam(search.near?.latitude),
+    nearLng: toParam(search.near?.longitude),
+    nearLabel: toParam(search.near?.label),
+    radiusKm: toParam(search.near?.radiusKm),
     restore: String(Date.now()),
   };
 }

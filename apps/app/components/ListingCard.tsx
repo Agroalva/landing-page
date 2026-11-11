@@ -36,6 +36,8 @@ interface ListingCardProps {
     };
     attributes?: Record<string, any>;
     createdAt: number;
+    // Only set in "near me" search results.
+    distanceKm?: number;
   };
   onPress?: () => void;
   variant?: "full" | "public";
@@ -62,7 +64,12 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
       ? CONDITION_OPTIONS.find((opt) => opt.id === product.attributes?.condition)?.label
       : null;
 
-  const locationLabel = product.location?.label || product.location?.address;
+  const distanceLabel = typeof product.distanceKm === "number"
+    ? `a ${product.distanceKm < 1 ? "menos de 1" : Math.round(product.distanceKm)} km`
+    : null;
+  const locationLabel = [product.location?.label || product.location?.address, distanceLabel]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.7}>
@@ -127,11 +134,19 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
             )}
           </>
         ) : (
-          product.description && (
-            <Text style={styles.description} numberOfLines={3}>
-              {product.description}
-            </Text>
-          )
+          <>
+            {product.description && (
+              <Text style={styles.description} numberOfLines={3}>
+                {product.description}
+              </Text>
+            )}
+            {distanceLabel && (
+              <View style={styles.locationRow}>
+                <Ionicons name="navigate-outline" size={14} color="#757575" />
+                <Text style={styles.locationText}>{distanceLabel}</Text>
+              </View>
+            )}
+          </>
         )}
       </View>
     </TouchableOpacity>

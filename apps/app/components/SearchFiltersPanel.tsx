@@ -1,9 +1,15 @@
 import React from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export type ListingSort = "recent" | "price_asc" | "price_desc";
+export type ListingSort = "recent" | "price_asc" | "price_desc" | "distance";
 export type PriceCurrency = "USD" | "ARS";
+
+export type SearchPoint = {
+  latitude: number;
+  longitude: number;
+  label?: string;
+};
 
 export type SearchFilterDraft = {
   sort: ListingSort;
@@ -12,6 +18,8 @@ export type SearchFilterDraft = {
   maxPrice: string;
   minYear: string;
   maxYear: string;
+  radiusKm: number | null;
+  near: SearchPoint | null;
 };
 
 export const EMPTY_FILTER_DRAFT: SearchFilterDraft = {
@@ -21,6 +29,8 @@ export const EMPTY_FILTER_DRAFT: SearchFilterDraft = {
   maxPrice: "",
   minYear: "",
   maxYear: "",
+  radiusKm: null,
+  near: null,
 };
 
 export type AppliedSearchFilters = {
@@ -30,10 +40,14 @@ export type AppliedSearchFilters = {
   maxPrice?: number;
   minYear?: number;
   maxYear?: number;
+  near?: SearchPoint & { radiusKm: number };
 };
+
+export const RADIUS_OPTIONS_KM = [50, 100, 200] as const;
 
 const SORT_OPTIONS: { id: ListingSort; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: "recent", label: "Más recientes", icon: "time-outline" },
+  { id: "distance", label: "Más cerca", icon: "navigate-outline" },
   { id: "price_asc", label: "Menor precio", icon: "arrow-down-outline" },
   { id: "price_desc", label: "Mayor precio", icon: "arrow-up-outline" },
 ];
@@ -52,14 +66,19 @@ export const toAppliedFilters = (draft: SearchFilterDraft): AppliedSearchFilters
   const minPrice = parseIntegerInput(draft.minPrice);
   const maxPrice = parseIntegerInput(draft.maxPrice);
   const hasPrice = minPrice !== undefined || maxPrice !== undefined;
+  const near = draft.radiusKm && draft.near
+    ? { ...draft.near, radiusKm: draft.radiusKm }
+    : undefined;
 
   return {
-    sort: draft.sort,
+    // "Más cerca" needs a location; without one fall back to recency.
+    sort: draft.sort === "distance" && !near ? "recent" : draft.sort,
     priceCurrency: hasPrice ? draft.priceCurrency : undefined,
     minPrice,
     maxPrice,
     minYear: parseIntegerInput(draft.minYear),
     maxYear: parseIntegerInput(draft.maxYear),
+    near,
   };
 };
 
@@ -68,7 +87,7 @@ export const countActiveRangeFilters = (filters: AppliedSearchFilters) =>
   (filters.minYear !== undefined || filters.maxYear !== undefined ? 1 : 0);
 
 export const hasAdvancedFilters = (filters: AppliedSearchFilters) =>
-  filters.sort !== "recent" || countActiveRangeFilters(filters) > 0;
+  filters.sort !== "recent" || countActiveRangeFilters(filters) > 0 || filters.near !== undefined;
 
 type Props = {
   draft: SearchFilterDraft;
@@ -79,6 +98,8 @@ type Props = {
   showYear: boolean;
   usdArsRate?: number | null;
   showRateNote: boolean;
+  onSelectRadius: (radiusKm: number | null) => void;
+  isLocating: boolean;
 };
 
 export function SearchFiltersPanel({
@@ -90,16 +111,53 @@ export function SearchFiltersPanel({
   showYear,
   usdArsRate,
   showRateNote,
+  onSelectRadius,
+  isLocating,
 }: Props) {
   const update = (changes: Partial<SearchFilterDraft>) => onChange({ ...draft, ...changes });
   const hasRangeDraft = Boolean(
     draft.minPrice || draft.maxPrice || draft.minYear || draft.maxYear,
   );
 
+  const hasNear = Boolean(draft.radiusKm && draft.near);
+  const visibleSortOptions = SORT_OPTIONS.filter((option) => option.id !== "distance" || hasNear);
+
   return (
     <View style={styles.container}>
       <View style={styles.sortRow}>
-        {SORT_OPTIONS.map((option) => {
+        <TouchableOpacity
+          style={[styles.chip, !hasNear && styles.chipActive]}
+          onPress={() => onSelectRadius(null)}
+          disabled={isLocating}
+        >
+          <Ionicons name="globe-outline" size={14} color={!hasNear ? "#FFFFFF" : "#1B5E20"} />
+          <Text style={[styles.chipText, !hasNear && styles.chipTextActive]}>Cualquier distancia</Text>
+        </TouchableOpacity>
+        {RADIUS_OPTIONS_KM.map((radius) => {
+          const isActive = hasNear && draft.radiusKm === radius;
+          return (
+            <TouchableOpacity
+              key={radius}
+              style={[styles.chip, isActive && styles.chipActive]}
+              onPress={() => onSelectRadius(radius)}
+              disabled={isLocating}
+              accessibilityLabel={`Publicaciones a menos de ${radius} kilómetros`}
+            >
+              <Ionicons name="location-outline" size={14} color={isActive ? "#FFFFFF" : "#1B5E20"} />
+              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{radius} km</Text>
+            </TouchableOpacity>
+          );
+        })}
+        {isLocating && <ActivityIndicator size="small" color="#1B5E20" />}
+      </View>
+      {hasNear && (
+        <Text style={styles.hint}>
+          {`Cerca de ${draft.near?.label || "tu ubicación"}. Las publicaciones sin ubicación no aparecen con este filtro.`}
+        </Text>
+      )}
+
+      <View style={styles.sortRow}>
+        {visibleSortOptions.map((option) => {
           const isActive = draft.sort === option.id;
           return (
             <TouchableOpacity

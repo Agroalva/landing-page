@@ -22,6 +22,8 @@ export type MarketplaceListing = {
     viewCount: number;
     createdAt: number;
     updatedAt: number;
+    // Only set in "near me" results.
+    distanceKm?: number;
 };
 
 export type MarketplaceProduct = MarketplaceListing & {

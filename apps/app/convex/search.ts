@@ -144,6 +144,8 @@ const productDocValidator = v.object({
     _id: v.id("products"),
     _creationTime: v.number(),
     ...productsTable.validator.fields,
+    // Present only for "near me" searches.
+    distanceKm: v.optional(v.number()),
 });
 
 const exchangeRateValidator = v.union(
@@ -185,7 +187,9 @@ export const discover = query({
         });
 
         return {
-            products: result.page,
+            products: result.page.map(({ product, distanceKm }) =>
+                distanceKm === undefined ? product : { ...product, distanceKm },
+            ),
             nextCursor: result.nextCursor,
             hasMore: result.hasMore,
             exchangeRate: rate,

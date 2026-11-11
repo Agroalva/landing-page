@@ -41,6 +41,7 @@ const pickListingFilters = (source: ListingFilters): ListingFilters => ({
     priceCurrency: source.priceCurrency,
     minYear: source.minYear,
     maxYear: source.maxYear,
+    near: source.near,
 });
 
 // Labels stay in sync with the mobile intents in app/(tabs)/search.tsx.
@@ -64,6 +65,7 @@ function buildSavedSearchLabel(
     query: string | undefined,
     filters: NormalizedListingFilters,
     topLevel?: string,
+    near?: ListingFilters["near"],
 ) {
     const parts: string[] = [];
 
@@ -99,6 +101,10 @@ function buildSavedSearchLabel(
                     ? `año ${minYear} o más`
                     : `año ${maxYear} o anterior`,
         );
+    }
+
+    if (near) {
+        parts.push(`a menos de ${Math.round(near.radiusKm)} km de ${near.label?.trim() || "tu ubicación"}`);
     }
 
     return parts.length > 0 ? parts.join(" · ") : "Todas las publicaciones";
@@ -162,7 +168,8 @@ export const create = mutation({
             normalized.familyId !== undefined ||
             normalized.listingType !== undefined ||
             hasPriceFilter(normalized) ||
-            hasYearFilter(normalized);
+            hasYearFilter(normalized) ||
+            normalized.near !== undefined;
         if (!hasCriteria) {
             throw new ConvexError("Escribí una búsqueda o elegí un filtro antes de guardarla");
         }
@@ -177,6 +184,12 @@ export const create = mutation({
             priceCurrency: hasPriceFilter(normalized) ? normalized.priceCurrency : undefined,
             minYear: normalized.minYear,
             maxYear: normalized.maxYear,
+            near: normalized.near
+                ? {
+                    ...normalized.near,
+                    label: args.near?.label?.trim() || undefined,
+                }
+                : undefined,
         };
 
         const existing = await ctx.db
@@ -201,7 +214,7 @@ export const create = mutation({
         const now = Date.now();
         const savedSearchId = await ctx.db.insert("savedSearches", {
             userId,
-            label: buildSavedSearchLabel(query, normalized, args.topLevel),
+            label: buildSavedSearchLabel(query, normalized, args.topLevel, filters.near),
             ...filters,
             topLevel: args.topLevel,
             sort: args.sort,

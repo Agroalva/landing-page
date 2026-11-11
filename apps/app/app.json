@@ -100,7 +100,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "AgroAlva usa tu ubicación para mostrar el clima de tu zona cuando lo solicitás."
+          "locationWhenInUsePermission": "AgroAlva usa tu ubicación, cuando lo solicitás, para mostrar el clima de tu zona, ubicar tus publicaciones y encontrar publicaciones cerca tuyo."
         }
       ],
       [
