@@ -140,6 +140,7 @@ export const sendMessage = mutation({
                 title: "Nuevo mensaje",
                 body: args.text.length > 50 ? args.text.substring(0, 50) + "..." : args.text,
                 relatedId: args.conversationId,
+                actorId: user._id as string,
             });
         }
 

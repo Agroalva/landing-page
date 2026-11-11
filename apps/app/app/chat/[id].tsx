@@ -20,6 +20,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
+import { usePresence } from "@convex-dev/presence/react-native";
 
 type Message = {
   _id: Id<"messages">;
@@ -84,6 +85,13 @@ function MessageItem({
   );
 }
 
+// Tells the backend this user has the conversation open, so it doesn't send
+// push notifications for messages they're already seeing.
+function ChatPresence({ conversationId, userId }: { conversationId: string; userId: string }) {
+  usePresence(api.presence, conversationId, userId);
+  return null;
+}
+
 export default function ChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
@@ -117,12 +125,16 @@ export default function ChatScreen() {
     otherMemberId ? { userId: otherMemberId } : "skip"
   );
 
-  // Mark messages as read when viewing
+  // Mark messages as read when viewing (and when new ones arrive while viewing)
+  const incomingMessageCount = useMemo(
+    () => messages?.filter((msg) => msg.senderId !== user?.id).length ?? 0,
+    [messages, user?.id]
+  );
   useEffect(() => {
     if (conversationId && user) {
       markAsRead({ conversationId }).catch(console.error);
     }
-  }, [conversationId, user, markAsRead]);
+  }, [conversationId, user, markAsRead, incomingMessageCount]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -223,6 +235,9 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      {conversation && user?.id ? (
+        <ChatPresence conversationId={conversationId} userId={user.id} />
+      ) : null}
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

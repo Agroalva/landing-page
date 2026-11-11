@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   TextInput,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,11 +16,26 @@ import { useRouter, Redirect, type Href } from "expo-router";
 import { useAuthSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { ActivityIndicator } from "react-native";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+import {
+  useEnablePushOnDevice,
+  useUnregisterPushToken,
+} from "@/hooks/use-notifications";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthSession();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const profile = useQuery(api.users.getMe, isAuthenticated ? {} : "skip");
+  const setPushNotificationsEnabled = useMutation(
+    api.notifications.setPushNotificationsEnabled
+  );
+  const enablePushOnDevice = useEnablePushOnDevice();
+  const unregisterPushToken = useUnregisterPushToken();
+  // Optimistic value while the change is being saved
+  const [pendingPushValue, setPendingPushValue] = React.useState<boolean | null>(null);
+  const notificationsEnabled =
+    pendingPushValue ?? profile?.pushNotificationsEnabled !== false;
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [password, setPassword] = React.useState("");
@@ -38,6 +54,37 @@ export default function SettingsScreen() {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
+  const handleToggleNotifications = async (value: boolean) => {
+    setPendingPushValue(value);
+    try {
+      await setPushNotificationsEnabled({ enabled: value });
+
+      if (value) {
+        const permitted = await enablePushOnDevice();
+        if (!permitted) {
+          Alert.alert(
+            "Permiso de notificaciones",
+            "Para recibir notificaciones push, habilitá los permisos de notificaciones de AgroAlva en la configuración de tu teléfono.",
+            [
+              { text: "Ahora no", style: "cancel" },
+              {
+                text: "Abrir configuración",
+                onPress: () => {
+                  Linking.openSettings().catch(() => {});
+                },
+              },
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to update push notification setting:", error);
+      Alert.alert("Error", "No se pudo guardar la preferencia de notificaciones.");
+    } finally {
+      setPendingPushValue(null);
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert(
       "Cerrar sesión",
@@ -52,6 +99,7 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              await unregisterPushToken();
               await authClient.signOut();
               // La navegación se gestionará automáticamente por el estado de autenticación
             } catch (error) {
@@ -159,7 +207,8 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
+              onValueChange={handleToggleNotifications}
+              disabled={profile === undefined || pendingPushValue !== null}
               trackColor={{ false: "#E0E0E0", true: "#2E7D32" }}
               thumbColor="#FFFFFF"
             />
