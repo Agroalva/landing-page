@@ -5,6 +5,9 @@ import { authComponent } from "./auth";
 import { getCategoryById } from "../config/taxonomy";
 import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
 import { buildProductSearchText } from "./productSearch";
+import { onlyActiveListings } from "./listingStatus";
+import { listingStatusValidator } from "./schema/products";
+import { getClosedStatusForType, getListingStatus } from "../config/listing-status";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -104,6 +107,7 @@ const shareProductValidator = v.object({
     createdAt: v.number(),
     primaryImageUrl: v.optional(v.string()),
     authorDisplayName: v.optional(v.string()),
+    status: v.optional(listingStatusValidator),
 });
 
 const applyListingTypeFilter = (query: any, listingType?: "rent" | "sell") => {
@@ -172,6 +176,7 @@ export const create = mutation({
             mediaIds: args.mediaIds || [],
             location: args.location,
             viewCount: 0,
+            status: "active",
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
@@ -199,11 +204,13 @@ export const feed = query({
 
         if (resolvedCategory) {
             const query = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_family_category", (q) =>
-                    q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
-                    ),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_family_category", (q) =>
+                        q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
+                        ),
+                ),
                 args.listingType,
             );
 
@@ -214,9 +221,11 @@ export const feed = query({
 
         if (resolvedFamily) {
             const query = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string)),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string)),
+                ),
                 args.listingType,
             );
 
@@ -229,11 +238,13 @@ export const feed = query({
 
         if (args.legacyCategory && args.legacyCategory !== "Todos") {
             let query = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_category_createdAt", (q) =>
-                    q.eq("category", args.legacyCategory),
-                    ),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_category_createdAt", (q) =>
+                        q.eq("category", args.legacyCategory),
+                        ),
+                ),
                 args.listingType,
             );
             if (excludePersonal) {
@@ -246,9 +257,11 @@ export const feed = query({
         }
 
         let query = applyListingTypeFilter(
-            ctx.db
-                .query("products")
-                .withIndex("by_createdAt"),
+            onlyActiveListings(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_createdAt"),
+            ),
             args.listingType,
         );
         if (excludePersonal) {
@@ -309,11 +322,14 @@ export const getShareById = query({
             createdAt: product.createdAt,
             primaryImageUrl,
             authorDisplayName: profile?.displayName,
+            status: getListingStatus(product.status),
         };
     },
 });
 
-// Get products by a specific user
+// Get products by a specific user. The author sees all of their listings
+// (any status, used by "Mis publicaciones" and the own profile tab); everyone
+// else only sees active ones.
 export const byUser = query({
     args: {
         userId: v.string(),
@@ -321,12 +337,74 @@ export const byUser = query({
     },
     handler: async (ctx, args) => {
         const limit = args.limit || 20;
-        
-        return await ctx.db
+
+        let viewerId: string | null = null;
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            viewerId = (user?._id as string | undefined) ?? null;
+        } catch {
+            viewerId = null;
+        }
+
+        const productsQuery = ctx.db
             .query("products")
-            .withIndex("by_authorId", (q) => q.eq("authorId", args.userId))
+            .withIndex("by_authorId", (q) => q.eq("authorId", args.userId));
+
+        const visibleQuery = viewerId === args.userId
+            ? productsQuery
+            : onlyActiveListings(productsQuery);
+
+        return await visibleQuery
             .order("desc")
             .take(limit);
+    },
+});
+
+// Change the publication status (only by author). Replaces deleting a listing
+// when it was sold/rented or the author wants to hide it for a while, keeping
+// views, favorites and conversations.
+export const updateStatus = mutation({
+    args: {
+        productId: v.id("products"),
+        status: listingStatusValidator,
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        const product = await ctx.db.get(args.productId);
+        if (!product) {
+            throw new Error("Product not found");
+        }
+
+        if (product.authorId !== (user._id as string)) {
+            throw new Error("Not authorized to update this product");
+        }
+
+        if (
+            (args.status === "sold" || args.status === "rented") &&
+            args.status !== getClosedStatusForType(product.type)
+        ) {
+            throw new Error(
+                product.type === "sell"
+                    ? "Una publicación de venta solo puede marcarse como vendida"
+                    : "Una publicación de servicio solo puede marcarse como alquilada",
+            );
+        }
+
+        if (getListingStatus(product.status) === args.status) {
+            return null;
+        }
+
+        await ctx.db.patch(args.productId, {
+            status: args.status,
+            statusUpdatedAt: Date.now(),
+        });
+
+        return null;
     },
 });
 

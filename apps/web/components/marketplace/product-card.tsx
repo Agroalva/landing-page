@@ -5,21 +5,27 @@ import type { MarketplaceListing } from "@/lib/marketplace";
 import { formatPrice } from "@/lib/marketplace";
 import { FavoriteButton } from "./favorite-button";
 import { StarRating } from "./star-rating";
+import { ListingStatusBadge } from "./listing-status-badge";
+import { isListingActive } from "../../../app/config/listing-status";
 
 export function ProductCard({ product }: { product: MarketplaceListing }) {
+    const isActive = isListingActive(product.status);
     return (
         <article className="group overflow-hidden rounded-[1.6rem] border border-emerald-950/10 bg-white shadow-[0_12px_40px_rgba(32,58,41,0.06)] transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(32,58,41,0.12)]">
             <div className="relative aspect-[4/3] overflow-hidden bg-[#e8eee5]">
                 <Link href={`/product/${product._id}`} className="block h-full">
                     {product.primaryImageUrl ? (
-                        <Image src={product.primaryImageUrl} alt={product.name} fill className="object-cover transition duration-500 group-hover:scale-105" unoptimized />
+                        <Image src={product.primaryImageUrl} alt={product.name} fill className={`object-cover transition duration-500 group-hover:scale-105 ${isActive ? "" : "opacity-60 grayscale-[40%]"}`} unoptimized />
                     ) : (
                         <div className="flex h-full items-center justify-center text-emerald-900/50"><PackageOpen className="size-12" /></div>
                     )}
                 </Link>
-                <span className="absolute left-3 top-3 rounded-full bg-emerald-950/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                    {product.type === "rent" ? "Alquiler" : "Venta"}
-                </span>
+                <div className="absolute left-3 top-3 flex flex-col items-start gap-2">
+                    <span className="rounded-full bg-emerald-950/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                        {product.type === "rent" ? "Alquiler" : "Venta"}
+                    </span>
+                    {!isActive && <ListingStatusBadge status={product.status} className="shadow-sm" />}
+                </div>
                 <div className="absolute right-3 top-3"><FavoriteButton productId={product._id} compact /></div>
             </div>
             <div className="p-5">

@@ -27,6 +27,14 @@ import { getListingIntentForProduct } from "../../config/listing-intents";
 import type { ListingIntent } from "../../config/listing-intents";
 import { CONDITION_OPTIONS } from "../../config/options";
 import {
+  getListingStatus,
+  LISTING_STATUS_LABELS,
+  LISTING_STATUS_OWNER_MESSAGES,
+  LISTING_STATUS_VISITOR_MESSAGES,
+} from "../../config/listing-status";
+import { ListingStatusActions } from "@/components/ListingStatusActions";
+import { LISTING_STATUS_COLORS } from "@/components/ListingStatusBadge";
+import {
   trackAddToWishlist,
   trackContactSeller,
   trackShareProduct,
@@ -269,7 +277,7 @@ export default function ProductDetailScreen() {
     
     Alert.alert(
       "Eliminar publicación",
-      "¿Estás seguro de que deseas eliminar esta publicación? Esta acción no se puede deshacer.",
+      "¿Estás seguro de que deseas eliminar esta publicación? Esta acción no se puede deshacer y se pierden las visitas y los favoritos. Si ya la vendiste o querés ocultarla un tiempo, podés marcarla como vendida o pausarla.",
       [
         {
           text: "Cancelar",
@@ -316,6 +324,10 @@ export default function ProductDetailScreen() {
       </SafeAreaView>
     );
   }
+
+  const listingStatus = getListingStatus(product.status);
+  const isListingAvailable = listingStatus === "active";
+  const statusColors = LISTING_STATUS_COLORS[listingStatus];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -418,6 +430,26 @@ export default function ProductDetailScreen() {
 
         {/* Product Info */}
         <View style={styles.contentContainer}>
+          {!isListingAvailable && (
+            <View style={[styles.statusBanner, { backgroundColor: statusColors.background }]}>
+              <Ionicons
+                name={listingStatus === "paused" ? "pause-circle" : "checkmark-done-circle"}
+                size={28}
+                color={statusColors.text}
+              />
+              <View style={styles.statusBannerContent}>
+                <Text style={[styles.statusBannerTitle, { color: statusColors.text }]}>
+                  {LISTING_STATUS_LABELS[listingStatus]}
+                </Text>
+                <Text style={[styles.statusBannerText, { color: statusColors.text }]}>
+                  {isAuthor
+                    ? LISTING_STATUS_OWNER_MESSAGES[listingStatus]
+                    : LISTING_STATUS_VISITOR_MESSAGES[listingStatus]}
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.priceSection}>
             <View>
               <Text style={styles.postedDate}>
@@ -650,7 +682,7 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      {showGuestCta && (
+      {showGuestCta && isListingAvailable && (
         <View style={styles.guestCta}>
           <Text style={styles.guestCtaText}>
             Inicia sesión para contactar al vendedor
@@ -664,8 +696,20 @@ export default function ProductDetailScreen() {
         </View>
       )}
 
-      {/* Bottom Contact Bar */}
-      {showFullDetails && (
+      {/* Author: manage the publication status instead of contacting themselves */}
+      {!!isAuthor && (
+        <View style={styles.bottomBar}>
+          <ListingStatusActions
+            productId={product._id}
+            type={product.type}
+            status={product.status}
+            style={styles.ownerActions}
+          />
+        </View>
+      )}
+
+      {/* Bottom Contact Bar (hidden when the listing is paused, sold or rented) */}
+      {showFullDetails && !isAuthor && isListingAvailable && (
         <View style={styles.bottomBar}>
           <TouchableOpacity style={styles.contactButton} onPress={handleCall}>
             <Ionicons name="call" size={20} color="#FFFFFF" />
@@ -1000,6 +1044,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#2E7D32",
     fontWeight: "600",
+  },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  statusBannerContent: {
+    flex: 1,
+  },
+  statusBannerTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statusBannerText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 2,
+  },
+  ownerActions: {
+    flex: 1,
   },
   bottomBar: {
     flexDirection: "row",
