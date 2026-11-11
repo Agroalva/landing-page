@@ -9,6 +9,7 @@ import { bannersTable } from "./schema/banners";
 import { reviewsTable, reviewReportsTable } from "./schema/reviews";
 import { exchangeRatesTable } from "./schema/exchangeRates";
 import { savedSearchesTable, savedSearchAlertsTable } from "./schema/savedSearches";
+import { priceDropAlertsTable } from "./schema/priceDropAlerts";
 
 export default defineSchema({
     // Better Auth will create internal tables automatically
@@ -27,4 +28,5 @@ export default defineSchema({
     exchangeRates: exchangeRatesTable,
     savedSearches: savedSearchesTable,
     savedSearchAlerts: savedSearchAlertsTable,
+    priceDropAlerts: priceDropAlertsTable,
 });

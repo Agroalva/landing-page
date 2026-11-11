@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { getCategoryById } from "../config/taxonomy";
 import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
 import { buildProductSearchText } from "./productSearch";
+import { isPriceDrop } from "./priceDropAlerts";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -477,5 +478,22 @@ export const update = mutation({
         );
 
         await ctx.db.patch(args.productId, updates);
+
+        const nextPrice: number | undefined = updates.price ?? product.price;
+        const nextCurrency: string | undefined = updates.currency ?? product.currency;
+        if (isPriceDrop({
+            previousPrice: product.price,
+            previousCurrency: product.currency,
+            nextPrice,
+            nextCurrency,
+        })) {
+            // Favoriters are notified in the background so saving stays fast.
+            await ctx.scheduler.runAfter(0, internal.priceDropAlerts.notifyFavoriters, {
+                productId: args.productId,
+                previousPrice: product.price!,
+                newPrice: nextPrice!,
+                currency: nextCurrency!,
+            });
+        }
     },
 });

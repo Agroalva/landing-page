@@ -67,6 +67,8 @@ export default function NotificationsScreen() {
         return "star";
       case "saved_search":
         return "bookmark";
+      case "price_drop":
+        return "trending-down";
       default:
         return "notifications";
     }
@@ -85,7 +87,7 @@ export default function NotificationsScreen() {
       router.push(`/product/${relatedId}`);
     } else if (type === "review" && relatedId) {
       router.push(`/user-profile/${relatedId}`);
-    } else if (type === "saved_search" && relatedId) {
+    } else if ((type === "saved_search" || type === "price_drop") && relatedId) {
       router.push(`/product/${relatedId}`);
     }
   };
@@ -199,6 +201,8 @@ function getNotificationColor(type: string): string {
       return "#F9A825";
     case "saved_search":
       return "#1B5E20";
+    case "price_drop":
+      return "#00897B";
     default:
       return "#757575";
   }
