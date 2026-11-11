@@ -19,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
 import { StarRating } from "@/components/StarRating";
+import { useUnregisterPushToken } from "@/hooks/use-notifications";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
     isAuthenticated ? {} : "skip"
   );
   const ensureProfile = useMutation(api.users.ensureProfile);
+  const unregisterPushToken = useUnregisterPushToken();
   const updateProfile = useMutation(api.users.updateProfile);
   const { pickImage, uploading: uploadingAvatar } = useFileUpload();
   
@@ -92,6 +94,7 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              await unregisterPushToken();
               await authClient.signOut();
               // La navegación se gestionará automáticamente por el estado de autenticación
             } catch (error) {

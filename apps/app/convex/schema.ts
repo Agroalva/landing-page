@@ -4,7 +4,11 @@ import { conversationsTable } from "./schema/conversations";
 import { messagesTable } from "./schema/messages";
 import { productsTable } from "./schema/products";
 import { favoritesTable } from "./schema/favorites";
-import { notificationsTable } from "./schema/notifications";
+import {
+    notificationsTable,
+    pushDevicesTable,
+    chatPushStatesTable,
+} from "./schema/notifications";
 import { bannersTable } from "./schema/banners";
 import { reviewsTable, reviewReportsTable } from "./schema/reviews";
 
@@ -19,6 +23,8 @@ export default defineSchema({
     products: productsTable,
     favorites: favoritesTable,
     notifications: notificationsTable,
+    pushDevices: pushDevicesTable,
+    chatPushStates: chatPushStatesTable,
     banners: bannersTable,
     reviews: reviewsTable,
     reviewReports: reviewReportsTable,

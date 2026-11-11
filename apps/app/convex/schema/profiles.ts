@@ -8,11 +8,13 @@ export const profilesTable = defineTable({
     avatarId: v.optional(v.id("_storage")), // Reference to Convex file storage
     bio: v.optional(v.string()),
     phoneNumber: v.optional(v.string()), // Phone number for contact
-    pushToken: v.optional(v.string()), // Expo push notification token
+    pushToken: v.optional(v.string()), // Expo push notification token (legacy: latest device only)
+    pushNotificationsEnabled: v.optional(v.boolean()), // undefined = enabled
     ratingSum: v.optional(v.number()),
     ratingCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
 })
     .index("by_userId", ["userId"])
-    .index("by_displayName", ["displayName"]);
+    .index("by_displayName", ["displayName"])
+    .index("by_pushToken", ["pushToken"]);
