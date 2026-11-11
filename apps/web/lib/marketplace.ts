@@ -26,6 +26,8 @@ export type MarketplaceListing = {
     status?: ListingStatus;
     createdAt: number;
     updatedAt: number;
+    // Only set in "near me" results.
+    distanceKm?: number;
 };
 
 export type MarketplaceProduct = MarketplaceListing & {

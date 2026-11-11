@@ -2,14 +2,15 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
+import { internal } from "./_generated/api";
 import { getCategoryById } from "../config/taxonomy";
 import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
 import { buildProductSearchText } from "./productSearch";
 import { onlyActiveListings } from "./listingStatus";
 import { listingStatusValidator } from "./schema/products";
 import { getClosedStatusForType, getListingStatus } from "../config/listing-status";
-import { internal } from "./_generated/api";
 import { recordDailyView } from "./productStats";
+import { isPriceDrop } from "./priceDropAlerts";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -163,7 +164,7 @@ export const create = mutation({
         const normalizedAttributes = normalizeAttributes(args.attributes);
         const legacyCategory = getLegacyCategoryLabel(resolvedCategory, args.category);
 
-        return await ctx.db.insert("products", {
+        const productId = await ctx.db.insert("products", {
             authorId: user._id as string,
             name: args.name.trim(),
             searchText: buildProductSearchText(args.name, args.location, normalizedAttributes),
@@ -182,6 +183,11 @@ export const create = mutation({
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
+
+        // Saved-search alerts run in the background so publishing stays fast.
+        await ctx.scheduler.runAfter(0, internal.savedSearches.matchNewProduct, { productId });
+
+        return productId;
     },
 });
 
@@ -567,5 +573,22 @@ export const update = mutation({
         );
 
         await ctx.db.patch(args.productId, updates);
+
+        const nextPrice: number | undefined = updates.price ?? product.price;
+        const nextCurrency: string | undefined = updates.currency ?? product.currency;
+        if (isPriceDrop({
+            previousPrice: product.price,
+            previousCurrency: product.currency,
+            nextPrice,
+            nextCurrency,
+        })) {
+            // Favoriters are notified in the background so saving stays fast.
+            await ctx.scheduler.runAfter(0, internal.priceDropAlerts.notifyFavoriters, {
+                productId: args.productId,
+                previousPrice: product.price!,
+                newPrice: nextPrice!,
+                currency: nextCurrency!,
+            });
+        }
     },
 });

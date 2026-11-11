@@ -7,6 +7,13 @@ import { normalizeProductSearchTerm } from "./productSearch";
 import { onlyActiveListings } from "./listingStatus";
 import { listingStatusValidator } from "./schema/products";
 import { getListingStatus } from "../config/listing-status";
+import { loadUsdArsRate } from "./lib/exchangeRate";
+import {
+    discoverListings,
+    listingFilterFields,
+    listingSortValidator,
+    parseOffsetCursor,
+} from "./lib/listingFilters";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -57,6 +64,8 @@ const listingCardValidator = v.object({
     status: listingStatusValidator,
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Present only in "near me" results from discover.
+    distanceKm: v.optional(v.number()),
 });
 
 const productDetailValidator = v.object({
@@ -239,6 +248,41 @@ export const list = query({
             page: await Promise.all(result.page.map((product: Doc<"products">) => toListingCard(ctx, product))),
             isDone: result.isDone,
             continueCursor: result.continueCursor,
+        };
+    },
+});
+
+// Filtered/sorted catalog (price, year, sort). Uses offset cursors, so the
+// client should de-duplicate by _id if listings shift between pages.
+export const discover = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        ...listingFilterFields,
+        sort: v.optional(listingSortValidator),
+    },
+    returns: v.object({
+        page: v.array(listingCardValidator),
+        isDone: v.boolean(),
+        continueCursor: v.string(),
+    }),
+    handler: async (ctx, args) => {
+        const { paginationOpts, sort, ...filters } = args;
+        const offset = parseOffsetCursor(paginationOpts.cursor);
+        const result = await discoverListings(ctx, {
+            filters,
+            sort,
+            offset,
+            limit: Math.min(Math.max(paginationOpts.numItems, 1), 50),
+            rate: await loadUsdArsRate(ctx),
+        });
+
+        return {
+            page: await Promise.all(result.page.map(async ({ product, distanceKm }) => {
+                const card = await toListingCard(ctx, product);
+                return distanceKm === undefined ? card : { ...card, distanceKm };
+            })),
+            isDone: !result.hasMore,
+            continueCursor: result.nextCursor ?? String(offset + result.page.length),
         };
     },
 });

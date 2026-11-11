@@ -54,6 +54,9 @@ export const productsTable = defineTable({
     .index("by_family_category", ["familyId", "categoryId"])
     .index("by_category", ["category"])
     .index("by_category_createdAt", ["category", "createdAt"])
+    // Bounding-box scans for "near me" searches. Listings without a location
+    // are simply absent from latitude ranges.
+    .index("by_latitude", ["location.latitude"])
     .searchIndex("search_name", {
         searchField: "name",
         filterFields: ["category", "type", "familyId", "categoryId"],

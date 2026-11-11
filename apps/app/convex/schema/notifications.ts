@@ -8,7 +8,11 @@ export const notificationsTable = defineTable({
         v.literal("favorite"),
         v.literal("comment"),
         v.literal("like"),
-        v.literal("review")
+        v.literal("review"),
+        // Added in 1.2.11. Older app versions render unknown types with a
+        // generic icon and do nothing on tap (see app/notifications.tsx).
+        v.literal("saved_search"),
+        v.literal("price_drop")
     ),
     title: v.string(),
     body: v.string(),

@@ -16,7 +16,9 @@ const notificationTypeValidator = v.union(
     v.literal("favorite"),
     v.literal("comment"),
     v.literal("like"),
-    v.literal("review")
+    v.literal("review"),
+    v.literal("saved_search"),
+    v.literal("price_drop")
 );
 
 type NotificationType = Doc<"notifications">["type"];
@@ -80,6 +82,9 @@ function getNotificationUrl(
             return `/product/${id}`;
         case "review":
             return `/user-profile/${id}`;
+        case "saved_search":
+        case "price_drop":
+            return `/product/${id}`;
         default:
             return undefined;
     }

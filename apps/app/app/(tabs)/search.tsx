@@ -13,11 +13,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { usePaginatedQuery, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import { useAuthSession } from "@/hooks/use-session";
 import {
   CategoryId,
@@ -26,6 +28,18 @@ import {
   getFamilies,
 } from "../../config/taxonomy";
 import { ListingCard } from "../../components/ListingCard";
+import {
+  EMPTY_FILTER_DRAFT,
+  SearchFiltersPanel,
+  countActiveRangeFilters,
+  hasAdvancedFilters,
+  toAppliedFilters,
+} from "../../components/SearchFiltersPanel";
+import type {
+  AppliedSearchFilters,
+  SearchFilterDraft,
+  SearchPoint,
+} from "../../components/SearchFiltersPanel";
 import { trackSearch } from "@/lib/meta-events";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
@@ -147,6 +161,17 @@ const isFamilyVisibleForTopLevel = (familyId: FamilyId, topLevel: TopLevelIntent
 
 const PAGE_SIZE = 20;
 const INFINITE_SCROLL_THRESHOLD = 600;
+const FILTER_INPUT_DEBOUNCE_MS = 500;
+// ~1 km precision: enough for 50+ km radii and avoids sending exact coordinates.
+const roundCoordinate = (value: number) => Math.round(value * 100) / 100;
+
+const parseOptionalNumber = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 const mergeProducts = (
   existingProducts: Doc<"products">[],
@@ -182,11 +207,34 @@ export default function SearchScreen() {
     familyId?: string | string[];
     categoryId?: string | string[];
     query?: string | string[];
+    sort?: string | string[];
+    currency?: string | string[];
+    minPrice?: string | string[];
+    maxPrice?: string | string[];
+    minYear?: string | string[];
+    maxYear?: string | string[];
+    nearLat?: string | string[];
+    nearLng?: string | string[];
+    nearLabel?: string | string[];
+    radiusKm?: string | string[];
+    restore?: string | string[];
   }>();
   const paramTopLevel = getParamValue(params.topLevel);
   const paramFamilyId = getParamValue(params.familyId);
   const paramCategoryId = getParamValue(params.categoryId);
   const paramQuery = getParamValue(params.query);
+  const paramSort = getParamValue(params.sort);
+  const paramCurrency = getParamValue(params.currency);
+  const paramMinPrice = getParamValue(params.minPrice);
+  const paramMaxPrice = getParamValue(params.maxPrice);
+  const paramMinYear = getParamValue(params.minYear);
+  const paramMaxYear = getParamValue(params.maxYear);
+  const paramNearLat = getParamValue(params.nearLat);
+  const paramNearLng = getParamValue(params.nearLng);
+  const paramNearLabel = getParamValue(params.nearLabel);
+  const paramRadiusKm = getParamValue(params.radiusKm);
+  // Changes every time a saved search is opened, to re-apply its params.
+  const paramRestore = getParamValue(params.restore);
   const initialTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
   const initialCategoryId =
     initialTopLevel === "personal" && paramCategoryId === LEGACY_PERSONAL_CATEGORY_ID
@@ -220,6 +268,15 @@ export default function SearchScreen() {
     key: "",
     products: [],
   });
+  const [filterDraft, setFilterDraft] = useState<SearchFilterDraft>(EMPTY_FILTER_DRAFT);
+  const [appliedFilters, setAppliedFilters] = useState<AppliedSearchFilters>(() =>
+    toAppliedFilters(EMPTY_FILTER_DRAFT),
+  );
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [savedSearchKey, setSavedSearchKey] = useState<string | null>(null);
+  const [isSavingSearch, setIsSavingSearch] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const createSavedSearch = useMutation(api.savedSearches.create);
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
   const orderedTopLevelOptions = useMemo(
     () => getOrderedTopLevelOptions(selectedTopLevel),
@@ -247,11 +304,20 @@ export default function SearchScreen() {
       : undefined;
   const hasSearchTerm = debouncedQuery.length >= 3;
   const isBrowseMode = !hasSearchTerm && selectedTopLevel !== "all";
+  const showTaxonomyFilters = selectedTopLevel !== "all" || hasSearchTerm;
+  const advancedFiltersActive = showTaxonomyFilters && hasAdvancedFilters(appliedFilters);
+  // Text searches and filtered/sorted browsing go through search.discover;
+  // plain browsing keeps the index-paginated feed.
+  const usesDiscover = hasSearchTerm || (isBrowseMode && advancedFiltersActive);
+  const activeFilters: AppliedSearchFilters = advancedFiltersActive
+    ? appliedFilters
+    : { sort: "recent" };
   const searchKey = [
     debouncedQuery.toLowerCase(),
     selectedTopLevel,
     selectedFamily?.id ?? "all",
     selectedCategory?.id ?? "all",
+    JSON.stringify(activeFilters),
   ].join(":");
 
   useEffect(() => {
@@ -291,7 +357,48 @@ export default function SearchScreen() {
     paramCategoryId,
     paramFamilyId,
     paramQuery,
+    paramRestore,
     paramTopLevel,
+  ]);
+
+  useEffect(() => {
+    const nearLatitude = parseOptionalNumber(paramNearLat);
+    const nearLongitude = parseOptionalNumber(paramNearLng);
+    const radiusKm = parseOptionalNumber(paramRadiusKm);
+    const near: SearchPoint | null =
+      nearLatitude !== undefined && nearLongitude !== undefined
+        ? { latitude: nearLatitude, longitude: nearLongitude, label: paramNearLabel || undefined }
+        : null;
+    const nextDraft: SearchFilterDraft = {
+      sort:
+        paramSort === "price_asc" || paramSort === "price_desc" || paramSort === "distance"
+          ? paramSort
+          : "recent",
+      priceCurrency: paramCurrency === "ARS" ? "ARS" : "USD",
+      minPrice: paramMinPrice ?? "",
+      maxPrice: paramMaxPrice ?? "",
+      minYear: paramMinYear ?? "",
+      maxYear: paramMaxYear ?? "",
+      radiusKm: near && radiusKm ? radiusKm : null,
+      near,
+    };
+    setFilterDraft(nextDraft);
+    setAppliedFilters(toAppliedFilters(nextDraft));
+    if (nextDraft.minPrice || nextDraft.maxPrice || nextDraft.minYear || nextDraft.maxYear) {
+      setFiltersExpanded(true);
+    }
+  }, [
+    paramCurrency,
+    paramMaxPrice,
+    paramMaxYear,
+    paramMinPrice,
+    paramMinYear,
+    paramNearLabel,
+    paramNearLat,
+    paramNearLng,
+    paramRadiusKm,
+    paramRestore,
+    paramSort,
   ]);
 
   useEffect(() => {
@@ -330,6 +437,95 @@ export default function SearchScreen() {
       saveRecentSearch(debouncedQuery);
     }
   }, [debouncedQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedFilters(toAppliedFilters(filterDraft));
+    }, FILTER_INPUT_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [filterDraft]);
+
+  const handleFilterDraftChange = (nextDraft: SearchFilterDraft) => {
+    setFilterDraft(nextDraft);
+    // Taps (sort, currency, distance) apply right away; typing is debounced.
+    if (
+      nextDraft.sort !== filterDraft.sort ||
+      nextDraft.priceCurrency !== filterDraft.priceCurrency ||
+      nextDraft.radiusKm !== filterDraft.radiusKm ||
+      nextDraft.near !== filterDraft.near
+    ) {
+      setAppliedFilters(toAppliedFilters(nextDraft));
+    }
+  };
+
+  const getUserLocation = async (): Promise<SearchPoint | null> => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Ubicación desactivada",
+        "Activá el permiso de ubicación para ver publicaciones cerca tuyo.",
+      );
+      return null;
+    }
+
+    const position =
+      (await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 })) ??
+      (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+
+    let label: string | undefined;
+    try {
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      label = place?.city || place?.subregion || place?.region || undefined;
+    } catch {
+      // The label is cosmetic; distance filtering works without it.
+    }
+
+    return {
+      latitude: roundCoordinate(position.coords.latitude),
+      longitude: roundCoordinate(position.coords.longitude),
+      label,
+    };
+  };
+
+  const handleSelectRadius = async (radiusKm: number | null) => {
+    if (radiusKm === null) {
+      handleFilterDraftChange({
+        ...filterDraft,
+        radiusKm: null,
+        near: null,
+        sort: filterDraft.sort === "distance" ? "recent" : filterDraft.sort,
+      });
+      return;
+    }
+
+    let near = filterDraft.near;
+    if (!near) {
+      setIsLocating(true);
+      try {
+        near = await getUserLocation();
+      } catch (error) {
+        console.error("Error getting location for search:", error);
+        Alert.alert("No pudimos obtener tu ubicación", "Intentá de nuevo en unos segundos.");
+        near = null;
+      } finally {
+        setIsLocating(false);
+      }
+    }
+    if (!near) {
+      return;
+    }
+
+    handleFilterDraftChange({
+      ...filterDraft,
+      radiusKm,
+      near,
+      sort: filterDraft.sort === "recent" ? "distance" : filterDraft.sort,
+    });
+  };
 
   useEffect(() => {
     if (debouncedQuery.length < 3) {
@@ -436,21 +632,32 @@ export default function SearchScreen() {
   };
 
   const searchResults = useQuery(
-    api.search.querySearch,
-    hasSearchTerm
+    api.search.discover,
+    usesDiscover
       ? {
-          query: debouncedQuery,
+          query: hasSearchTerm ? debouncedQuery : undefined,
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
           listingType: derivedListingType,
+          sort: activeFilters.sort,
+          priceCurrency: activeFilters.priceCurrency,
+          minPrice: activeFilters.minPrice,
+          maxPrice: activeFilters.maxPrice,
+          minYear: activeFilters.minYear,
+          maxYear: activeFilters.maxYear,
+          near: activeFilters.near,
           limit: PAGE_SIZE,
-          clientPaginates: true,
           cursor:
             searchPagination.key === searchKey
               ? searchPagination.cursor
               : undefined,
         }
       : "skip",
+  );
+  const showProfiles = hasSearchTerm && selectedTopLevel === "all" && isAuthenticated;
+  const profileResults = useQuery(
+    api.search.searchProfiles,
+    showProfiles ? { query: debouncedQuery } : "skip",
   );
 
   const {
@@ -459,7 +666,7 @@ export default function SearchScreen() {
     loadMore: loadMoreBrowseProducts,
   } = usePaginatedQuery(
     api.products.feed,
-    isBrowseMode
+    isBrowseMode && !usesDiscover
       ? {
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
@@ -523,6 +730,58 @@ export default function SearchScreen() {
     }));
   };
 
+  const isCurrentSearchSaved = savedSearchKey === searchKey;
+
+  const handleSaveSearch = async () => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        "Iniciá sesión",
+        "Necesitás una cuenta para guardar búsquedas y recibir avisos.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Iniciar sesión", onPress: () => router.push("/(auth)/sign-in") },
+        ],
+      );
+      return;
+    }
+
+    setIsSavingSearch(true);
+    try {
+      const result = await createSavedSearch({
+        query: hasSearchTerm ? debouncedQuery : undefined,
+        topLevel: selectedTopLevel,
+        familyId: selectedFamily?.id,
+        categoryId: selectedCategory?.id,
+        listingType: derivedListingType,
+        sort: activeFilters.sort,
+        priceCurrency: activeFilters.priceCurrency,
+        minPrice: activeFilters.minPrice,
+        maxPrice: activeFilters.maxPrice,
+        minYear: activeFilters.minYear,
+        maxYear: activeFilters.maxYear,
+        near: activeFilters.near,
+      });
+      setSavedSearchKey(searchKey);
+      Alert.alert(
+        result.alreadySaved ? "Ya tenías esta búsqueda" : "Búsqueda guardada",
+        "Te avisamos cuando se publique algo nuevo que coincida.",
+        [
+          { text: "Ver guardadas", onPress: () => router.push("/saved-searches") },
+          { text: "OK" },
+        ],
+      );
+    } catch (error) {
+      Alert.alert(
+        "No se pudo guardar",
+        error instanceof ConvexError && typeof error.data === "string"
+          ? error.data
+          : "Intentá de nuevo en unos minutos.",
+      );
+    } finally {
+      setIsSavingSearch(false);
+    }
+  };
+
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
     const distanceFromBottom =
@@ -532,10 +791,10 @@ export default function SearchScreen() {
       return;
     }
 
-    if (isBrowseMode && browseStatus === "CanLoadMore") {
-      loadMoreBrowseProducts(PAGE_SIZE);
-    } else if (hasSearchTerm) {
+    if (usesDiscover) {
       handleLoadMoreSearchResults();
+    } else if (isBrowseMode && browseStatus === "CanLoadMore") {
+      loadMoreBrowseProducts(PAGE_SIZE);
     }
   };
   const serviceResults = useMemo(
@@ -557,7 +816,18 @@ export default function SearchScreen() {
     [searchProducts],
   );
 
-  const showTaxonomyFilters = selectedTopLevel !== "all" || hasSearchTerm;
+  const browseListings = usesDiscover ? searchProducts : browseProducts;
+  const isLoadingFirstBrowsePage = usesDiscover
+    ? isLoadingFirstSearchPage
+    : browseStatus === "LoadingFirstPage";
+  const isLoadingMoreBrowse = usesDiscover
+    ? isLoadingMoreSearchResults
+    : browseStatus === "LoadingMore";
+  const activeRangeCount = countActiveRangeFilters(appliedFilters);
+  const showRateNote =
+    advancedFiltersActive &&
+    (activeFilters.sort !== "recent" || activeFilters.priceCurrency !== undefined) &&
+    searchResults !== undefined;
   const browseTitle = selectedCategory
     ? selectedCategory.label
     : selectedFamily
@@ -799,6 +1069,43 @@ export default function SearchScreen() {
                 </ScrollView>
               </View>
             )}
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Ordenar y filtrar</Text>
+                <TouchableOpacity
+                  style={styles.saveSearchButton}
+                  onPress={handleSaveSearch}
+                  disabled={isSavingSearch || isCurrentSearchSaved}
+                  accessibilityLabel="Guardar búsqueda y recibir avisos"
+                >
+                  {isSavingSearch ? (
+                    <ActivityIndicator size="small" color="#1B5E20" />
+                  ) : (
+                    <Ionicons
+                      name={isCurrentSearchSaved ? "bookmark" : "bookmark-outline"}
+                      size={16}
+                      color="#1B5E20"
+                    />
+                  )}
+                  <Text style={styles.clearText}>
+                    {isCurrentSearchSaved ? "Guardada" : "Guardar búsqueda"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <SearchFiltersPanel
+                draft={filterDraft}
+                onChange={handleFilterDraftChange}
+                expanded={filtersExpanded}
+                onToggleExpanded={() => setFiltersExpanded((current) => !current)}
+                activeRangeCount={activeRangeCount}
+                showYear={selectedTopLevel !== "personal"}
+                usdArsRate={searchResults?.exchangeRate?.usdArs ?? null}
+                showRateNote={showRateNote}
+                onSelectRadius={handleSelectRadius}
+                isLocating={isLocating}
+              />
+            </View>
           </>
         )}
 
@@ -817,20 +1124,20 @@ export default function SearchScreen() {
                 : "Resultados recientes de productos físicos dentro del filtro actual."}
             </Text>
 
-            {browseStatus === "LoadingFirstPage" ? (
+            {isLoadingFirstBrowsePage ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#1B5E20" />
               </View>
-            ) : browseProducts.length > 0 ? (
+            ) : browseListings.length > 0 ? (
               <View style={styles.productsContainer}>
-                {browseProducts.map((product: (typeof browseProducts)[number]) => (
+                {browseListings.map((product: (typeof browseListings)[number]) => (
                   <ListingCard
                     key={product._id}
                     product={product}
                     variant={isAuthenticated ? "full" : "public"}
                   />
                 ))}
-                {browseStatus === "LoadingMore" && (
+                {isLoadingMoreBrowse && (
                   <ActivityIndicator size="small" color="#1B5E20" style={styles.loadingMore} />
                 )}
               </View>
@@ -839,7 +1146,9 @@ export default function SearchScreen() {
                 <Ionicons name="layers-outline" size={40} color="#C6BDAE" />
                 <Text style={styles.emptyTitle}>No hay publicaciones para este filtro</Text>
                 <Text style={styles.emptyBody}>
-                  Prueba con otra familia o elimina la categoría para ampliar resultados.
+                  {advancedFiltersActive
+                    ? "Prueba ampliando el rango de precio o año, u otra familia."
+                    : "Prueba con otra familia o elimina la categoría para ampliar resultados."}
                 </Text>
               </View>
             )}
@@ -914,10 +1223,10 @@ export default function SearchScreen() {
                   </>
                 )}
 
-                {selectedTopLevel === "all" && isAuthenticated && (searchResults?.profiles.length ?? 0) > 0 && (
+                {showProfiles && (profileResults?.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Perfiles</Text>
-                    {searchResults?.profiles.map((profile) => (
+                    {profileResults?.map((profile) => (
                       <TouchableOpacity
                         key={profile._id}
                         style={styles.recentItem}
@@ -932,7 +1241,7 @@ export default function SearchScreen() {
                 )}
 
                 {searchProducts.length === 0 &&
-                  (selectedTopLevel !== "all" || (searchResults?.profiles.length ?? 0) === 0) && (
+                  (!showProfiles || (profileResults?.length ?? 0) === 0) && (
                     <View style={styles.emptyState}>
                       <Ionicons name="search-outline" size={40} color="#C6BDAE" />
                       <Text style={styles.emptyTitle}>No encontramos coincidencias</Text>
@@ -1085,6 +1394,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#1B5E20",
+  },
+  saveSearchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
   },
   emptyState: {
     alignItems: "center",
