@@ -46,3 +46,18 @@ export const chatPushStatesTable = defineTable({
     pendingDigestAt: v.optional(v.number()), // When a grouped push is scheduled, if any
 })
     .index("by_userId_conversationId", ["userId", "conversationId"]);
+
+// Browser (Web Push) subscriptions created by the web app, one row per endpoint.
+// Separate from pushDevices because a web subscription is an endpoint + keys,
+// not an Expo token, and is sent through VAPID instead of the Expo push API.
+export const webPushSubscriptionsTable = defineTable({
+    userId: v.string(), // References Better Auth user ID
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    userAgent: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+})
+    .index("by_userId", ["userId"])
+    .index("by_endpoint", ["endpoint"]);

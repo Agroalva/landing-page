@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Bell, Heart, LogOut, Menu, MessageCircle, Plus, UserRound } from "lucide-react";
 import { api } from "@/lib/convex-api";
 import { authClient } from "@/lib/auth-client";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { getCurrentPushSubscription } from "@/lib/web-push";
 import { Button } from "@/components/ui/button";
 
 const publicLinks = [
@@ -28,11 +29,23 @@ export function SiteHeader() {
         isAuthenticated ? {} : "skip",
     );
 
+    const unregisterWebPush = useMutation(api.webPushSubscriptions.unregister);
+
     if (pathname.startsWith("/admin")) {
         return null;
     }
 
     const signOut = async () => {
+        // Stop sending this account's notifications to this browser.
+        try {
+            const subscription = await getCurrentPushSubscription();
+            if (subscription) {
+                await unregisterWebPush({ endpoint: subscription.endpoint });
+                await subscription.unsubscribe();
+            }
+        } catch (error) {
+            console.error("Web push unsubscribe on sign out failed", error);
+        }
         await authClient.signOut();
         router.push("/");
         router.refresh();
@@ -108,6 +121,7 @@ export function SiteHeader() {
                                     <Link href="/messages" className="mobile-menu-link sm:hidden"><MessageCircle className="size-4" /> Mensajes</Link>
                                     <Link href="/notifications" className="mobile-menu-link sm:hidden"><Bell className="size-4" /> Notificaciones</Link>
                                     <Link href="/my-listings" className="mobile-menu-link">Mis publicaciones</Link>
+                                    <Link href="/saved-searches" className="mobile-menu-link">Búsquedas guardadas</Link>
                                     <Link href="/account/profile" className="mobile-menu-link">Editar perfil</Link>
                                     <button onClick={signOut} className="mobile-menu-link w-full text-left text-red-700">
                                         <LogOut className="size-4" /> Cerrar sesión
