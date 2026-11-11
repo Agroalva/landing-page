@@ -12,6 +12,15 @@ const attributeValue = v.union(
     })
 );
 
+// Optional on purpose: products created before statuses existed have no value
+// and must be treated as "active" (see config/listing-status.ts).
+export const listingStatusValidator = v.union(
+    v.literal("active"),
+    v.literal("paused"),
+    v.literal("sold"),
+    v.literal("rented"),
+);
+
 export const productsTable = defineTable({
     authorId: v.string(), // References Better Auth user ID
     name: v.string(),
@@ -26,6 +35,8 @@ export const productsTable = defineTable({
     currency: v.optional(v.string()), // Currency code (e.g., "USD", "MXN", "EUR")
     mediaIds: v.optional(v.array(v.id("_storage"))), // Array of file storage IDs
     viewCount: v.optional(v.number()),
+    status: v.optional(listingStatusValidator),
+    statusUpdatedAt: v.optional(v.number()),
     location: v.optional(v.object({
         latitude: v.number(),
         longitude: v.number(),

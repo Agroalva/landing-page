@@ -1,4 +1,5 @@
 import type { MarketplaceProduct } from "@/lib/marketplace";
+import type { ListingStatus } from "../../app/config/listing-status";
 
 export type ShareProduct = {
   _id: string
@@ -17,6 +18,7 @@ export type ShareProduct = {
   createdAt: number
   primaryImageUrl?: string
   authorDisplayName?: string
+  status?: ListingStatus
 }
 
 const DEFAULT_WEB_URL = "https://www.agroalva.com.ar"

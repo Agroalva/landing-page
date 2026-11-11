@@ -9,6 +9,8 @@ import { getCategoryById } from "../config/taxonomy";
 import { getListingIntentForProduct } from "../config/listing-intents";
 import type { ListingIntent } from "../config/listing-intents";
 import { CONDITION_OPTIONS } from "../config/options";
+import { isListingActive, type ListingStatus } from "../config/listing-status";
+import { ListingStatusBadge } from "./ListingStatusBadge";
 
 const TYPE_BADGE_LABELS: Record<ListingIntent, string> = {
   products: "Venta",
@@ -35,6 +37,7 @@ interface ListingCardProps {
       longitude: number;
     };
     attributes?: Record<string, any>;
+    status?: ListingStatus;
     createdAt: number;
   };
   onPress?: () => void;
@@ -63,6 +66,7 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
       : null;
 
   const locationLabel = product.location?.label || product.location?.address;
+  const isActive = isListingActive(product.status);
 
   return (
     <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.7}>
@@ -78,6 +82,12 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
           <View style={styles.imagePlaceholder}>
             <Ionicons name="image-outline" size={32} color="#9E9E9E" />
           </View>
+        )}
+        {!isActive && (
+          <>
+            <View style={styles.inactiveOverlay} pointerEvents="none" />
+            <ListingStatusBadge status={product.status} style={styles.statusBadge} />
+          </>
         )}
         {showFullDetails && (
           <View style={styles.typeBadge}>
@@ -166,6 +176,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#E0E0E0",
     justifyContent: "center",
     alignItems: "center",
+  },
+  inactiveOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
   },
   typeBadge: {
     position: "absolute",

@@ -1,7 +1,9 @@
 import { query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
 import { resolveTaxonomyFilter, shouldExcludePersonalListings } from "./taxonomy";
+import { onlyActiveListings } from "./listingStatus";
 
 const toPublicProfile = (profile: any) => ({
     _id: profile._id,
@@ -93,7 +95,9 @@ export const querySearch = query({
                 .order("desc");
         }
 
-        const recentProducts = await productQuery.take(500);
+        // Only active listings; filtered before take() so paused/sold ones don't
+        // use up the 500-item window.
+        const recentProducts: Doc<"products">[] = await onlyActiveListings(productQuery).take(500);
         const excludePersonal = shouldExcludePersonalListings(args.listingType, resolvedFamily);
         
         const allMatchingProducts = recentProducts

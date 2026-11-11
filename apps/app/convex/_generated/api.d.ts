@@ -16,6 +16,7 @@ import type * as emails from "../emails.js";
 import type * as favorites from "../favorites.js";
 import type * as http from "../http.js";
 import type * as lib_admin from "../lib/admin.js";
+import type * as listingStatus from "../listingStatus.js";
 import type * as marketplace from "../marketplace.js";
 import type * as notifications from "../notifications.js";
 import type * as presence from "../presence.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   favorites: typeof favorites;
   http: typeof http;
   "lib/admin": typeof lib_admin;
+  listingStatus: typeof listingStatus;
   marketplace: typeof marketplace;
   notifications: typeof notifications;
   presence: typeof presence;

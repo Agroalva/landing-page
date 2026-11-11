@@ -5,11 +5,13 @@ import { ArrowLeft, Eye, MapPin, ShieldCheck } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { ProductActions } from "@/components/marketplace/product-actions";
 import { ProductImageCarousel } from "@/components/marketplace/product-image-carousel";
+import { ProductStatusBanner } from "@/components/marketplace/product-status-banner";
 import { StarRating } from "@/components/marketplace/star-rating";
 import { Button } from "@/components/ui/button";
 import { fetchMarketplaceProduct, getProductShareDescription } from "@/lib/product-share";
 import { formatPrice, formatShortDate } from "@/lib/marketplace";
 import { getCategoryById, getFamilies, type AttributeDefinition } from "../../../../app/config/taxonomy";
+import { isListingActive, LISTING_STATUS_LABELS, getListingStatus } from "../../../../app/config/listing-status";
 
 type ProductPageProps = { params: Promise<{ id: string }> };
 
@@ -32,9 +34,12 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
         return { title: "Publicación no disponible | Agroalva", robots: { index: false, follow: false } };
     }
     const description = getProductShareDescription(product);
+    const isActive = isListingActive(product.status);
     return {
-        title: `${product.name} | Agroalva`,
+        title: isActive ? `${product.name} | Agroalva` : `${product.name} (${LISTING_STATUS_LABELS[getListingStatus(product.status)]}) | Agroalva`,
         description,
+        // Paused, sold or rented listings stay reachable (favorites, shared links) but shouldn't be indexed.
+        ...(isActive ? {} : { robots: { index: false, follow: true } }),
         alternates: { canonical: `/product/${id}` },
         openGraph: { title: product.name, description, type: "article", url: `/product/${id}`, images: [product.imageUrls[0] || "/favicon-512.png"] },
         twitter: { card: "summary_large_image", title: product.name, description, images: [product.imageUrls[0] || "/favicon-512.png"] },
@@ -72,6 +77,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         <ProductImageCarousel imageUrls={product.imageUrls} productName={product.name} />
 
                         <section className="rounded-[2rem] border border-emerald-950/10 bg-white p-6 md:p-8">
+                            <ProductStatusBanner productId={product._id} authorId={product.authorId} initialStatus={product.status} />
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
                                     <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">{product.type === "rent" ? "Alquiler / servicio" : "Venta"} · {product.category || "Agroalva"}</p>
@@ -104,7 +110,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
                     <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
                         <div className="rounded-[2rem] border border-emerald-950/10 bg-white p-6 shadow-[0_16px_50px_rgba(32,58,41,0.08)]">
-                            <ProductActions productId={product._id} authorId={product.authorId} productName={product.name} />
+                            <ProductActions productId={product._id} authorId={product.authorId} productName={product.name} type={product.type} initialStatus={product.status} />
                         </div>
                         <div className="rounded-[2rem] border border-emerald-950/10 bg-white p-6">
                             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Publicado por</p>
