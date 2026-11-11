@@ -1,5 +1,3 @@
-import { v } from "convex/values";
-import type { Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { getCategoryById } from "../../config/taxonomy";
@@ -7,39 +5,22 @@ import type { CategoryId, FamilyId } from "../../config/taxonomy";
 import { normalizeProductSearchTerm } from "../productSearch";
 import { resolveTaxonomyFilter, shouldExcludePersonalListings } from "../taxonomy";
 import type { UsdArsRate } from "./exchangeRate";
+import type { ListingFilters, ListingSort, PriceCurrency } from "./listingFilterValidators";
+
+export {
+    listingFilterFields,
+    listingFiltersValidator,
+    listingSortValidator,
+    listingTypeValidator,
+    priceCurrencyValidator,
+} from "./listingFilterValidators";
+export type { ListingFilters, ListingSort, PriceCurrency } from "./listingFilterValidators";
 
 /**
  * Shared listing filters. The same matcher decides what the search screen
  * shows and which new listings trigger saved-search alerts, so both always
  * agree on what "matches" means.
  */
-
-export const listingTypeValidator = v.union(v.literal("rent"), v.literal("sell"));
-export const priceCurrencyValidator = v.union(v.literal("ARS"), v.literal("USD"));
-export const listingSortValidator = v.union(
-    v.literal("recent"),
-    v.literal("price_asc"),
-    v.literal("price_desc"),
-);
-
-export const listingFilterFields = {
-    query: v.optional(v.string()),
-    familyId: v.optional(v.string()),
-    categoryId: v.optional(v.string()),
-    listingType: v.optional(listingTypeValidator),
-    minPrice: v.optional(v.number()),
-    maxPrice: v.optional(v.number()),
-    // Currency the price range is expressed in. Defaults to USD.
-    priceCurrency: v.optional(priceCurrencyValidator),
-    minYear: v.optional(v.number()),
-    maxYear: v.optional(v.number()),
-};
-
-export const listingFiltersValidator = v.object(listingFilterFields);
-
-export type ListingFilters = Infer<typeof listingFiltersValidator>;
-export type ListingSort = Infer<typeof listingSortValidator>;
-export type PriceCurrency = Infer<typeof priceCurrencyValidator>;
 
 export type NormalizedListingFilters = {
     tokens: string[];

@@ -12,7 +12,8 @@ export const createNotification = internalMutation({
             v.literal("favorite"),
             v.literal("comment"),
             v.literal("like"),
-            v.literal("review")
+            v.literal("review"),
+            v.literal("saved_search")
         ),
         title: v.string(),
         body: v.string(),
@@ -47,7 +48,8 @@ export const listForUser = query({
                 v.literal("favorite"),
                 v.literal("comment"),
                 v.literal("like"),
-                v.literal("review")
+                v.literal("review"),
+                v.literal("saved_search")
             ),
             title: v.string(),
             body: v.string(),

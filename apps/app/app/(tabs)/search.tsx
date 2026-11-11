@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { usePaginatedQuery, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -191,11 +192,26 @@ export default function SearchScreen() {
     familyId?: string | string[];
     categoryId?: string | string[];
     query?: string | string[];
+    sort?: string | string[];
+    currency?: string | string[];
+    minPrice?: string | string[];
+    maxPrice?: string | string[];
+    minYear?: string | string[];
+    maxYear?: string | string[];
+    restore?: string | string[];
   }>();
   const paramTopLevel = getParamValue(params.topLevel);
   const paramFamilyId = getParamValue(params.familyId);
   const paramCategoryId = getParamValue(params.categoryId);
   const paramQuery = getParamValue(params.query);
+  const paramSort = getParamValue(params.sort);
+  const paramCurrency = getParamValue(params.currency);
+  const paramMinPrice = getParamValue(params.minPrice);
+  const paramMaxPrice = getParamValue(params.maxPrice);
+  const paramMinYear = getParamValue(params.minYear);
+  const paramMaxYear = getParamValue(params.maxYear);
+  // Changes every time a saved search is opened, to re-apply its params.
+  const paramRestore = getParamValue(params.restore);
   const initialTopLevel = resolveTopLevelIntent(paramTopLevel, paramFamilyId);
   const initialCategoryId =
     initialTopLevel === "personal" && paramCategoryId === LEGACY_PERSONAL_CATEGORY_ID
@@ -234,6 +250,9 @@ export default function SearchScreen() {
     toAppliedFilters(EMPTY_FILTER_DRAFT),
   );
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [savedSearchKey, setSavedSearchKey] = useState<string | null>(null);
+  const [isSavingSearch, setIsSavingSearch] = useState(false);
+  const createSavedSearch = useMutation(api.savedSearches.create);
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
   const orderedTopLevelOptions = useMemo(
     () => getOrderedTopLevelOptions(selectedTopLevel),
@@ -314,7 +333,32 @@ export default function SearchScreen() {
     paramCategoryId,
     paramFamilyId,
     paramQuery,
+    paramRestore,
     paramTopLevel,
+  ]);
+
+  useEffect(() => {
+    const nextDraft: SearchFilterDraft = {
+      sort: paramSort === "price_asc" || paramSort === "price_desc" ? paramSort : "recent",
+      priceCurrency: paramCurrency === "ARS" ? "ARS" : "USD",
+      minPrice: paramMinPrice ?? "",
+      maxPrice: paramMaxPrice ?? "",
+      minYear: paramMinYear ?? "",
+      maxYear: paramMaxYear ?? "",
+    };
+    setFilterDraft(nextDraft);
+    setAppliedFilters(toAppliedFilters(nextDraft));
+    if (nextDraft.minPrice || nextDraft.maxPrice || nextDraft.minYear || nextDraft.maxYear) {
+      setFiltersExpanded(true);
+    }
+  }, [
+    paramCurrency,
+    paramMaxPrice,
+    paramMaxYear,
+    paramMinPrice,
+    paramMinYear,
+    paramRestore,
+    paramSort,
   ]);
 
   useEffect(() => {
@@ -570,6 +614,57 @@ export default function SearchScreen() {
           ? currentPagination.products
           : [],
     }));
+  };
+
+  const isCurrentSearchSaved = savedSearchKey === searchKey;
+
+  const handleSaveSearch = async () => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        "Iniciá sesión",
+        "Necesitás una cuenta para guardar búsquedas y recibir avisos.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Iniciar sesión", onPress: () => router.push("/(auth)/sign-in") },
+        ],
+      );
+      return;
+    }
+
+    setIsSavingSearch(true);
+    try {
+      const result = await createSavedSearch({
+        query: hasSearchTerm ? debouncedQuery : undefined,
+        topLevel: selectedTopLevel,
+        familyId: selectedFamily?.id,
+        categoryId: selectedCategory?.id,
+        listingType: derivedListingType,
+        sort: activeFilters.sort,
+        priceCurrency: activeFilters.priceCurrency,
+        minPrice: activeFilters.minPrice,
+        maxPrice: activeFilters.maxPrice,
+        minYear: activeFilters.minYear,
+        maxYear: activeFilters.maxYear,
+      });
+      setSavedSearchKey(searchKey);
+      Alert.alert(
+        result.alreadySaved ? "Ya tenías esta búsqueda" : "Búsqueda guardada",
+        "Te avisamos cuando se publique algo nuevo que coincida.",
+        [
+          { text: "Ver guardadas", onPress: () => router.push("/saved-searches") },
+          { text: "OK" },
+        ],
+      );
+    } catch (error) {
+      Alert.alert(
+        "No se pudo guardar",
+        error instanceof ConvexError && typeof error.data === "string"
+          ? error.data
+          : "Intentá de nuevo en unos minutos.",
+      );
+    } finally {
+      setIsSavingSearch(false);
+    }
   };
 
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -861,7 +956,28 @@ export default function SearchScreen() {
             )}
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ordenar y filtrar</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Ordenar y filtrar</Text>
+                <TouchableOpacity
+                  style={styles.saveSearchButton}
+                  onPress={handleSaveSearch}
+                  disabled={isSavingSearch || isCurrentSearchSaved}
+                  accessibilityLabel="Guardar búsqueda y recibir avisos"
+                >
+                  {isSavingSearch ? (
+                    <ActivityIndicator size="small" color="#1B5E20" />
+                  ) : (
+                    <Ionicons
+                      name={isCurrentSearchSaved ? "bookmark" : "bookmark-outline"}
+                      size={16}
+                      color="#1B5E20"
+                    />
+                  )}
+                  <Text style={styles.clearText}>
+                    {isCurrentSearchSaved ? "Guardada" : "Guardar búsqueda"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <SearchFiltersPanel
                 draft={filterDraft}
                 onChange={handleFilterDraftChange}
@@ -1161,6 +1277,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#1B5E20",
+  },
+  saveSearchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
   },
   emptyState: {
     alignItems: "center",

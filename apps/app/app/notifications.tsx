@@ -65,6 +65,8 @@ export default function NotificationsScreen() {
         return "thumbs-up";
       case "review":
         return "star";
+      case "saved_search":
+        return "bookmark";
       default:
         return "notifications";
     }
@@ -83,6 +85,8 @@ export default function NotificationsScreen() {
       router.push(`/product/${relatedId}`);
     } else if (type === "review" && relatedId) {
       router.push(`/user-profile/${relatedId}`);
+    } else if (type === "saved_search" && relatedId) {
+      router.push(`/product/${relatedId}`);
     }
   };
 
@@ -193,6 +197,8 @@ function getNotificationColor(type: string): string {
       return "#FF9800";
     case "review":
       return "#F9A825";
+    case "saved_search":
+      return "#1B5E20";
     default:
       return "#757575";
   }
