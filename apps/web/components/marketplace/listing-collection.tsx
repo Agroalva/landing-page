@@ -24,10 +24,14 @@ const matchesFilter = (listing: MarketplaceListing, filter: MineFilter) => {
     if (filter === "closed") return isClosedStatus(listing.status);
     return getListingStatus(listing.status) === filter;
 };
+import { ListingStatsStrip } from "./listing-stats";
 
 export function ListingCollection({ kind }: { kind: "mine" | "favorites" }) {
     const mine = useQuery(api.marketplace.myListings, kind === "mine" ? {} : "skip");
     const favorites = useQuery(api.marketplace.favoriteListings, kind === "favorites" ? {} : "skip");
+    // Private stats, only returned for the signed-in author's own listings.
+    const myStats = useQuery(api.productStats.getMyListingsStats, kind === "mine" ? {} : "skip");
+    const statsByProductId = new Map((myStats ?? []).map((stats) => [stats.productId as string, stats]));
     const listings = (kind === "mine" ? mine : favorites) as MarketplaceListing[] | undefined;
     const [filter, setFilter] = useState<MineFilter>("all");
     const visibleListings = useMemo(() => listings?.filter((listing) => matchesFilter(listing, filter)), [listings, filter]);
@@ -68,7 +72,7 @@ export function ListingCollection({ kind }: { kind: "mine" | "favorites" }) {
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {visibleListings.map((listing) => (
                         <div key={listing._id} className="flex flex-col gap-3">
-                            <ProductCard product={listing} />
+                            <ProductCard product={listing} footer={<ListingStatsStrip productId={listing._id} stats={statsByProductId.get(listing._id)} />} />
                             <ListingStatusControls productId={listing._id} type={listing.type} status={listing.status} />
                         </div>
                     ))}

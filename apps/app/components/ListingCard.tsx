@@ -42,9 +42,10 @@ interface ListingCardProps {
   };
   onPress?: () => void;
   variant?: "full" | "public";
+  footer?: React.ReactNode;
 }
 
-export function ListingCard({ product, onPress, variant = "full" }: ListingCardProps) {
+export function ListingCard({ product, onPress, variant = "full", footer }: ListingCardProps) {
   const router = useRouter();
   const showFullDetails = variant === "full";
 
@@ -144,6 +145,7 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
           )
         )}
       </View>
+      {footer}
     </TouchableOpacity>
   );
 }

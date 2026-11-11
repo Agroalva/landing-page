@@ -2,12 +2,16 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
 import { internal } from "./_generated/api";
+import { recordProductContact } from "./productStats";
+import { productContactSourceValidator } from "./schema/productStats";
 
 // Ensure a conversation exists between members, create if not
 export const ensureConversation = mutation({
     args: {
         memberIds: v.array(v.string()),
         productId: v.optional(v.id("products")),
+        // Where the contact started; only used for seller stats.
+        source: v.optional(productContactSourceValidator),
     },
     returns: v.id("conversations"),
     handler: async (ctx, args) => {
@@ -18,6 +22,21 @@ export const ensureConversation = mutation({
 
         if (!args.memberIds.includes(user._id as string)) {
             throw new Error("You must be a member of the conversation");
+        }
+
+        // Opening a chat from a listing counts as a "message" contact for the
+        // seller (author and repeated taps are skipped inside the helper).
+        if (args.productId) {
+            const product = await ctx.db.get(args.productId);
+            if (product && args.memberIds.includes(product.authorId)) {
+                await recordProductContact(
+                    ctx,
+                    product,
+                    user._id as string,
+                    "message",
+                    args.source,
+                );
+            }
         }
 
         // Sort member IDs for consistent lookup

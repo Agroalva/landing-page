@@ -31,6 +31,7 @@ const EMPTY_FILTER_MESSAGES: Record<Exclude<PostsFilter, "all">, string> = {
   paused: "No tenés publicaciones pausadas",
   closed: "No tenés publicaciones vendidas ni alquiladas",
 };
+import { ListingStatsSummary } from "@/components/ListingStats";
 
 export default function MyPostsScreen() {
   const router = useRouter();
@@ -70,6 +71,15 @@ export default function MyPostsScreen() {
         : getListingStatus(product.status) === filter,
     );
   }, [userProducts, filter]);
+
+  // Private stats (only returned for the signed-in author's own listings).
+  const listingsStats = useQuery(
+    api.productStats.getMyListingsStats,
+    isAuthenticated ? {} : "skip"
+  );
+  const statsByProductId = new Map(
+    (listingsStats ?? []).map((stats) => [stats.productId, stats])
+  );
 
   if (isLoading) {
     return (
@@ -143,7 +153,20 @@ export default function MyPostsScreen() {
               <View style={styles.productsContainer}>
                 {visibleProducts?.map((product) => (
                   <View key={product._id} style={styles.postItem}>
-                    <ListingCard product={product} />
+                    <ListingCard
+                      product={product}
+                      footer={
+                        <ListingStatsSummary
+                          stats={statsByProductId.get(product._id)}
+                          onPressDetails={() =>
+                            router.push({
+                              pathname: "/product-stats/[id]",
+                              params: { id: product._id },
+                            })
+                          }
+                        />
+                      }
+                    />
                     <ListingStatusActions
                       productId={product._id}
                       type={product.type}

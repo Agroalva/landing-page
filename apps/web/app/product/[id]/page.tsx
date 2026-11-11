@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Eye, MapPin, ShieldCheck } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { ProductActions } from "@/components/marketplace/product-actions";
+import { ProductOwnerStats, ProductViewTracker } from "@/components/marketplace/listing-stats";
 import { ProductImageCarousel } from "@/components/marketplace/product-image-carousel";
 import { ProductStatusBanner } from "@/components/marketplace/product-status-banner";
 import { StarRating } from "@/components/marketplace/star-rating";
@@ -69,6 +70,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
     return (
         <main className="min-h-screen bg-[#f7f6ef]">
+            <ProductViewTracker productId={product._id} authorId={product.authorId} />
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
                 <Link href="/#catalogo" className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-emerald-800"><ArrowLeft className="size-4" /> Volver al mercado</Link>
 
@@ -112,6 +114,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         <div className="rounded-[2rem] border border-emerald-950/10 bg-white p-6 shadow-[0_16px_50px_rgba(32,58,41,0.08)]">
                             <ProductActions productId={product._id} authorId={product.authorId} productName={product.name} type={product.type} initialStatus={product.status} />
                         </div>
+                        <ProductOwnerStats productId={product._id} authorId={product.authorId} />
                         <div className="rounded-[2rem] border border-emerald-950/10 bg-white p-6">
                             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Publicado por</p>
                             <div className="mt-4 flex items-center gap-4">

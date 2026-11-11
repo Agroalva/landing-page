@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin, PackageOpen } from "lucide-react";
@@ -8,7 +9,7 @@ import { StarRating } from "./star-rating";
 import { ListingStatusBadge } from "./listing-status-badge";
 import { isListingActive } from "../../../app/config/listing-status";
 
-export function ProductCard({ product }: { product: MarketplaceListing }) {
+export function ProductCard({ product, footer }: { product: MarketplaceListing; footer?: ReactNode }) {
     const isActive = isListingActive(product.status);
     return (
         <article className="group overflow-hidden rounded-[1.6rem] border border-emerald-950/10 bg-white shadow-[0_12px_40px_rgba(32,58,41,0.06)] transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(32,58,41,0.12)]">
@@ -46,6 +47,7 @@ export function ProductCard({ product }: { product: MarketplaceListing }) {
                     )}
                 </div>
             </div>
+            {footer}
         </article>
     );
 }

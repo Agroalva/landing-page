@@ -8,6 +8,8 @@ import { buildProductSearchText } from "./productSearch";
 import { onlyActiveListings } from "./listingStatus";
 import { listingStatusValidator } from "./schema/products";
 import { getClosedStatusForType, getListingStatus } from "../config/listing-status";
+import { internal } from "./_generated/api";
+import { recordDailyView } from "./productStats";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -429,6 +431,9 @@ export const deleteProduct = mutation({
         }
 
         await ctx.db.delete(args.productId);
+        await ctx.scheduler.runAfter(0, internal.productStats.deleteStatsForProduct, {
+            productId: args.productId,
+        });
     },
 });
 
@@ -443,10 +448,23 @@ export const incrementViewCount = mutation({
             throw new Error("Product not found");
         }
 
+        // The author opening their own listing is not a visit.
+        let viewerId: string | null = null;
+        try {
+            const viewer = await authComponent.safeGetAuthUser(ctx);
+            viewerId = viewer ? (viewer._id as string) : null;
+        } catch {
+            viewerId = null;
+        }
+        if (viewerId && viewerId === product.authorId) {
+            return;
+        }
+
         const currentViewCount = product.viewCount || 0;
         await ctx.db.patch(args.productId, {
             viewCount: currentViewCount + 1,
         });
+        await recordDailyView(ctx, product);
     },
 });
 
