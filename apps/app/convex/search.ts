@@ -2,6 +2,14 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./auth";
 import { resolveTaxonomyFilter, shouldExcludePersonalListings } from "./taxonomy";
+import { productsTable } from "./schema/products";
+import { loadUsdArsRate } from "./lib/exchangeRate";
+import {
+    discoverListings,
+    listingFilterFields,
+    listingSortValidator,
+    parseOffsetCursor,
+} from "./lib/listingFilters";
 
 const toPublicProfile = (profile: any) => ({
     _id: profile._id,
@@ -129,5 +137,92 @@ export const querySearch = query({
             nextCursor,
             hasMore,
         };
+    },
+});
+
+const productDocValidator = v.object({
+    _id: v.id("products"),
+    _creationTime: v.number(),
+    ...productsTable.validator.fields,
+});
+
+const exchangeRateValidator = v.union(
+    v.null(),
+    v.object({
+        usdArs: v.number(),
+        source: v.string(),
+        updatedAt: v.number(),
+    }),
+);
+
+const DISCOVER_DEFAULT_LIMIT = 20;
+const DISCOVER_MAX_LIMIT = 50;
+
+// Listing search with price/year filters and sorting. Added for clients >= 1.2.11;
+// older clients keep using querySearch / products.feed, which are unchanged.
+export const discover = query({
+    args: {
+        ...listingFilterFields,
+        sort: v.optional(listingSortValidator),
+        limit: v.optional(v.number()),
+        cursor: v.optional(v.string()),
+    },
+    returns: v.object({
+        products: v.array(productDocValidator),
+        nextCursor: v.union(v.string(), v.null()),
+        hasMore: v.boolean(),
+        exchangeRate: exchangeRateValidator,
+    }),
+    handler: async (ctx, args) => {
+        const { sort, limit, cursor, ...filters } = args;
+        const rate = await loadUsdArsRate(ctx);
+        const result = await discoverListings(ctx, {
+            filters,
+            sort,
+            offset: parseOffsetCursor(cursor),
+            limit: Math.min(Math.max(limit ?? DISCOVER_DEFAULT_LIMIT, 1), DISCOVER_MAX_LIMIT),
+            rate,
+        });
+
+        return {
+            products: result.page,
+            nextCursor: result.nextCursor,
+            hasMore: result.hasMore,
+            exchangeRate: rate,
+        };
+    },
+});
+
+// Profile matches for the search screen (the product side lives in `discover`).
+export const searchProfiles = query({
+    args: {
+        query: v.string(),
+        limit: v.optional(v.number()),
+    },
+    returns: v.array(v.object({
+        _id: v.id("profiles"),
+        userId: v.string(),
+        displayName: v.string(),
+    })),
+    handler: async (ctx, args) => {
+        const searchTerm = args.query.toLowerCase().trim();
+        if (searchTerm.length < 3) {
+            return [];
+        }
+
+        const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+        const profiles = await ctx.db.query("profiles").take(100);
+
+        return profiles
+            .filter((profile) =>
+                profile.displayName.toLowerCase().includes(searchTerm) ||
+                profile.bio?.toLowerCase().includes(searchTerm),
+            )
+            .slice(0, limit)
+            .map((profile) => ({
+                _id: profile._id,
+                userId: profile.userId,
+                displayName: profile.displayName,
+            }));
     },
 });

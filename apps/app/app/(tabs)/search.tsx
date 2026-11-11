@@ -26,6 +26,14 @@ import {
   getFamilies,
 } from "../../config/taxonomy";
 import { ListingCard } from "../../components/ListingCard";
+import {
+  EMPTY_FILTER_DRAFT,
+  SearchFiltersPanel,
+  countActiveRangeFilters,
+  hasAdvancedFilters,
+  toAppliedFilters,
+} from "../../components/SearchFiltersPanel";
+import type { AppliedSearchFilters, SearchFilterDraft } from "../../components/SearchFiltersPanel";
 import { trackSearch } from "@/lib/meta-events";
 
 const RECENT_SEARCHES_KEY = "@agroalva_recent_searches";
@@ -147,6 +155,7 @@ const isFamilyVisibleForTopLevel = (familyId: FamilyId, topLevel: TopLevelIntent
 
 const PAGE_SIZE = 20;
 const INFINITE_SCROLL_THRESHOLD = 600;
+const FILTER_INPUT_DEBOUNCE_MS = 500;
 
 const mergeProducts = (
   existingProducts: Doc<"products">[],
@@ -220,6 +229,11 @@ export default function SearchScreen() {
     key: "",
     products: [],
   });
+  const [filterDraft, setFilterDraft] = useState<SearchFilterDraft>(EMPTY_FILTER_DRAFT);
+  const [appliedFilters, setAppliedFilters] = useState<AppliedSearchFilters>(() =>
+    toAppliedFilters(EMPTY_FILTER_DRAFT),
+  );
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
   const orderedTopLevelOptions = useMemo(
     () => getOrderedTopLevelOptions(selectedTopLevel),
@@ -247,11 +261,20 @@ export default function SearchScreen() {
       : undefined;
   const hasSearchTerm = debouncedQuery.length >= 3;
   const isBrowseMode = !hasSearchTerm && selectedTopLevel !== "all";
+  const showTaxonomyFilters = selectedTopLevel !== "all" || hasSearchTerm;
+  const advancedFiltersActive = showTaxonomyFilters && hasAdvancedFilters(appliedFilters);
+  // Text searches and filtered/sorted browsing go through search.discover;
+  // plain browsing keeps the index-paginated feed.
+  const usesDiscover = hasSearchTerm || (isBrowseMode && advancedFiltersActive);
+  const activeFilters: AppliedSearchFilters = advancedFiltersActive
+    ? appliedFilters
+    : { sort: "recent" };
   const searchKey = [
     debouncedQuery.toLowerCase(),
     selectedTopLevel,
     selectedFamily?.id ?? "all",
     selectedCategory?.id ?? "all",
+    JSON.stringify(activeFilters),
   ].join(":");
 
   useEffect(() => {
@@ -330,6 +353,22 @@ export default function SearchScreen() {
       saveRecentSearch(debouncedQuery);
     }
   }, [debouncedQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedFilters(toAppliedFilters(filterDraft));
+    }, FILTER_INPUT_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [filterDraft]);
+
+  const handleFilterDraftChange = (nextDraft: SearchFilterDraft) => {
+    setFilterDraft(nextDraft);
+    // Sort changes are taps, not typing: apply them right away.
+    if (nextDraft.sort !== filterDraft.sort) {
+      setAppliedFilters(toAppliedFilters(nextDraft));
+    }
+  };
 
   useEffect(() => {
     if (debouncedQuery.length < 3) {
@@ -436,21 +475,31 @@ export default function SearchScreen() {
   };
 
   const searchResults = useQuery(
-    api.search.querySearch,
-    hasSearchTerm
+    api.search.discover,
+    usesDiscover
       ? {
-          query: debouncedQuery,
+          query: hasSearchTerm ? debouncedQuery : undefined,
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
           listingType: derivedListingType,
+          sort: activeFilters.sort,
+          priceCurrency: activeFilters.priceCurrency,
+          minPrice: activeFilters.minPrice,
+          maxPrice: activeFilters.maxPrice,
+          minYear: activeFilters.minYear,
+          maxYear: activeFilters.maxYear,
           limit: PAGE_SIZE,
-          clientPaginates: true,
           cursor:
             searchPagination.key === searchKey
               ? searchPagination.cursor
               : undefined,
         }
       : "skip",
+  );
+  const showProfiles = hasSearchTerm && selectedTopLevel === "all" && isAuthenticated;
+  const profileResults = useQuery(
+    api.search.searchProfiles,
+    showProfiles ? { query: debouncedQuery } : "skip",
   );
 
   const {
@@ -459,7 +508,7 @@ export default function SearchScreen() {
     loadMore: loadMoreBrowseProducts,
   } = usePaginatedQuery(
     api.products.feed,
-    isBrowseMode
+    isBrowseMode && !usesDiscover
       ? {
           familyId: selectedFamily?.id,
           categoryId: selectedCategory?.id,
@@ -532,10 +581,10 @@ export default function SearchScreen() {
       return;
     }
 
-    if (isBrowseMode && browseStatus === "CanLoadMore") {
-      loadMoreBrowseProducts(PAGE_SIZE);
-    } else if (hasSearchTerm) {
+    if (usesDiscover) {
       handleLoadMoreSearchResults();
+    } else if (isBrowseMode && browseStatus === "CanLoadMore") {
+      loadMoreBrowseProducts(PAGE_SIZE);
     }
   };
   const serviceResults = useMemo(
@@ -557,7 +606,18 @@ export default function SearchScreen() {
     [searchProducts],
   );
 
-  const showTaxonomyFilters = selectedTopLevel !== "all" || hasSearchTerm;
+  const browseListings = usesDiscover ? searchProducts : browseProducts;
+  const isLoadingFirstBrowsePage = usesDiscover
+    ? isLoadingFirstSearchPage
+    : browseStatus === "LoadingFirstPage";
+  const isLoadingMoreBrowse = usesDiscover
+    ? isLoadingMoreSearchResults
+    : browseStatus === "LoadingMore";
+  const activeRangeCount = countActiveRangeFilters(appliedFilters);
+  const showRateNote =
+    advancedFiltersActive &&
+    (activeFilters.sort !== "recent" || activeFilters.priceCurrency !== undefined) &&
+    searchResults !== undefined;
   const browseTitle = selectedCategory
     ? selectedCategory.label
     : selectedFamily
@@ -799,6 +859,20 @@ export default function SearchScreen() {
                 </ScrollView>
               </View>
             )}
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ordenar y filtrar</Text>
+              <SearchFiltersPanel
+                draft={filterDraft}
+                onChange={handleFilterDraftChange}
+                expanded={filtersExpanded}
+                onToggleExpanded={() => setFiltersExpanded((current) => !current)}
+                activeRangeCount={activeRangeCount}
+                showYear={selectedTopLevel !== "personal"}
+                usdArsRate={searchResults?.exchangeRate?.usdArs ?? null}
+                showRateNote={showRateNote}
+              />
+            </View>
           </>
         )}
 
@@ -817,20 +891,20 @@ export default function SearchScreen() {
                 : "Resultados recientes de productos físicos dentro del filtro actual."}
             </Text>
 
-            {browseStatus === "LoadingFirstPage" ? (
+            {isLoadingFirstBrowsePage ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#1B5E20" />
               </View>
-            ) : browseProducts.length > 0 ? (
+            ) : browseListings.length > 0 ? (
               <View style={styles.productsContainer}>
-                {browseProducts.map((product: (typeof browseProducts)[number]) => (
+                {browseListings.map((product: (typeof browseListings)[number]) => (
                   <ListingCard
                     key={product._id}
                     product={product}
                     variant={isAuthenticated ? "full" : "public"}
                   />
                 ))}
-                {browseStatus === "LoadingMore" && (
+                {isLoadingMoreBrowse && (
                   <ActivityIndicator size="small" color="#1B5E20" style={styles.loadingMore} />
                 )}
               </View>
@@ -839,7 +913,9 @@ export default function SearchScreen() {
                 <Ionicons name="layers-outline" size={40} color="#C6BDAE" />
                 <Text style={styles.emptyTitle}>No hay publicaciones para este filtro</Text>
                 <Text style={styles.emptyBody}>
-                  Prueba con otra familia o elimina la categoría para ampliar resultados.
+                  {advancedFiltersActive
+                    ? "Prueba ampliando el rango de precio o año, u otra familia."
+                    : "Prueba con otra familia o elimina la categoría para ampliar resultados."}
                 </Text>
               </View>
             )}
@@ -914,10 +990,10 @@ export default function SearchScreen() {
                   </>
                 )}
 
-                {selectedTopLevel === "all" && isAuthenticated && (searchResults?.profiles.length ?? 0) > 0 && (
+                {showProfiles && (profileResults?.length ?? 0) > 0 && (
                   <>
                     <Text style={styles.sectionTitle}>Perfiles</Text>
-                    {searchResults?.profiles.map((profile) => (
+                    {profileResults?.map((profile) => (
                       <TouchableOpacity
                         key={profile._id}
                         style={styles.recentItem}
@@ -932,7 +1008,7 @@ export default function SearchScreen() {
                 )}
 
                 {searchProducts.length === 0 &&
-                  (selectedTopLevel !== "all" || (searchResults?.profiles.length ?? 0) === 0) && (
+                  (!showProfiles || (profileResults?.length ?? 0) === 0) && (
                     <View style={styles.emptyState}>
                       <Ionicons name="search-outline" size={40} color="#C6BDAE" />
                       <Text style={styles.emptyTitle}>No encontramos coincidencias</Text>

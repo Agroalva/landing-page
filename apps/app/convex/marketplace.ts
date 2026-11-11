@@ -4,6 +4,13 @@ import { authComponent } from "./auth";
 import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { normalizeProductSearchTerm } from "./productSearch";
+import { loadUsdArsRate } from "./lib/exchangeRate";
+import {
+    discoverListings,
+    listingFilterFields,
+    listingSortValidator,
+    parseOffsetCursor,
+} from "./lib/listingFilters";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -225,6 +232,38 @@ export const list = query({
             page: await Promise.all(result.page.map((product: Doc<"products">) => toListingCard(ctx, product))),
             isDone: result.isDone,
             continueCursor: result.continueCursor,
+        };
+    },
+});
+
+// Filtered/sorted catalog (price, year, sort). Uses offset cursors, so the
+// client should de-duplicate by _id if listings shift between pages.
+export const discover = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        ...listingFilterFields,
+        sort: v.optional(listingSortValidator),
+    },
+    returns: v.object({
+        page: v.array(listingCardValidator),
+        isDone: v.boolean(),
+        continueCursor: v.string(),
+    }),
+    handler: async (ctx, args) => {
+        const { paginationOpts, sort, ...filters } = args;
+        const offset = parseOffsetCursor(paginationOpts.cursor);
+        const result = await discoverListings(ctx, {
+            filters,
+            sort,
+            offset,
+            limit: Math.min(Math.max(paginationOpts.numItems, 1), 50),
+            rate: await loadUsdArsRate(ctx),
+        });
+
+        return {
+            page: await Promise.all(result.page.map((product) => toListingCard(ctx, product))),
+            isDone: !result.hasMore,
+            continueCursor: result.nextCursor ?? String(offset + result.page.length),
         };
     },
 });
