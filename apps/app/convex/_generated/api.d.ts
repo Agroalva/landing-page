@@ -48,6 +48,8 @@ import type * as seed from "../seed.js";
 import type * as storage from "../storage.js";
 import type * as taxonomy from "../taxonomy.js";
 import type * as users from "../users.js";
+import type * as webPush from "../webPush.js";
+import type * as webPushSubscriptions from "../webPushSubscriptions.js";
 
 import type {
   ApiFromModules,
@@ -104,6 +106,8 @@ declare const fullApi: ApiFromModules<{
   storage: typeof storage;
   taxonomy: typeof taxonomy;
   users: typeof users;
+  webPush: typeof webPush;
+  webPushSubscriptions: typeof webPushSubscriptions;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

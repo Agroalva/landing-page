@@ -8,6 +8,7 @@ import {
     notificationsTable,
     pushDevicesTable,
     chatPushStatesTable,
+    webPushSubscriptionsTable,
 } from "./schema/notifications";
 import { bannersTable } from "./schema/banners";
 import { reviewsTable, reviewReportsTable } from "./schema/reviews";
@@ -32,6 +33,7 @@ export default defineSchema({
     favorites: favoritesTable,
     notifications: notificationsTable,
     pushDevices: pushDevicesTable,
+    webPushSubscriptions: webPushSubscriptionsTable,
     chatPushStates: chatPushStatesTable,
     banners: bannersTable,
     reviews: reviewsTable,

@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePaginatedQuery } from "convex/react";
+import Link from "next/link";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
     ArrowDownUp,
+    Bookmark,
     Boxes,
     CalendarRange,
     CircleDollarSign,
@@ -18,6 +20,8 @@ import {
     X,
 } from "lucide-react";
 import { api } from "@/lib/convex-api";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import { getSavedSearchTopLevel } from "@/lib/saved-searches";
 import type { MarketplaceListing } from "@/lib/marketplace";
 import { getFamilies, getFamilyById } from "../../../app/config/taxonomy";
 import { ProductCard } from "./product-card";
@@ -107,6 +111,9 @@ export function MarketplaceBrowser() {
         ? { latitude: nearLatitude, longitude: nearLongitude, radiusKm }
         : undefined;
     const [locationStatus, setLocationStatus] = useState<"idle" | "locating" | "error">("idle");
+    const { isAuthenticated } = useAuthSession();
+    const createSavedSearch = useMutation(api.savedSearches.create);
+    const [saveState, setSaveState] = useState<{ key: string; status: "saving" | "saved" | "already" | "error"; message?: string } | null>(null);
     const requestedSort = parseSort(searchParams.get("sort"));
     const sort: ListingSort = requestedSort === "distance" && !near ? "recent" : requestedSort;
     const priceCurrency: PriceCurrency = searchParams.get("currency") === "ARS" ? "ARS" : "USD";
@@ -265,6 +272,36 @@ export function MarketplaceBrowser() {
         router.replace(`${pathname}#catalogo`, { scroll: false });
     };
 
+    const searchKey = searchParams.toString();
+    const currentSave = saveState?.key === searchKey ? saveState : null;
+    const saveSearch = async () => {
+        if (!isAuthenticated) {
+            router.push(`/sign-in?redirect=${encodeURIComponent(`${pathname}${searchKey ? `?${searchKey}` : ""}`)}`);
+            return;
+        }
+        setSaveState({ key: searchKey, status: "saving" });
+        try {
+            const result = await createSavedSearch({
+                query,
+                familyId,
+                categoryId,
+                listingType,
+                priceCurrency: hasPriceFilter ? priceCurrency : undefined,
+                minPrice,
+                maxPrice,
+                minYear,
+                maxYear,
+                near,
+                topLevel: getSavedSearchTopLevel(activeView),
+                sort: sort === "recent" ? undefined : sort,
+            });
+            setSaveState({ key: searchKey, status: result.alreadySaved ? "already" : "saved" });
+        } catch (error) {
+            const data = (error as { data?: unknown }).data;
+            setSaveState({ key: searchKey, status: "error", message: typeof data === "string" ? data : "No pudimos guardar la búsqueda. Probá de nuevo." });
+        }
+    };
+
     return (
         <div>
             <div className="mb-6 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-emerald-950/10 bg-white p-2 shadow-[0_12px_40px_rgba(32,58,41,0.05)] md:grid-cols-4">
@@ -385,9 +422,21 @@ export function MarketplaceBrowser() {
                     <p className="mt-3 text-xs text-stone-500">Pesos y dólares se comparan con la cotización del dólar oficial. Las publicaciones sin precio quedan al final del orden por precio y fuera del filtro.</p>
                 )}
                 {(query || familyId || categoryId || listingType || usesDiscover) && (
-                    <button type="button" onClick={clearFilters} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 hover:underline">
-                        <X className="size-4" /> Limpiar filtros
-                    </button>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+                        <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 hover:underline">
+                            <X className="size-4" /> Limpiar filtros
+                        </button>
+                        <button type="button" onClick={() => void saveSearch()} disabled={currentSave?.status === "saving"} className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 hover:underline disabled:opacity-60">
+                            <Bookmark className="size-4" /> {currentSave?.status === "saving" ? "Guardando..." : "Guardar búsqueda"}
+                        </button>
+                        {(currentSave?.status === "saved" || currentSave?.status === "already") && (
+                            <p className="text-sm text-stone-600">
+                                {currentSave.status === "saved" ? "Búsqueda guardada. Te avisamos cuando se publique algo que coincida." : "Ya tenías guardada esta búsqueda."}{" "}
+                                <Link href="/saved-searches" className="font-semibold text-emerald-800 hover:underline">Ver mis búsquedas</Link>
+                            </p>
+                        )}
+                        {currentSave?.status === "error" && <p className="text-sm font-semibold text-red-700">{currentSave.message}</p>}
+                    </div>
                 )}
             </div>
 

@@ -10,6 +10,7 @@ import { authComponent } from "./auth";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { presence } from "./presence";
+import { hasWebPushSubscriptions } from "./webPushSubscriptions";
 
 const notificationTypeValidator = v.union(
     v.literal("message"),
@@ -105,12 +106,11 @@ async function getDisplayName(ctx: MutationCtx, userId: string | undefined) {
     return profile?.displayName || undefined;
 }
 
-// All push tokens for a user: registered devices + legacy `profiles.pushToken`.
-async function getPushTokens(
-    ctx: MutationCtx,
-    userId: string,
-    profile: Doc<"profiles"> | null
-): Promise<string[]> {
+// Push tokens for a user: only devices registered through `registerPushToken`
+// (app 1.3.0+). The legacy `profiles.pushToken` saved by older apps is ignored
+// on purpose: those apps never clear it on sign-out or account switch, so it
+// could deliver one account's messages to a device now used by someone else.
+async function getPushTokens(ctx: MutationCtx, userId: string): Promise<string[]> {
     const devices = await ctx.db
         .query("pushDevices")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -119,20 +119,28 @@ async function getPushTokens(
     for (const device of devices) {
         tokens.add(device.token);
     }
-    if (profile?.pushToken) {
-        tokens.add(profile.pushToken);
-    }
     return [...tokens].filter(isExpoPushToken);
 }
 
-// Returns the recipient's tokens, or [] if they disabled push / have no devices.
-async function getDeliverableTokens(ctx: MutationCtx, userId: string) {
+// Where a push can reach the user: Expo tokens (mobile) and/or browsers
+// subscribed on the web. Empty if they disabled push.
+type PushTargets = {
+    tokens: string[];
+    web: boolean;
+};
+
+async function getDeliverableTargets(ctx: MutationCtx, userId: string): Promise<PushTargets> {
     const profile = await getProfile(ctx, userId);
     if (profile?.pushNotificationsEnabled === false) {
-        return [];
+        return { tokens: [], web: false };
     }
-    return await getPushTokens(ctx, userId, profile);
+    return {
+        tokens: await getPushTokens(ctx, userId),
+        web: await hasWebPushSubscriptions(ctx, userId),
+    };
 }
+
+const hasPushTargets = (targets: PushTargets) => targets.tokens.length > 0 || targets.web;
 
 // True if the user currently has the conversation open (chat screen sends
 // presence heartbeats; older app versions don't, so they count as "not viewing").
@@ -193,17 +201,29 @@ type PushContent = {
 async function schedulePush(
     ctx: MutationCtx,
     userId: string,
-    tokens: string[],
+    targets: PushTargets,
     content: PushContent
 ) {
-    await ctx.scheduler.runAfter(0, internal.notifications.sendPushNotification, {
-        userId,
-        tokens,
-        title: content.title,
-        body: content.body,
-        data: content.data,
-        attempt: 1,
-    });
+    if (targets.tokens.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.notifications.sendPushNotification, {
+            userId,
+            tokens: targets.tokens,
+            title: content.title,
+            body: content.body,
+            data: content.data,
+            attempt: 1,
+        });
+    }
+    if (targets.web) {
+        await ctx.scheduler.runAfter(0, internal.webPush.send, {
+            userId,
+            title: content.title,
+            body: content.body,
+            type: content.data.type,
+            relatedId: content.data.relatedId,
+            notificationId: content.data.notificationId,
+        });
+    }
 }
 
 async function getChatPushState(
@@ -236,7 +256,7 @@ async function handleChatPush(
         notificationId: Id<"notifications">;
         body: string;
         actorId?: string;
-        tokens: string[];
+        targets: PushTargets;
     }
 ) {
     const conversation = await ctx.db.get(args.conversationId);
@@ -272,7 +292,7 @@ async function handleChatPush(
 
     if (sendNow) {
         const senderName = await getDisplayName(ctx, args.actorId);
-        await schedulePush(ctx, args.userId, args.tokens, {
+        await schedulePush(ctx, args.userId, args.targets, {
             title: senderName || "Nuevo mensaje",
             body: args.body.trim() || "Te envió un mensaje",
             data: {
@@ -316,8 +336,8 @@ async function schedulePushForNotification(
         actorId?: string;
     }
 ) {
-    const tokens = await getDeliverableTokens(ctx, args.userId);
-    if (tokens.length === 0) {
+    const targets = await getDeliverableTargets(ctx, args.userId);
+    if (!hasPushTargets(targets)) {
         return;
     }
 
@@ -330,13 +350,13 @@ async function schedulePushForNotification(
                 notificationId: args.notificationId,
                 body: args.body,
                 actorId: args.actorId,
-                tokens,
+                targets,
             });
             return;
         }
     }
 
-    await schedulePush(ctx, args.userId, tokens, {
+    await schedulePush(ctx, args.userId, targets, {
         title: args.title,
         body: args.body,
         data: {
@@ -409,8 +429,8 @@ export const flushChatPush = internalMutation({
             return null;
         }
 
-        const tokens = await getDeliverableTokens(ctx, args.userId);
-        if (tokens.length === 0) {
+        const targets = await getDeliverableTargets(ctx, args.userId);
+        if (!hasPushTargets(targets)) {
             return null;
         }
 
@@ -442,7 +462,7 @@ export const flushChatPush = internalMutation({
                   ? `Te envió ${count} mensajes nuevos`
                   : `Tenés ${count} mensajes nuevos`;
 
-        await schedulePush(ctx, args.userId, tokens, {
+        await schedulePush(ctx, args.userId, targets, {
             title: senderName || "Nuevos mensajes",
             body,
             data: {
