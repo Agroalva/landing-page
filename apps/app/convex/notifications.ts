@@ -106,12 +106,11 @@ async function getDisplayName(ctx: MutationCtx, userId: string | undefined) {
     return profile?.displayName || undefined;
 }
 
-// All push tokens for a user: registered devices + legacy `profiles.pushToken`.
-async function getPushTokens(
-    ctx: MutationCtx,
-    userId: string,
-    profile: Doc<"profiles"> | null
-): Promise<string[]> {
+// Push tokens for a user: only devices registered through `registerPushToken`
+// (app 1.3.0+). The legacy `profiles.pushToken` saved by older apps is ignored
+// on purpose: those apps never clear it on sign-out or account switch, so it
+// could deliver one account's messages to a device now used by someone else.
+async function getPushTokens(ctx: MutationCtx, userId: string): Promise<string[]> {
     const devices = await ctx.db
         .query("pushDevices")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -119,9 +118,6 @@ async function getPushTokens(
     const tokens = new Set<string>();
     for (const device of devices) {
         tokens.add(device.token);
-    }
-    if (profile?.pushToken) {
-        tokens.add(profile.pushToken);
     }
     return [...tokens].filter(isExpoPushToken);
 }
@@ -139,7 +135,7 @@ async function getDeliverableTargets(ctx: MutationCtx, userId: string): Promise<
         return { tokens: [], web: false };
     }
     return {
-        tokens: await getPushTokens(ctx, userId, profile),
+        tokens: await getPushTokens(ctx, userId),
         web: await hasWebPushSubscriptions(ctx, userId),
     };
 }

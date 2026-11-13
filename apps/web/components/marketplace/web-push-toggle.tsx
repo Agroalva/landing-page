@@ -30,7 +30,7 @@ export function WebPushToggle() {
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            if (!isWebPushSupported() || !isWebPushConfigured()) {
+            if (!isWebPushSupported()) {
                 if (!cancelled) setBrowserState("unsupported");
                 return;
             }
@@ -49,7 +49,8 @@ export function WebPushToggle() {
         };
     }, []);
 
-    if (browserState === "checking") {
+    // No VAPID key in this deployment: web push is off, don't show the card.
+    if (browserState === "checking" || !isWebPushConfigured()) {
         return null;
     }
 
