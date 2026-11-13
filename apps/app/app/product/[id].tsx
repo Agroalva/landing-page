@@ -19,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ConvexImage } from "@/components/ConvexImage";
 import { StarRating } from "@/components/StarRating";
+import { StatsTiles } from "@/components/ListingStats";
 import { useAuthSession } from "@/hooks/use-session";
 import { formatPrice } from "../../utils/currency";
 import { buildPublicProductUrl } from "../../utils/public-url";
@@ -26,6 +27,14 @@ import { getCategoryById, getFamilyById } from "../../config/taxonomy";
 import { getListingIntentForProduct } from "../../config/listing-intents";
 import type { ListingIntent } from "../../config/listing-intents";
 import { CONDITION_OPTIONS } from "../../config/options";
+import {
+  getListingStatus,
+  LISTING_STATUS_LABELS,
+  LISTING_STATUS_OWNER_MESSAGES,
+  LISTING_STATUS_VISITOR_MESSAGES,
+} from "../../config/listing-status";
+import { ListingStatusActions } from "@/components/ListingStatusActions";
+import { LISTING_STATUS_COLORS } from "@/components/ListingStatusBadge";
 import {
   trackAddToWishlist,
   trackContactSeller,
@@ -73,10 +82,17 @@ export default function ProductDetailScreen() {
   const incrementViewCount = useMutation(api.products.incrementViewCount);
   const ensureConversation = useMutation(api.conversations.ensureConversation);
   const deleteProduct = useMutation(api.products.deleteProduct);
+  const recordContact = useMutation(api.productStats.recordContact);
 
   // Check if current user is the author
   const currentUserId = user?.id || user?.userId;
   const isAuthor = currentUserId && product?.authorId === currentUserId;
+
+  // Private stats: the query returns null unless the viewer is the author.
+  const authorStats = useQuery(
+    api.productStats.getProductStats,
+    isAuthor && productId ? { productId, days: 30 } : "skip"
+  );
   const showFullDetails = isAuthenticated;
   const showGuestCta = !isAuthenticated && !isAuthLoading;
 
@@ -159,6 +175,9 @@ export default function ProductDetailScreen() {
 
     try {
       await Linking.openURL(whatsappUrl);
+      recordContact({ productId: product._id, channel: "whatsapp", source: "app" }).catch((error) => {
+        console.error("Failed to record WhatsApp contact:", error);
+      });
       trackContactSeller({
         method: "whatsapp",
         productId: product._id,
@@ -188,6 +207,9 @@ export default function ProductDetailScreen() {
     const phoneUrl = `tel:${phoneNumber}`;
     try {
       await Linking.openURL(phoneUrl);
+      recordContact({ productId: product._id, channel: "call", source: "app" }).catch((error) => {
+        console.error("Failed to record call contact:", error);
+      });
       trackContactSeller({
         method: "call",
         productId: product._id,
@@ -223,6 +245,7 @@ export default function ProductDetailScreen() {
       const conversationId = await ensureConversation({
         memberIds: [currentUserId, product.authorId],
         productId: product._id,
+        source: "app",
       });
       trackContactSeller({
         method: "message",
@@ -269,7 +292,7 @@ export default function ProductDetailScreen() {
     
     Alert.alert(
       "Eliminar publicación",
-      "¿Estás seguro de que deseas eliminar esta publicación? Esta acción no se puede deshacer.",
+      "¿Estás seguro de que deseas eliminar esta publicación? Esta acción no se puede deshacer y se pierden las visitas y los favoritos. Si ya la vendiste o querés ocultarla un tiempo, podés marcarla como vendida o pausarla.",
       [
         {
           text: "Cancelar",
@@ -316,6 +339,10 @@ export default function ProductDetailScreen() {
       </SafeAreaView>
     );
   }
+
+  const listingStatus = getListingStatus(product.status);
+  const isListingAvailable = listingStatus === "active";
+  const statusColors = LISTING_STATUS_COLORS[listingStatus];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -418,6 +445,26 @@ export default function ProductDetailScreen() {
 
         {/* Product Info */}
         <View style={styles.contentContainer}>
+          {!isListingAvailable && (
+            <View style={[styles.statusBanner, { backgroundColor: statusColors.background }]}>
+              <Ionicons
+                name={listingStatus === "paused" ? "pause-circle" : "checkmark-done-circle"}
+                size={28}
+                color={statusColors.text}
+              />
+              <View style={styles.statusBannerContent}>
+                <Text style={[styles.statusBannerTitle, { color: statusColors.text }]}>
+                  {LISTING_STATUS_LABELS[listingStatus]}
+                </Text>
+                <Text style={[styles.statusBannerText, { color: statusColors.text }]}>
+                  {isAuthor
+                    ? LISTING_STATUS_OWNER_MESSAGES[listingStatus]
+                    : LISTING_STATUS_VISITOR_MESSAGES[listingStatus]}
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.priceSection}>
             <View>
               <Text style={styles.postedDate}>
@@ -449,6 +496,36 @@ export default function ProductDetailScreen() {
               <Text style={styles.typeBadgeText}>
                 {TYPE_BADGE_LABELS[getListingIntentForProduct(product.type, product.familyId)]}
               </Text>
+            </View>
+          )}
+
+          {/* Private stats, only for the author */}
+          {isAuthor && authorStats && (
+            <View style={styles.authorStatsCard}>
+              <View style={styles.authorStatsHeader}>
+                <Ionicons name="stats-chart" size={18} color="#2E7D32" />
+                <Text style={styles.authorStatsTitle}>Estadísticas de tu publicación</Text>
+              </View>
+              <StatsTiles stats={authorStats.totals} />
+              <Text style={styles.authorStatsPeriod}>
+                Últimos {authorStats.period.days} días: {authorStats.period.views}{" "}
+                {authorStats.period.views === 1 ? "visita" : "visitas"} ·{" "}
+                {authorStats.period.contacts.total}{" "}
+                {authorStats.period.contacts.total === 1 ? "contacto" : "contactos"}
+              </Text>
+              <TouchableOpacity
+                style={styles.authorStatsButton}
+                onPress={() =>
+                  router.push({
+                    pathname: "/product-stats/[id]",
+                    params: { id: product._id },
+                  })
+                }
+              >
+                <Text style={styles.authorStatsButtonText}>Ver evolución</Text>
+                <Ionicons name="chevron-forward" size={16} color="#2E7D32" />
+              </TouchableOpacity>
+              <Text style={styles.authorStatsPrivate}>Solo vos podés ver estas estadísticas.</Text>
             </View>
           )}
 
@@ -650,7 +727,7 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      {showGuestCta && (
+      {showGuestCta && isListingAvailable && (
         <View style={styles.guestCta}>
           <Text style={styles.guestCtaText}>
             Inicia sesión para contactar al vendedor
@@ -664,8 +741,20 @@ export default function ProductDetailScreen() {
         </View>
       )}
 
-      {/* Bottom Contact Bar */}
-      {showFullDetails && (
+      {/* Author: manage the publication status instead of contacting themselves */}
+      {!!isAuthor && (
+        <View style={styles.bottomBar}>
+          <ListingStatusActions
+            productId={product._id}
+            type={product.type}
+            status={product.status}
+            style={styles.ownerActions}
+          />
+        </View>
+      )}
+
+      {/* Bottom Contact Bar (hidden when the listing is paused, sold or rented) */}
+      {showFullDetails && !isAuthor && isListingAvailable && (
         <View style={styles.bottomBar}>
           <TouchableOpacity style={styles.contactButton} onPress={handleCall}>
             <Ionicons name="call" size={20} color="#FFFFFF" />
@@ -928,6 +1017,42 @@ const styles = StyleSheet.create({
     color: "#9E9E9E",
     marginTop: 8,
   },
+  authorStatsCard: {
+    backgroundColor: "#F1F8E9",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  authorStatsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  authorStatsTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#212121",
+  },
+  authorStatsPeriod: {
+    fontSize: 13,
+    color: "#616161",
+  },
+  authorStatsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+  },
+  authorStatsButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#2E7D32",
+  },
+  authorStatsPrivate: {
+    fontSize: 12,
+    color: "#9E9E9E",
+  },
   sellerCard: {
     backgroundColor: "#F5F5F5",
     borderRadius: 16,
@@ -1000,6 +1125,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#2E7D32",
     fontWeight: "600",
+  },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  statusBannerContent: {
+    flex: 1,
+  },
+  statusBannerTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statusBannerText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 2,
+  },
+  ownerActions: {
+    flex: 1,
   },
   bottomBar: {
     flexDirection: "row",

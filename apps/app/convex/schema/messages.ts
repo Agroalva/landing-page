@@ -6,6 +6,10 @@ export const messagesTable = defineTable({
     senderId: v.string(), // References Better Auth user ID
     text: v.string(),
     mediaId: v.optional(v.id("_storage")),
+    // True when `text` is a server-generated placeholder (e.g. a photo sent
+    // without a caption). Old app versions only render `text`, so they show the
+    // placeholder; newer clients hide it and render the photo instead.
+    textIsFallback: v.optional(v.boolean()),
     readBy: v.optional(v.array(v.string())), // Array of user IDs who have read this message
     createdAt: v.number(),
 })

@@ -4,6 +4,16 @@ import { authComponent } from "./auth";
 import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { normalizeProductSearchTerm } from "./productSearch";
+import { onlyActiveListings } from "./listingStatus";
+import { listingStatusValidator } from "./schema/products";
+import { getListingStatus } from "../config/listing-status";
+import { loadUsdArsRate } from "./lib/exchangeRate";
+import {
+    discoverListings,
+    listingFilterFields,
+    listingSortValidator,
+    parseOffsetCursor,
+} from "./lib/listingFilters";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -51,8 +61,11 @@ const listingCardValidator = v.object({
     primaryImageUrl: v.optional(v.string()),
     seller: sellerSummaryValidator,
     viewCount: v.number(),
+    status: listingStatusValidator,
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Present only in "near me" results from discover.
+    distanceKm: v.optional(v.number()),
 });
 
 const productDetailValidator = v.object({
@@ -72,6 +85,7 @@ const productDetailValidator = v.object({
     mediaIds: v.array(v.id("_storage")),
     seller: sellerSummaryValidator,
     viewCount: v.number(),
+    status: listingStatusValidator,
     isOwner: v.boolean(),
     isFavorite: v.boolean(),
     createdAt: v.number(),
@@ -133,6 +147,7 @@ async function toListingCard(ctx: any, product: Doc<"products">) {
         primaryImageUrl,
         seller: await getSellerSummary(ctx, product.authorId),
         viewCount: product.viewCount || 0,
+        status: getListingStatus(product.status),
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
     };
@@ -182,49 +197,92 @@ export const list = query({
                     }
                     return builder;
                 });
+            searchQuery = onlyActiveListings(searchQuery);
             if (excludePersonal) {
                 searchQuery = excludePersonalListings(searchQuery);
             }
             result = await searchQuery.paginate(args.paginationOpts);
         } else if (resolvedCategory && resolvedFamily) {
             const products = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_family_category", (q) =>
-                        q.eq("familyId", resolvedFamily).eq("categoryId", resolvedCategory),
-                    ),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_family_category", (q) =>
+                            q.eq("familyId", resolvedFamily).eq("categoryId", resolvedCategory),
+                        ),
+                ),
                 args.listingType,
             );
             result = await products.order("desc").paginate(args.paginationOpts);
         } else if (resolvedFamily) {
             const products = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily)),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily)),
+                ),
                 args.listingType,
             );
             result = await products.order("desc").paginate(args.paginationOpts);
         } else if (args.listingType) {
-            let products = ctx.db
-                .query("products")
-                .withIndex("by_type", (q) => q.eq("type", args.listingType!))
-                .order("desc");
+            let products = onlyActiveListings(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_type", (q) => q.eq("type", args.listingType!))
+                    .order("desc"),
+            );
             if (excludePersonal) {
                 products = excludePersonalListings(products);
             }
             result = await products.paginate(args.paginationOpts);
         } else {
-            result = await ctx.db
-                .query("products")
-                .withIndex("by_createdAt")
-                .order("desc")
-                .paginate(args.paginationOpts);
+            result = await onlyActiveListings(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_createdAt")
+                    .order("desc"),
+            ).paginate(args.paginationOpts);
         }
 
         return {
             page: await Promise.all(result.page.map((product: Doc<"products">) => toListingCard(ctx, product))),
             isDone: result.isDone,
             continueCursor: result.continueCursor,
+        };
+    },
+});
+
+// Filtered/sorted catalog (price, year, sort). Uses offset cursors, so the
+// client should de-duplicate by _id if listings shift between pages.
+export const discover = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        ...listingFilterFields,
+        sort: v.optional(listingSortValidator),
+    },
+    returns: v.object({
+        page: v.array(listingCardValidator),
+        isDone: v.boolean(),
+        continueCursor: v.string(),
+    }),
+    handler: async (ctx, args) => {
+        const { paginationOpts, sort, ...filters } = args;
+        const offset = parseOffsetCursor(paginationOpts.cursor);
+        const result = await discoverListings(ctx, {
+            filters,
+            sort,
+            offset,
+            limit: Math.min(Math.max(paginationOpts.numItems, 1), 50),
+            rate: await loadUsdArsRate(ctx),
+        });
+
+        return {
+            page: await Promise.all(result.page.map(async ({ product, distanceKm }) => {
+                const card = await toListingCard(ctx, product);
+                return distanceKm === undefined ? card : { ...card, distanceKm };
+            })),
+            isDone: !result.hasMore,
+            continueCursor: result.nextCursor ?? String(offset + result.page.length),
         };
     },
 });
@@ -277,6 +335,7 @@ export const getProduct = query({
             mediaIds: product.mediaIds || [],
             seller: await getSellerSummary(ctx, product.authorId),
             viewCount: product.viewCount || 0,
+            status: getListingStatus(product.status),
             isOwner: userId === product.authorId,
             isFavorite: Boolean(favorite),
             createdAt: product.createdAt,
@@ -297,11 +356,13 @@ export const getPublicProfile = query({
             return null;
         }
 
-        const products = await ctx.db
-            .query("products")
-            .withIndex("by_authorId", (q) => q.eq("authorId", args.userId))
-            .order("desc")
-            .take(50);
+        // Public list: only active listings. Authors manage the rest from "Mis publicaciones".
+        const products: Doc<"products">[] = await onlyActiveListings(
+            ctx.db
+                .query("products")
+                .withIndex("by_authorId", (q) => q.eq("authorId", args.userId))
+                .order("desc"),
+        ).take(50);
         const avatarUrl = profile.avatarId
             ? await ctx.storage.getUrl(profile.avatarId) ?? undefined
             : undefined;

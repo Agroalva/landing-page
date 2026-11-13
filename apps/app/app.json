@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgroAlva",
     "slug": "agroalva",
-    "version": "1.2.10",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -15,7 +15,7 @@
         "applinks:agroalva.com.ar",
         "applinks:www.agroalva.com.ar"
       ],
-      "buildNumber": "50",
+      "buildNumber": "52",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -29,7 +29,7 @@
       },
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
-      "versionCode": 50,
+      "versionCode": 52,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS",
@@ -93,14 +93,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "La aplicación necesita acceso a tus fotos para que puedas compartir imágenes en tus publicaciones.",
+          "photosPermission": "La aplicación necesita acceso a tus fotos para que puedas compartir imágenes en tus publicaciones y mensajes.",
           "cameraPermission": "La aplicación necesita acceso a tu cámara para que puedas tomar fotos directamente."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "AgroAlva usa tu ubicación para mostrar el clima de tu zona cuando lo solicitás."
+          "locationWhenInUsePermission": "AgroAlva usa tu ubicación, cuando lo solicitás, para mostrar el clima de tu zona, ubicar tus publicaciones y encontrar publicaciones cerca tuyo."
         }
       ],
       [

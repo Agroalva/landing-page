@@ -2,9 +2,15 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { authComponent } from "./auth";
+import { internal } from "./_generated/api";
 import { getCategoryById } from "../config/taxonomy";
 import type { AttributeValueMap, CategoryId } from "../config/taxonomy";
 import { buildProductSearchText } from "./productSearch";
+import { onlyActiveListings } from "./listingStatus";
+import { listingStatusValidator } from "./schema/products";
+import { getClosedStatusForType, getListingStatus } from "../config/listing-status";
+import { recordDailyView } from "./productStats";
+import { isPriceDrop } from "./priceDropAlerts";
 import {
     excludePersonalListings,
     resolveTaxonomyFilter,
@@ -104,6 +110,7 @@ const shareProductValidator = v.object({
     createdAt: v.number(),
     primaryImageUrl: v.optional(v.string()),
     authorDisplayName: v.optional(v.string()),
+    status: v.optional(listingStatusValidator),
 });
 
 const applyListingTypeFilter = (query: any, listingType?: "rent" | "sell") => {
@@ -157,7 +164,7 @@ export const create = mutation({
         const normalizedAttributes = normalizeAttributes(args.attributes);
         const legacyCategory = getLegacyCategoryLabel(resolvedCategory, args.category);
 
-        return await ctx.db.insert("products", {
+        const productId = await ctx.db.insert("products", {
             authorId: user._id as string,
             name: args.name.trim(),
             searchText: buildProductSearchText(args.name, args.location, normalizedAttributes),
@@ -172,9 +179,15 @@ export const create = mutation({
             mediaIds: args.mediaIds || [],
             location: args.location,
             viewCount: 0,
+            status: "active",
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
+
+        // Saved-search alerts run in the background so publishing stays fast.
+        await ctx.scheduler.runAfter(0, internal.savedSearches.matchNewProduct, { productId });
+
+        return productId;
     },
 });
 
@@ -199,11 +212,13 @@ export const feed = query({
 
         if (resolvedCategory) {
             const query = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_family_category", (q) =>
-                    q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
-                    ),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_family_category", (q) =>
+                        q.eq("familyId", resolvedFamily as string).eq("categoryId", resolvedCategory as string),
+                        ),
+                ),
                 args.listingType,
             );
 
@@ -214,9 +229,11 @@ export const feed = query({
 
         if (resolvedFamily) {
             const query = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string)),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_family", (q) => q.eq("familyId", resolvedFamily as string)),
+                ),
                 args.listingType,
             );
 
@@ -229,11 +246,13 @@ export const feed = query({
 
         if (args.legacyCategory && args.legacyCategory !== "Todos") {
             let query = applyListingTypeFilter(
-                ctx.db
-                    .query("products")
-                    .withIndex("by_category_createdAt", (q) =>
-                    q.eq("category", args.legacyCategory),
-                    ),
+                onlyActiveListings(
+                    ctx.db
+                        .query("products")
+                        .withIndex("by_category_createdAt", (q) =>
+                        q.eq("category", args.legacyCategory),
+                        ),
+                ),
                 args.listingType,
             );
             if (excludePersonal) {
@@ -246,9 +265,11 @@ export const feed = query({
         }
 
         let query = applyListingTypeFilter(
-            ctx.db
-                .query("products")
-                .withIndex("by_createdAt"),
+            onlyActiveListings(
+                ctx.db
+                    .query("products")
+                    .withIndex("by_createdAt"),
+            ),
             args.listingType,
         );
         if (excludePersonal) {
@@ -309,11 +330,14 @@ export const getShareById = query({
             createdAt: product.createdAt,
             primaryImageUrl,
             authorDisplayName: profile?.displayName,
+            status: getListingStatus(product.status),
         };
     },
 });
 
-// Get products by a specific user
+// Get products by a specific user. The author sees all of their listings
+// (any status, used by "Mis publicaciones" and the own profile tab); everyone
+// else only sees active ones.
 export const byUser = query({
     args: {
         userId: v.string(),
@@ -321,12 +345,74 @@ export const byUser = query({
     },
     handler: async (ctx, args) => {
         const limit = args.limit || 20;
-        
-        return await ctx.db
+
+        let viewerId: string | null = null;
+        try {
+            const user = await authComponent.getAuthUser(ctx);
+            viewerId = (user?._id as string | undefined) ?? null;
+        } catch {
+            viewerId = null;
+        }
+
+        const productsQuery = ctx.db
             .query("products")
-            .withIndex("by_authorId", (q) => q.eq("authorId", args.userId))
+            .withIndex("by_authorId", (q) => q.eq("authorId", args.userId));
+
+        const visibleQuery = viewerId === args.userId
+            ? productsQuery
+            : onlyActiveListings(productsQuery);
+
+        return await visibleQuery
             .order("desc")
             .take(limit);
+    },
+});
+
+// Change the publication status (only by author). Replaces deleting a listing
+// when it was sold/rented or the author wants to hide it for a while, keeping
+// views, favorites and conversations.
+export const updateStatus = mutation({
+    args: {
+        productId: v.id("products"),
+        status: listingStatusValidator,
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await authComponent.getAuthUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        const product = await ctx.db.get(args.productId);
+        if (!product) {
+            throw new Error("Product not found");
+        }
+
+        if (product.authorId !== (user._id as string)) {
+            throw new Error("Not authorized to update this product");
+        }
+
+        if (
+            (args.status === "sold" || args.status === "rented") &&
+            args.status !== getClosedStatusForType(product.type)
+        ) {
+            throw new Error(
+                product.type === "sell"
+                    ? "Una publicación de venta solo puede marcarse como vendida"
+                    : "Una publicación de servicio solo puede marcarse como alquilada",
+            );
+        }
+
+        if (getListingStatus(product.status) === args.status) {
+            return null;
+        }
+
+        await ctx.db.patch(args.productId, {
+            status: args.status,
+            statusUpdatedAt: Date.now(),
+        });
+
+        return null;
     },
 });
 
@@ -351,6 +437,9 @@ export const deleteProduct = mutation({
         }
 
         await ctx.db.delete(args.productId);
+        await ctx.scheduler.runAfter(0, internal.productStats.deleteStatsForProduct, {
+            productId: args.productId,
+        });
     },
 });
 
@@ -365,10 +454,23 @@ export const incrementViewCount = mutation({
             throw new Error("Product not found");
         }
 
+        // The author opening their own listing is not a visit.
+        let viewerId: string | null = null;
+        try {
+            const viewer = await authComponent.safeGetAuthUser(ctx);
+            viewerId = viewer ? (viewer._id as string) : null;
+        } catch {
+            viewerId = null;
+        }
+        if (viewerId && viewerId === product.authorId) {
+            return;
+        }
+
         const currentViewCount = product.viewCount || 0;
         await ctx.db.patch(args.productId, {
             viewCount: currentViewCount + 1,
         });
+        await recordDailyView(ctx, product);
     },
 });
 
@@ -471,5 +573,22 @@ export const update = mutation({
         );
 
         await ctx.db.patch(args.productId, updates);
+
+        const nextPrice: number | undefined = updates.price ?? product.price;
+        const nextCurrency: string | undefined = updates.currency ?? product.currency;
+        if (isPriceDrop({
+            previousPrice: product.price,
+            previousCurrency: product.currency,
+            nextPrice,
+            nextCurrency,
+        })) {
+            // Favoriters are notified in the background so saving stays fast.
+            await ctx.scheduler.runAfter(0, internal.priceDropAlerts.notifyFavoriters, {
+                productId: args.productId,
+                previousPrice: product.price!,
+                newPrice: nextPrice!,
+                currency: nextCurrency!,
+            });
+        }
     },
 });

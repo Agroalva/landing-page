@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,24 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthSession } from "@/hooks/use-session";
 import { ListingCard } from "@/components/ListingCard";
+import { ListingStatusActions } from "@/components/ListingStatusActions";
+import { getListingStatus, isClosedStatus } from "../config/listing-status";
+
+type PostsFilter = "all" | "active" | "paused" | "closed";
+
+const FILTER_OPTIONS: { id: PostsFilter; label: string }[] = [
+  { id: "all", label: "Todas" },
+  { id: "active", label: "Activas" },
+  { id: "paused", label: "Pausadas" },
+  { id: "closed", label: "Vendidas / alquiladas" },
+];
+
+const EMPTY_FILTER_MESSAGES: Record<Exclude<PostsFilter, "all">, string> = {
+  active: "No tenés publicaciones activas",
+  paused: "No tenés publicaciones pausadas",
+  closed: "No tenés publicaciones vendidas ni alquiladas",
+};
+import { ListingStatsSummary } from "@/components/ListingStats";
 
 export default function MyPostsScreen() {
   const router = useRouter();
@@ -27,6 +45,40 @@ export default function MyPostsScreen() {
   const userProducts = useQuery(
     api.products.byUser,
     isAuthenticated && userId ? { userId, limit: 100 } : "skip"
+  );
+  const [filter, setFilter] = useState<PostsFilter>("all");
+
+  const counts = useMemo(() => {
+    const result: Record<PostsFilter, number> = { all: 0, active: 0, paused: 0, closed: 0 };
+    for (const product of userProducts ?? []) {
+      result.all += 1;
+      if (isClosedStatus(product.status)) {
+        result.closed += 1;
+      } else {
+        result[getListingStatus(product.status) as "active" | "paused"] += 1;
+      }
+    }
+    return result;
+  }, [userProducts]);
+
+  const visibleProducts = useMemo(() => {
+    if (!userProducts || filter === "all") {
+      return userProducts;
+    }
+    return userProducts.filter((product) =>
+      filter === "closed"
+        ? isClosedStatus(product.status)
+        : getListingStatus(product.status) === filter,
+    );
+  }, [userProducts, filter]);
+
+  // Private stats (only returned for the signed-in author's own listings).
+  const listingsStats = useQuery(
+    api.productStats.getMyListingsStats,
+    isAuthenticated ? {} : "skip"
+  );
+  const statsByProductId = new Map(
+    (listingsStats ?? []).map((stats) => [stats.productId, stats])
   );
 
   if (isLoading) {
@@ -70,11 +122,62 @@ export default function MyPostsScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.productsContainer}>
-            {userProducts.map((product) => (
-              <ListingCard key={product._id} product={product} />
-            ))}
-          </View>
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersContainer}
+            >
+              {FILTER_OPTIONS.map((option) => {
+                const isSelected = filter === option.id;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[styles.filterChip, isSelected && styles.filterChipSelected]}
+                    onPress={() => setFilter(option.id)}
+                  >
+                    <Text style={[styles.filterChipText, isSelected && styles.filterChipTextSelected]}>
+                      {option.label} ({counts[option.id]})
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {visibleProducts && visibleProducts.length === 0 && filter !== "all" ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="filter-outline" size={48} color="#E0E0E0" />
+                <Text style={styles.emptyText}>{EMPTY_FILTER_MESSAGES[filter]}</Text>
+              </View>
+            ) : (
+              <View style={styles.productsContainer}>
+                {visibleProducts?.map((product) => (
+                  <View key={product._id} style={styles.postItem}>
+                    <ListingCard
+                      product={product}
+                      footer={
+                        <ListingStatsSummary
+                          stats={statsByProductId.get(product._id)}
+                          onPressDetails={() =>
+                            router.push({
+                              pathname: "/product-stats/[id]",
+                              params: { id: product._id },
+                            })
+                          }
+                        />
+                      }
+                    />
+                    <ListingStatusActions
+                      productId={product._id}
+                      type={product.type}
+                      status={product.status}
+                      style={styles.postActions}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -136,7 +239,39 @@ const styles = StyleSheet.create({
   },
   productsContainer: {
     padding: 16,
+    paddingTop: 4,
     gap: 16,
+  },
+  postItem: {
+    marginBottom: 8,
+  },
+  postActions: {
+    marginTop: -4,
+  },
+  filtersContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  filterChipSelected: {
+    backgroundColor: "#2E7D32",
+    borderColor: "#2E7D32",
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#616161",
+  },
+  filterChipTextSelected: {
+    color: "#FFFFFF",
   },
   productCard: {
     backgroundColor: "#FFFFFF",

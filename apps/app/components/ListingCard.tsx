@@ -9,6 +9,8 @@ import { getCategoryById } from "../config/taxonomy";
 import { getListingIntentForProduct } from "../config/listing-intents";
 import type { ListingIntent } from "../config/listing-intents";
 import { CONDITION_OPTIONS } from "../config/options";
+import { isListingActive, type ListingStatus } from "../config/listing-status";
+import { ListingStatusBadge } from "./ListingStatusBadge";
 
 const TYPE_BADGE_LABELS: Record<ListingIntent, string> = {
   products: "Venta",
@@ -35,13 +37,17 @@ interface ListingCardProps {
       longitude: number;
     };
     attributes?: Record<string, any>;
+    status?: ListingStatus;
     createdAt: number;
+    // Only set in "near me" search results.
+    distanceKm?: number;
   };
   onPress?: () => void;
   variant?: "full" | "public";
+  footer?: React.ReactNode;
 }
 
-export function ListingCard({ product, onPress, variant = "full" }: ListingCardProps) {
+export function ListingCard({ product, onPress, variant = "full", footer }: ListingCardProps) {
   const router = useRouter();
   const showFullDetails = variant === "full";
 
@@ -62,7 +68,13 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
       ? CONDITION_OPTIONS.find((opt) => opt.id === product.attributes?.condition)?.label
       : null;
 
-  const locationLabel = product.location?.label || product.location?.address;
+  const distanceLabel = typeof product.distanceKm === "number"
+    ? `a ${product.distanceKm < 1 ? "menos de 1" : Math.round(product.distanceKm)} km`
+    : null;
+  const locationLabel = [product.location?.label || product.location?.address, distanceLabel]
+    .filter(Boolean)
+    .join(" · ");
+  const isActive = isListingActive(product.status);
 
   return (
     <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.7}>
@@ -78,6 +90,12 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
           <View style={styles.imagePlaceholder}>
             <Ionicons name="image-outline" size={32} color="#9E9E9E" />
           </View>
+        )}
+        {!isActive && (
+          <>
+            <View style={styles.inactiveOverlay} pointerEvents="none" />
+            <ListingStatusBadge status={product.status} style={styles.statusBadge} />
+          </>
         )}
         {showFullDetails && (
           <View style={styles.typeBadge}>
@@ -127,13 +145,22 @@ export function ListingCard({ product, onPress, variant = "full" }: ListingCardP
             )}
           </>
         ) : (
-          product.description && (
-            <Text style={styles.description} numberOfLines={3}>
-              {product.description}
-            </Text>
-          )
+          <>
+            {product.description && (
+              <Text style={styles.description} numberOfLines={3}>
+                {product.description}
+              </Text>
+            )}
+            {distanceLabel && (
+              <View style={styles.locationRow}>
+                <Ionicons name="navigate-outline" size={14} color="#757575" />
+                <Text style={styles.locationText}>{distanceLabel}</Text>
+              </View>
+            )}
+          </>
         )}
       </View>
+      {footer}
     </TouchableOpacity>
   );
 }
@@ -166,6 +193,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#E0E0E0",
     justifyContent: "center",
     alignItems: "center",
+  },
+  inactiveOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
   },
   typeBadge: {
     position: "absolute",

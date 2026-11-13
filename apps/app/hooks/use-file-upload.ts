@@ -2,7 +2,85 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { Id } from "../convex/_generated/dataModel";
+
+export type ImageSource = "camera" | "library";
+
+export type SelectedImage = {
+    uri: string;
+    width: number;
+    height: number;
+};
+
+// Longest side (px) for images sent in chat. Keeps text in photos of documents
+// readable while bringing multi-megabyte camera shots down to a few hundred KB.
+const COMPRESS_MAX_DIMENSION = 1600;
+const COMPRESS_QUALITY = 0.7;
+
+/**
+ * Downscale (if needed) and re-encode an image as JPEG before uploading.
+ * Falls back to the original image if manipulation fails.
+ */
+export async function compressImage(image: SelectedImage): Promise<SelectedImage> {
+    try {
+        const longestSide = Math.max(image.width, image.height);
+        const actions: ImageManipulator.Action[] = [];
+        if (longestSide > COMPRESS_MAX_DIMENSION) {
+            actions.push({
+                resize:
+                    image.width >= image.height
+                        ? { width: COMPRESS_MAX_DIMENSION }
+                        : { height: COMPRESS_MAX_DIMENSION },
+            });
+        }
+        const result = await ImageManipulator.manipulateAsync(image.uri, actions, {
+            compress: COMPRESS_QUALITY,
+            format: ImageManipulator.SaveFormat.JPEG,
+        });
+        return { uri: result.uri, width: result.width, height: result.height };
+    } catch (error) {
+        console.warn("Image compression failed, using original:", error);
+        return image;
+    }
+}
+
+/**
+ * Let the user pick an image (camera or library) without uploading it, so the
+ * caller can show a preview first. Returns null if cancelled or permission was
+ * denied (`permissionDenied` tells which).
+ */
+export async function selectImage(
+    source: ImageSource
+): Promise<{ image: SelectedImage | null; permissionDenied: boolean }> {
+    const permission =
+        source === "camera"
+            ? await ImagePicker.requestCameraPermissionsAsync()
+            : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+        return { image: null, permissionDenied: true };
+    }
+
+    const options: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 1,
+    };
+    const result =
+        source === "camera"
+            ? await ImagePicker.launchCameraAsync(options)
+            : await ImagePicker.launchImageLibraryAsync(options);
+
+    if (result.canceled || !result.assets[0]) {
+        return { image: null, permissionDenied: false };
+    }
+
+    const asset = result.assets[0];
+    return {
+        image: { uri: asset.uri, width: asset.width, height: asset.height },
+        permissionDenied: false,
+    };
+}
 
 export function useFileUpload() {
     const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
@@ -114,8 +192,19 @@ export function useFileUpload() {
         }
     };
 
+    // Compress a previously selected image and upload it to Convex storage.
+    const uploadCompressedImage = async (image: SelectedImage): Promise<Id<"_storage"> | null> => {
+        const compressed = await compressImage(image);
+        return await uploadFile({
+            uri: compressed.uri,
+            type: "image/jpeg",
+            name: `image-${Date.now()}.jpg`,
+        });
+    };
+
     return {
         uploadFile,
+        uploadCompressedImage,
         pickImage,
         pickImageFromCamera,
         uploading,

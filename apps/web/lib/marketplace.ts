@@ -1,3 +1,5 @@
+import type { ListingStatus } from "../../app/config/listing-status";
+
 export type MarketplaceListing = {
     _id: string;
     authorId: string;
@@ -20,8 +22,12 @@ export type MarketplaceListing = {
         ratingCount: number;
     };
     viewCount: number;
+    // Optional so pages keep working against a backend deployed before statuses existed.
+    status?: ListingStatus;
     createdAt: number;
     updatedAt: number;
+    // Only set in "near me" results.
+    distanceKm?: number;
 };
 
 export type MarketplaceProduct = MarketplaceListing & {

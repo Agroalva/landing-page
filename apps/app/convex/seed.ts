@@ -347,6 +347,7 @@ export const seedProducts = internalMutation({
           mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
           location: product.location,
           viewCount: Math.floor(Math.random() * 50), // Random view count for realism
+          status: "active",
           createdAt,
           updatedAt,
         });

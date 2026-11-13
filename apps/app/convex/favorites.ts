@@ -3,33 +3,15 @@ import { v } from "convex/values";
 import { authComponent } from "./auth";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import { productsTable } from "./schema/products";
 
-// Keep this validator in sync with the products table schema in
-// `convex/schema/products.ts` to avoid ReturnsValidationError when
-// returning product documents from queries.
+// Derived from the products table schema so it can't drift from it: a
+// hand-written copy here was missing taxonomy/attribute fields, which made
+// `listFavoriteProducts` fail with ReturnsValidationError for newer products.
 const productValidator = v.object({
     _id: v.id("products"),
     _creationTime: v.number(),
-    authorId: v.string(),
-    name: v.string(),
-    description: v.optional(v.string()),
-    type: v.union(v.literal("rent"), v.literal("sell")),
-    category: v.optional(v.string()),
-    price: v.optional(v.number()),
-    currency: v.optional(v.string()),
-    mediaIds: v.optional(v.array(v.id("_storage"))),
-    viewCount: v.optional(v.number()),
-    location: v.optional(
-        v.object({
-            latitude: v.number(),
-            longitude: v.number(),
-            accuracy: v.optional(v.number()),
-            address: v.optional(v.string()),
-            label: v.optional(v.string()),
-        })
-    ),
-    createdAt: v.number(),
-    updatedAt: v.number(),
+    ...productsTable.validator.fields,
 });
 
 // Check if current user has favorited a product

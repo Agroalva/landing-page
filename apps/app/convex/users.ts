@@ -12,6 +12,7 @@ const profileValidator = v.object({
     bio: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     pushToken: v.optional(v.string()),
+    pushNotificationsEnabled: v.optional(v.boolean()),
     ratingSum: v.optional(v.number()),
     ratingCount: v.optional(v.number()),
     createdAt: v.number(),
@@ -269,6 +270,22 @@ export const cleanupUserData = internalMutation({
             .collect();
         for (const notification of myNotifications) {
             await ctx.db.delete(notification._id);
+        }
+
+        // 6b) Delete push devices and chat push throttle state
+        const myPushDevices = await ctx.db
+            .query("pushDevices")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .collect();
+        for (const device of myPushDevices) {
+            await ctx.db.delete(device._id);
+        }
+        const myChatPushStates = await ctx.db
+            .query("chatPushStates")
+            .withIndex("by_userId_conversationId", (q) => q.eq("userId", userId))
+            .collect();
+        for (const state of myChatPushStates) {
+            await ctx.db.delete(state._id);
         }
 
         // 7) Clean up conversations and messages involving this user

@@ -97,12 +97,14 @@ function AppContent() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="product/[id]" options={{ presentation: "card" }} />
+        <Stack.Screen name="product-stats/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="user-profile/[userId]" options={{ presentation: "card" }} />
         <Stack.Screen name="review/[userId]" options={{ presentation: "modal" }} />
         <Stack.Screen name="create-post" options={{ presentation: "modal" }} />
         <Stack.Screen name="new-message" options={{ presentation: "card" }} />
         <Stack.Screen name="chat/[id]" options={{ presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
+        <Stack.Screen name="saved-searches" options={{ presentation: "card" }} />
         <Stack.Screen name="field-pulse" options={{ presentation: "card" }} />
         <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
         <Stack.Screen name="edit-product/[id]" options={{ presentation: "modal" }} />

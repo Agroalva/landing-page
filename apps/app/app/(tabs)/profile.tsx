@@ -19,6 +19,7 @@ import { api } from "../../convex/_generated/api";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ConvexImage } from "@/components/ConvexImage";
 import { StarRating } from "@/components/StarRating";
+import { useUnregisterPushToken } from "@/hooks/use-notifications";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
     isAuthenticated ? {} : "skip"
   );
   const ensureProfile = useMutation(api.users.ensureProfile);
+  const unregisterPushToken = useUnregisterPushToken();
   const updateProfile = useMutation(api.users.updateProfile);
   const { pickImage, uploading: uploadingAvatar } = useFileUpload();
   
@@ -92,6 +94,7 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              await unregisterPushToken();
               await authClient.signOut();
               // La navegación se gestionará automáticamente por el estado de autenticación
             } catch (error) {
@@ -288,6 +291,17 @@ export default function ProfileScreen() {
             <View style={styles.menuItemLeft}>
               <Ionicons name="heart-outline" size={22} color="#2E7D32" />
               <Text style={styles.menuText}>Favoritos</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push("/saved-searches")}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="bookmark-outline" size={22} color="#2E7D32" />
+              <Text style={styles.menuText}>Búsquedas guardadas</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
           </TouchableOpacity>
